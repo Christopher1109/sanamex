@@ -11,17 +11,12 @@ export const useAuth = () => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Configurar el listener de cambios de autenticación PRIMERO
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (event, session) => {
+      (_event, session) => {
         setSession(session);
         setUser(session?.user ?? null);
-        
-        // Obtener el rol del usuario de forma diferida
         if (session?.user) {
-          setTimeout(() => {
-            fetchUserRole(session.user.id);
-          }, 0);
+          setTimeout(() => fetchUserRole(session.user.id), 0);
         } else {
           setUserRole(null);
           setLoading(false);
@@ -29,11 +24,9 @@ export const useAuth = () => {
       }
     );
 
-    // LUEGO verificar si hay una sesión existente
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       setUser(session?.user ?? null);
-      
       if (session?.user) {
         fetchUserRole(session.user.id);
       } else {
@@ -46,13 +39,11 @@ export const useAuth = () => {
 
   const fetchUserRole = async (userId: string) => {
     try {
-      // Obtener todos los roles del usuario y elegir el de mayor jerarquía
       const { data, error } = await supabase
         .from('user_roles')
         .select('role')
         .eq('user_id', userId);
 
-      // Obtener username del perfil (IMPORTANTE: obtener username, no solo nombre)
       const { data: profileData } = await supabase
         .from('profiles')
         .select('nombre, username')
@@ -60,39 +51,22 @@ export const useAuth = () => {
         .maybeSingle();
 
       if (profileData) {
-        // Usar el username para el HospitalContext
         setUsername((profileData as any).username || (profileData as any).nombre);
       }
 
       if (error) {
         console.error('Error fetching user role:', error);
-        setUserRole('auxiliar'); // Rol por defecto
+        setUserRole('cajero');
       } else if (data && data.length > 0) {
-        // Jerarquía de roles (mayor a menor) - incluir nuevos roles
-        const roleHierarchy: UserRole[] = [
-          'gerente_operaciones', 
-          'gerente_almacen', 
-          'cadena_suministros',
-          'finanzas',
-          'gerente', 
-          'supervisor', 
-          'lider', 
-          'almacenista', 
-          'auxiliar'
-        ];
-        
-        // Encontrar el rol con mayor jerarquía
-        const highestRole = roleHierarchy.find(role => 
-          data.some(r => r.role === role)
-        );
-        
-        setUserRole(highestRole || 'auxiliar');
+        const roleHierarchy: UserRole[] = ['admin', 'gerente', 'auditor', 'almacen', 'cajero', 'repartidor'];
+        const highestRole = roleHierarchy.find(role => data.some(r => r.role === role));
+        setUserRole(highestRole || 'cajero');
       } else {
-        setUserRole('auxiliar');
+        setUserRole('cajero');
       }
     } catch (error) {
       console.error('Error fetching user role:', error);
-      setUserRole('auxiliar');
+      setUserRole('cajero');
     } finally {
       setLoading(false);
     }
@@ -106,12 +80,5 @@ export const useAuth = () => {
     setUsername(null);
   };
 
-  return {
-    user,
-    session,
-    userRole,
-    username,
-    loading,
-    signOut,
-  };
+  return { user, session, userRole, username, loading, signOut };
 };

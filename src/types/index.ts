@@ -1,79 +1,100 @@
-export type UserRole = 
-  | 'auxiliar' 
-  | 'almacenista' 
-  | 'lider' 
-  | 'supervisor' 
-  | 'gerente'
-  | 'gerente_operaciones'
-  | 'gerente_almacen'
-  | 'cadena_suministros'
-  | 'finanzas';
+export type UserRole = 'admin' | 'gerente' | 'cajero' | 'almacen' | 'repartidor' | 'auditor';
 
-export interface Doctor {
+export interface Sucursal {
   id: string;
   nombre: string;
-  especialidad: 'anestesiologo' | 'cirujano';
-  unidad: string;
+  codigo: string;
+  direccion?: string;
+  telefono?: string;
+  activo: boolean;
 }
 
-export interface Insumo {
+export interface Almacen {
   id: string;
+  sucursal_id: string;
   nombre: string;
-  lote: string;
-  cantidad: number;
-  fechaCaducidad: string;
-  unidad: string;
-  origen: 'LOAD' | 'Prestado';
+  activo: boolean;
 }
 
-export interface PaqueteAnestesia {
+export interface Producto {
   id: string;
-  tipo: 'general_balanceada_adulto' 
-    | 'general_balanceada_pediatrica' 
-    | 'general_alta_especialidad' 
-    | 'general_endovenosa' 
-    | 'locorregional' 
-    | 'sedacion';
-  insumos: InsumoRequerido[];
-}
-
-export interface InsumoRequerido {
-  insumoId: string;
-  cantidad: number;
-}
-
-export interface Folio {
-  id: string;
-  numeroFolio: string;
-  fechaHora: string;
-  paciente: {
-    nombre: string;
-    edad: number;
-    genero: 'M' | 'F' | 'Otro';
-  };
-  cirugia: string;
-  tipoAnestesia: string;
-  cirujano: string;
-  anestesiologo: string;
-  insumosUtilizados: InsumoUtilizado[];
-  unidad: string;
-  estado: 'activo' | 'cancelado';
-  creadoPor: string;
-}
-
-export interface InsumoUtilizado {
-  insumoId: string;
+  sku: string;
   nombre: string;
-  lote: string;
+  descripcion?: string;
+  codigo_barras?: string;
+  requiere_lote: boolean;
+  categoria?: string;
+  unidad: string;
+  precio_base: number;
+  iva_incluido: boolean;
+  activo: boolean;
+}
+
+export interface Lote {
+  id: string;
+  producto_id: string;
+  numero_lote: string;
+  fecha_caducidad?: string;
+  proveedor_id?: string;
+  costo_unitario: number;
+}
+
+export interface Inventario {
+  id: string;
+  almacen_id: string;
+  lote_id: string;
   cantidad: number;
 }
 
-export interface Traspaso {
+export interface MovimientoInventario {
   id: string;
+  almacen_id: string;
+  lote_id: string;
+  tipo: string;
+  cantidad: number;
+  costo_unitario?: number;
+  referencia_tipo?: string;
+  referencia_id?: string;
+  motivo_id?: string;
+  usuario_id?: string;
+  sucursal_id?: string;
+  notas?: string;
+  created_at: string;
+}
+
+export interface Venta {
+  id: string;
+  sucursal_id: string;
+  cajero_id: string;
+  cliente_id?: string;
+  numero_venta: string;
   fecha: string;
-  unidadOrigen: string;
-  unidadDestino: string;
-  insumos: InsumoUtilizado[];
-  estado: 'pendiente' | 'completado' | 'rechazado';
-  creadoPor: string;
+  subtotal: number;
+  impuestos: number;
+  total: number;
+  estado: 'completada' | 'cancelada';
+  corte_id?: string;
+  notas?: string;
+}
+
+export interface VentaLinea {
+  id: string;
+  venta_id: string;
+  producto_id: string;
+  lote_id: string;
+  cantidad: number;
+  precio_unitario: number;
+  subtotal: number;
+}
+
+export interface CorteCaja {
+  id: string;
+  sucursal_id: string;
+  cajero_id: string;
+  fecha: string;
+  efectivo_esperado: number;
+  efectivo_recibido: number;
+  diferencia: number;
+  estado: 'abierto' | 'revision' | 'cerrado';
+  notas?: string;
 }
