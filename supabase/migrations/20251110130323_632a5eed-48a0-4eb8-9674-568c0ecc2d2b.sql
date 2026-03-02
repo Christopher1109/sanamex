@@ -1,0 +1,48 @@
+-- Crear tabla para almacenar procedimientos disponibles por hospital
+CREATE TABLE IF NOT EXISTS public.hospital_procedimientos (
+  id UUID NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
+  hospital_id UUID NOT NULL REFERENCES public.hospitales(id) ON DELETE CASCADE,
+  clave_procedimiento TEXT NOT NULL,
+  nombre_procedimiento TEXT NOT NULL,
+  precio_unitario NUMERIC(10, 2),
+  maximo_acumulado INTEGER,
+  created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
+  UNIQUE(hospital_id, clave_procedimiento)
+);
+
+-- Enable RLS
+ALTER TABLE public.hospital_procedimientos ENABLE ROW LEVEL SECURITY;
+
+-- RLS: Usuarios pueden ver procedimientos de hospitales en su alcance
+CREATE POLICY "Usuarios pueden ver procedimientos según su alcance"
+ON public.hospital_procedimientos
+FOR SELECT
+USING (
+  user_has_hospital_access(auth.uid(), hospital_id)
+);
+
+-- Insertar Empresa IMSS
+INSERT INTO public.empresas (id, codigo, nombre) 
+VALUES 
+  ('11111111-1111-1111-1111-111111111111', 'IMSS', 'Instituto Mexicano del Seguro Social')
+ON CONFLICT (id) DO NOTHING;
+
+-- Insertar Estados con sus OOAD
+INSERT INTO public.estados (id, empresa_id, codigo, nombre) VALUES
+  ('02000000-0000-0000-0000-000000000001', '11111111-1111-1111-1111-111111111111', '02', 'Baja California'),
+  ('03000000-0000-0000-0000-000000000001', '11111111-1111-1111-1111-111111111111', '03', 'Baja California Sur'),
+  ('05000000-0000-0000-0000-000000000001', '11111111-1111-1111-1111-111111111111', '05', 'Coahuila'),
+  ('08000000-0000-0000-0000-000000000001', '11111111-1111-1111-1111-111111111111', '08', 'Chihuahua'),
+  ('14000000-0000-0000-0000-000000000001', '11111111-1111-1111-1111-111111111111', '14', 'Jalisco'),
+  ('19000000-0000-0000-0000-000000000001', '11111111-1111-1111-1111-111111111111', '19', 'Nayarit'),
+  ('20000000-0000-0000-0000-000000000001', '11111111-1111-1111-1111-111111111111', '20', 'Nuevo León'),
+  ('22000000-0000-0000-0000-000000000001', '11111111-1111-1111-1111-111111111111', '22', 'Puebla'),
+  ('26000000-0000-0000-0000-000000000001', '11111111-1111-1111-1111-111111111111', '26', 'Sinaloa'),
+  ('27000000-0000-0000-0000-000000000001', '11111111-1111-1111-1111-111111111111', '27', 'Sonora'),
+  ('31000000-0000-0000-0000-000000000001', '11111111-1111-1111-1111-111111111111', '31', 'Veracruz Norte'),
+  ('32000000-0000-0000-0000-000000000001', '11111111-1111-1111-1111-111111111111', '32', 'Veracruz Sur'),
+  ('39000000-0000-0000-0000-000000000001', '11111111-1111-1111-1111-111111111111', '39', 'D.F. Norte'),
+  ('40000000-0000-0000-0000-000000000001', '11111111-1111-1111-1111-111111111111', '40', 'D.F. Sur'),
+  ('50000000-0000-0000-0000-000000000001', '11111111-1111-1111-1111-111111111111', '4O', 'UMAE HT Magdalena Salinas'),
+  ('51000000-0000-0000-0000-000000000001', '11111111-1111-1111-1111-111111111111', '4Q', 'UMAE HTO CMN Puebla')
+ON CONFLICT (codigo, empresa_id) DO NOTHING;
