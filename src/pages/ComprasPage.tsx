@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useSucursal } from '@/contexts/SucursalContext';
 import { Card, CardContent } from '@/components/ui/card';
@@ -10,13 +10,12 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
-import { Plus, Eye, PackageCheck, Truck as TruckIcon, CreditCard, ChevronRight } from 'lucide-react';
+import { Plus, Eye, PackageCheck, CreditCard, ChevronRight, Upload, ImageIcon } from 'lucide-react';
 import { toast } from 'sonner';
 
-const estadoConfig: Record<string, { color: string; label: string; next?: string; nextLabel?: string; nextIcon?: any }> = {
-  ordenada: { color: 'secondary', label: 'Ordenada', next: 'en_transito', nextLabel: 'Marcar En Tránsito', nextIcon: TruckIcon },
-  en_transito: { color: 'default', label: 'En Tránsito', next: 'recibida', nextLabel: 'Recibir Mercancía', nextIcon: PackageCheck },
-  recibida: { color: 'outline', label: 'Recibida', next: 'pagada', nextLabel: 'Marcar como Pagada', nextIcon: CreditCard },
+const estadoConfig: Record<string, { color: string; label: string }> = {
+  en_transito: { color: 'default', label: 'En Tránsito' },
+  recibida: { color: 'outline', label: 'Recibida' },
   pagada: { color: 'default', label: 'Pagada' },
   cancelada: { color: 'destructive', label: 'Cancelada' },
 };
@@ -29,6 +28,10 @@ const ComprasPage = () => {
   const [showRecepcion, setShowRecepcion] = useState<any>(null);
   const [showDetail, setShowDetail] = useState<any>(null);
   const [lineasDetail, setLineasDetail] = useState<any[]>([]);
+  const [showPago, setShowPago] = useState<any>(null);
+  const [pagoFile, setPagoFile] = useState<File | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [proveedores, setProveedores] = useState<any[]>([]);
   const [productosDisp, setProductosDisp] = useState<any[]>([]);
@@ -87,6 +90,7 @@ const ComprasPage = () => {
       numero_compra: numCompra, proveedor_id: form.proveedor_id,
       sucursal_id: selectedSucursal!.id, almacen_id: alm?.[0]?.id || null,
       subtotal, total: subtotal, notas: form.notas || null, creado_por: user?.id,
+      estado: 'en_transito',
     }).select().single();
 
     if (error) { toast.error('Error al crear compra'); console.error(error); return; }
@@ -96,14 +100,8 @@ const ComprasPage = () => {
       cantidad_ordenada: l.cantidad, precio_unitario_estimado: l.precio_est,
     }));
     await supabase.from('compra_lineas').insert(lineasInsert);
-    toast.success(`Orden ${numCompra} creada`);
+    toast.success(`Orden ${numCompra} creada — En Tránsito`);
     setShowCreate(false);
-    load();
-  };
-
-  const cambiarEstado = async (id: string, estado: string) => {
-    await supabase.from('compras').update({ estado }).eq('id', id);
-    toast.success(`Compra marcada como: ${estadoConfig[estado]?.label || estado}`);
     load();
   };
 
@@ -174,6 +172,43 @@ const ComprasPage = () => {
     load();
   };
 
+  const openPago = (compra: any) => {
+    setShowPago(compra);
+    setPagoFile(null);
+  };
+
+  const processPago = async () => {
+    if (!showPago) return;
+    setUploading(true);
+    let comprobanteUrl: string | null = null;
+
+    if (pagoFile) {
+      const ext = pagoFile.name.split('.').pop();
+      const filePath = `${showPago.id}/comprobante_${Date.now()}.${ext}`;
+      const { error: uploadError } = await supabase.storage
+        .from('comprobantes-pago')
+        .upload(filePath, pagoFile);
+      if (uploadError) {
+        toast.error('Error subiendo comprobante');
+        console.error(uploadError);
+        setUploading(false);
+        return;
+      }
+      const { data: urlData } = supabase.storage.from('comprobantes-pago').getPublicUrl(filePath);
+      comprobanteUrl = urlData.publicUrl;
+    }
+
+    await supabase.from('compras').update({
+      estado: 'pagada',
+      comprobante_pago_url: comprobanteUrl,
+    }).eq('id', showPago.id);
+
+    toast.success('Compra marcada como pagada');
+    setShowPago(null);
+    setUploading(false);
+    load();
+  };
+
   const viewDetail = async (compra: any) => {
     setShowDetail(compra);
     const { data } = await supabase.from('compra_lineas')
@@ -181,8 +216,7 @@ const ComprasPage = () => {
     setLineasDetail(data || []);
   };
 
-  // Flow visualization
-  const flowSteps = ['ordenada', 'en_transito', 'recibida', 'pagada'];
+  const flowSteps = ['en_transito', 'recibida', 'pagada'];
 
   return (
     <div className="space-y-6">
@@ -214,10 +248,9 @@ const ComprasPage = () => {
         </CardContent>
       </Card>
 
-      <div className="grid grid-cols-4 gap-4">
-        <Card><CardContent className="p-4"><p className="text-sm text-muted-foreground">Total OC</p><p className="text-2xl font-bold">{compras.length}</p></CardContent></Card>
-        <Card><CardContent className="p-4"><p className="text-sm text-muted-foreground">Pendientes de Pago</p><p className="text-2xl font-bold text-warning">{compras.filter(c => c.estado === 'recibida').length}</p></CardContent></Card>
-        <Card><CardContent className="p-4"><p className="text-sm text-muted-foreground">Monto en Tránsito</p><p className="text-2xl font-bold text-primary">${compras.filter(c => c.estado === 'en_transito').reduce((s, c) => s + Number(c.total), 0).toLocaleString('es-MX', { minimumFractionDigits: 2 })}</p></CardContent></Card>
+      <div className="grid grid-cols-3 gap-4">
+        <Card><CardContent className="p-4"><p className="text-sm text-muted-foreground">En Tránsito</p><p className="text-2xl font-bold text-primary">{compras.filter(c => c.estado === 'en_transito').length}</p><p className="text-xs text-muted-foreground">${compras.filter(c => c.estado === 'en_transito').reduce((s, c) => s + Number(c.total), 0).toLocaleString('es-MX', { minimumFractionDigits: 2 })}</p></CardContent></Card>
+        <Card><CardContent className="p-4"><p className="text-sm text-muted-foreground">Pendientes de Pago</p><p className="text-2xl font-bold">{compras.filter(c => c.estado === 'recibida').length}</p></CardContent></Card>
         <Card><CardContent className="p-4"><p className="text-sm text-muted-foreground">Total Pagado</p><p className="text-2xl font-bold">${compras.filter(c => c.estado === 'pagada').reduce((s, c) => s + Number(c.total), 0).toLocaleString('es-MX', { minimumFractionDigits: 2 })}</p></CardContent></Card>
       </div>
 
@@ -232,7 +265,7 @@ const ComprasPage = () => {
               {loading ? <TableRow><TableCell colSpan={6} className="text-center py-8">Cargando...</TableCell></TableRow> :
                compras.length === 0 ? <TableRow><TableCell colSpan={6} className="text-center py-8 text-muted-foreground">Sin compras</TableCell></TableRow> :
                compras.map(c => {
-                const cfg = estadoConfig[c.estado] || estadoConfig.ordenada;
+                const cfg = estadoConfig[c.estado] || { color: 'secondary', label: c.estado };
                 return (
                 <TableRow key={c.id}>
                   <TableCell className="font-mono font-bold">{c.numero_compra}</TableCell>
@@ -245,11 +278,8 @@ const ComprasPage = () => {
                     {c.estado === 'en_transito' && (
                       <Button size="sm" onClick={() => openRecepcion(c)}><PackageCheck className="h-4 w-4 mr-1" />Recibir</Button>
                     )}
-                    {cfg.next && c.estado !== 'en_transito' && (
-                      <Button size="sm" variant={c.estado === 'recibida' ? 'default' : 'outline'} onClick={() => cambiarEstado(c.id, cfg.next!)}>
-                        {cfg.nextIcon && <cfg.nextIcon className="h-4 w-4 mr-1" />}
-                        {cfg.nextLabel}
-                      </Button>
+                    {c.estado === 'recibida' && (
+                      <Button size="sm" onClick={() => openPago(c)}><CreditCard className="h-4 w-4 mr-1" />Marcar Pagada</Button>
                     )}
                   </TableCell>
                 </TableRow>
@@ -342,6 +372,48 @@ const ComprasPage = () => {
         </DialogContent>
       </Dialog>
 
+      {/* Pago Dialog with image upload */}
+      <Dialog open={!!showPago} onOpenChange={() => setShowPago(null)}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Marcar como Pagada — {showPago?.numero_compra}</DialogTitle></DialogHeader>
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground">Total: <strong>${Number(showPago?.total || 0).toFixed(2)}</strong></p>
+            <div>
+              <Label>Comprobante de Pago (opcional)</Label>
+              <div
+                className="mt-2 border-2 border-dashed rounded-lg p-6 text-center cursor-pointer hover:border-primary/50 transition-colors"
+                onClick={() => fileInputRef.current?.click()}
+              >
+                {pagoFile ? (
+                  <div className="flex items-center justify-center gap-2">
+                    <ImageIcon className="h-5 w-5 text-primary" />
+                    <span className="text-sm font-medium">{pagoFile.name}</span>
+                  </div>
+                ) : (
+                  <div>
+                    <Upload className="h-8 w-8 mx-auto text-muted-foreground mb-2" />
+                    <p className="text-sm text-muted-foreground">Haz clic para subir imagen o PDF del comprobante</p>
+                  </div>
+                )}
+              </div>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*,.pdf"
+                className="hidden"
+                onChange={e => setPagoFile(e.target.files?.[0] || null)}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowPago(null)}>Cancelar</Button>
+            <Button onClick={processPago} disabled={uploading}>
+              {uploading ? 'Subiendo...' : <><CreditCard className="h-4 w-4 mr-1" />Confirmar Pago</>}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Detail Dialog */}
       <Dialog open={!!showDetail} onOpenChange={() => setShowDetail(null)}>
         <DialogContent className="max-w-2xl">
@@ -351,6 +423,12 @@ const ComprasPage = () => {
             <p><strong>Estado:</strong> <Badge variant={(estadoConfig[showDetail?.estado]?.color || 'secondary') as any}>{estadoConfig[showDetail?.estado]?.label || showDetail?.estado}</Badge></p>
             <p><strong>Total:</strong> ${Number(showDetail?.total || 0).toFixed(2)}</p>
             <p><strong>Fecha:</strong> {showDetail?.created_at ? new Date(showDetail.created_at).toLocaleDateString('es-MX') : '—'}</p>
+            {showDetail?.comprobante_pago_url && (
+              <div>
+                <strong>Comprobante:</strong>{' '}
+                <a href={showDetail.comprobante_pago_url} target="_blank" rel="noopener noreferrer" className="text-primary underline">Ver comprobante</a>
+              </div>
+            )}
           </div>
           <Table>
             <TableHeader><TableRow><TableHead>Producto</TableHead><TableHead className="text-right">Ordenados</TableHead><TableHead className="text-right">Recibidos</TableHead><TableHead className="text-right">Merma</TableHead><TableHead>Lote</TableHead><TableHead className="text-right">Costo Real</TableHead></TableRow></TableHeader>
