@@ -1,43 +1,34 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { useSucursal } from '@/contexts/SucursalContext';
+import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Search, AlertTriangle, Warehouse } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Search, AlertTriangle, Warehouse, Bell } from 'lucide-react';
 import { toast } from 'sonner';
 
 const InventarioPage = () => {
-  const [sucursales, setSucursales] = useState<any[]>([]);
-  const [selectedSucId, setSelectedSucId] = useState<string>('all');
+  const { selectedSucursal } = useSucursal();
   const [inventario, setInventario] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchProducto, setSearchProducto] = useState('');
   const [searchLote, setSearchLote] = useState('');
 
-  useEffect(() => { loadSucursales(); }, []);
-  useEffect(() => { loadInventario(); }, [selectedSucId]);
-
-  const loadSucursales = async () => {
-    const { data } = await supabase.from('sucursales').select('id, nombre, codigo').eq('activo', true);
-    setSucursales(data || []);
-  };
+  useEffect(() => { if (selectedSucursal) loadInventario(); }, [selectedSucursal]);
 
   const loadInventario = async () => {
+    if (!selectedSucursal) return;
     setLoading(true);
-    // Get almacenes
-    let almQuery = supabase.from('almacenes').select('id, nombre, sucursal_id, sucursales(nombre, codigo)');
-    if (selectedSucId !== 'all') almQuery = almQuery.eq('sucursal_id', selectedSucId);
-    const { data: almacenes } = await almQuery;
-
+    // Get almacén for selected sucursal
+    const { data: almacenes } = await supabase.from('almacenes').select('id').eq('sucursal_id', selectedSucursal.id);
     if (!almacenes || almacenes.length === 0) { setInventario([]); setLoading(false); return; }
 
     const almacenIds = almacenes.map(a => a.id);
     const { data, error } = await supabase
       .from('inventario')
-      .select('*, lotes(*, productos(*)), almacenes(nombre, sucursales(nombre, codigo))')
+      .select('*, lotes(*, productos(nombre, sku, stock_minimo, categoria)), almacenes(nombre)')
       .in('almacen_id', almacenIds)
       .order('created_at', { ascending: false });
 
@@ -61,73 +52,33 @@ const InventarioPage = () => {
     return diff > 0 && diff <= 90;
   };
 
-  // Group by sucursal for consolidated view
-  const groupedBySucursal = filtered.reduce((acc, inv) => {
-    const sucName = (inv as any).almacenes?.sucursales?.nombre || 'Sin sucursal';
-    if (!acc[sucName]) acc[sucName] = [];
-    acc[sucName].push(inv);
+  interface StockAgg { nombre: string; sku: string; total: number; minimo: number }
+  // Aggregate stock by product for minimum alerts
+  const stockByProduct = filtered.reduce((acc, inv) => {
+    const prod = (inv as any).lotes?.productos;
+    if (!prod) return acc;
+    const key = prod.sku as string;
+    if (!acc[key]) acc[key] = { nombre: prod.nombre, sku: prod.sku, total: 0, minimo: prod.stock_minimo || 10 };
+    acc[key].total += inv.cantidad;
     return acc;
-  }, {} as Record<string, any[]>);
+  }, {} as Record<string, StockAgg>);
+
+  const lowStockProducts = (Object.values(stockByProduct) as StockAgg[]).filter(p => p.total <= p.minimo);
 
   const totalUnidades = filtered.reduce((sum, inv) => sum + inv.cantidad, 0);
   const vencidos = filtered.filter(inv => isExpired(inv.lotes?.fecha_caducidad)).length;
   const proximos = filtered.filter(inv => isNearExpiry(inv.lotes?.fecha_caducidad)).length;
 
-  const renderTable = (items: any[], showSucursal = false) => (
-    <Table>
-      <TableHeader>
-        <TableRow>
-          <TableHead>SKU</TableHead>
-          <TableHead>Producto</TableHead>
-          <TableHead>Lote</TableHead>
-          <TableHead>Caducidad</TableHead>
-          {showSucursal && <TableHead>Sucursal</TableHead>}
-          <TableHead>Almacén</TableHead>
-          <TableHead className="text-right">Cantidad</TableHead>
-          <TableHead>Estado</TableHead>
-        </TableRow>
-      </TableHeader>
-      <TableBody>
-        {items.length === 0 ? (
-          <TableRow><TableCell colSpan={showSucursal ? 8 : 7} className="text-center text-muted-foreground py-8">Sin inventario</TableCell></TableRow>
-        ) : items.map((inv: any) => {
-          const prod = inv.lotes?.productos;
-          const lote = inv.lotes;
-          const expired = isExpired(lote?.fecha_caducidad);
-          const nearExpiry = isNearExpiry(lote?.fecha_caducidad);
-          return (
-            <TableRow key={inv.id} className={expired ? 'bg-destructive/5' : nearExpiry ? 'bg-warning/5' : ''}>
-              <TableCell className="font-mono text-xs">{prod?.sku}</TableCell>
-              <TableCell className="font-medium">{prod?.nombre}</TableCell>
-              <TableCell>{lote?.numero_lote}</TableCell>
-              <TableCell>
-                <div className="flex items-center gap-1">
-                  {lote?.fecha_caducidad || '—'}
-                  {expired && <AlertTriangle className="h-3 w-3 text-destructive" />}
-                  {nearExpiry && <AlertTriangle className="h-3 w-3 text-warning" />}
-                </div>
-              </TableCell>
-              {showSucursal && <TableCell>{(inv.almacenes as any)?.sucursales?.nombre}</TableCell>}
-              <TableCell>{(inv.almacenes as any)?.nombre}</TableCell>
-              <TableCell className="text-right font-bold">{inv.cantidad}</TableCell>
-              <TableCell>
-                {expired ? <Badge variant="destructive">Vencido</Badge> :
-                 nearExpiry ? <Badge className="bg-warning text-warning-foreground">Próximo</Badge> :
-                 inv.cantidad === 0 ? <Badge variant="secondary">Agotado</Badge> :
-                 <Badge variant="default">OK</Badge>}
-              </TableCell>
-            </TableRow>
-          );
-        })}
-      </TableBody>
-    </Table>
-  );
+  const solicitarReabastecimiento = async (producto: { nombre: string; sku: string; total: number; minimo: number }) => {
+    // In a real app, this would create a notification/request to CDMX central
+    toast.success(`Solicitud enviada a CDMX: ${producto.nombre} — Stock actual: ${producto.total}, Mínimo: ${producto.minimo}`);
+  };
 
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold">Inventario por Lote</h1>
-        <p className="text-muted-foreground">Vista global de inventario por sucursal</p>
+        <p className="text-muted-foreground">{selectedSucursal?.nombre || 'Seleccione sucursal'}</p>
       </div>
 
       {/* KPIs */}
@@ -135,23 +86,40 @@ const InventarioPage = () => {
         <Card><CardContent className="p-4"><p className="text-sm text-muted-foreground">Total Registros</p><p className="text-2xl font-bold">{filtered.length}</p></CardContent></Card>
         <Card><CardContent className="p-4"><p className="text-sm text-muted-foreground">Total Unidades</p><p className="text-2xl font-bold">{totalUnidades.toLocaleString()}</p></CardContent></Card>
         <Card><CardContent className="p-4"><p className="text-sm text-muted-foreground">Vencidos</p><p className="text-2xl font-bold text-destructive">{vencidos}</p></CardContent></Card>
-        <Card><CardContent className="p-4"><p className="text-sm text-muted-foreground">Próx. a Vencer</p><p className="text-2xl font-bold text-warning">{proximos}</p></CardContent></Card>
+        <Card><CardContent className="p-4"><p className="text-sm text-muted-foreground">Bajo Mínimo</p><p className="text-2xl font-bold text-warning">{lowStockProducts.length}</p></CardContent></Card>
       </div>
 
-      {/* Filters */}
+      {/* Low stock alerts */}
+      {lowStockProducts.length > 0 && (
+        <Card className="border-warning/50 bg-warning/5">
+          <CardHeader>
+            <div className="flex items-center gap-2 text-warning">
+              <Bell className="h-5 w-5" />
+              <h3 className="font-semibold">Productos por debajo del mínimo</h3>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2">
+              {lowStockProducts.map(p => (
+                <div key={p.sku} className="flex items-center justify-between rounded-lg border p-3">
+                  <div>
+                    <p className="font-medium">{p.nombre}</p>
+                    <p className="text-xs text-muted-foreground">{p.sku} — Stock: <span className="font-bold text-destructive">{p.total}</span> / Mínimo: {p.minimo}</p>
+                  </div>
+                  <Button size="sm" variant="outline" onClick={() => solicitarReabastecimiento(p)}>
+                    <Bell className="h-3 w-3 mr-1" /> Solicitar a CDMX
+                  </Button>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Filters + Table */}
       <Card>
         <CardHeader>
           <div className="flex flex-wrap items-center gap-3">
-            <div className="flex items-center gap-2">
-              <Warehouse className="h-4 w-4 text-muted-foreground" />
-              <Select value={selectedSucId} onValueChange={setSelectedSucId}>
-                <SelectTrigger className="w-[200px]"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todas las sucursales</SelectItem>
-                  {sucursales.map(s => <SelectItem key={s.id} value={s.id}>{s.nombre}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
             <div className="flex items-center gap-2">
               <Search className="h-4 w-4 text-muted-foreground" />
               <Input placeholder="Buscar producto..." value={searchProducto} onChange={e => setSearchProducto(e.target.value)} className="w-[200px]" />
@@ -162,22 +130,52 @@ const InventarioPage = () => {
         <CardContent>
           {loading ? (
             <p className="text-center text-muted-foreground py-8">Cargando...</p>
-          ) : selectedSucId === 'all' ? (
-            // Consolidated view grouped by sucursal
-            <div className="space-y-6">
-              {Object.entries(groupedBySucursal).map(([sucName, items]: [string, any[]]) => (
-                <div key={sucName}>
-                  <h3 className="text-lg font-semibold mb-2 flex items-center gap-2">
-                    <Warehouse className="h-4 w-4" /> {sucName}
-                    <Badge variant="outline">{items.length} registros — {items.reduce((s: number, i: any) => s + i.cantidad, 0)} uds</Badge>
-                  </h3>
-                  {renderTable(items, false)}
-                </div>
-              ))}
-              {Object.keys(groupedBySucursal).length === 0 && <p className="text-center text-muted-foreground py-8">Sin inventario</p>}
-            </div>
           ) : (
-            renderTable(filtered, false)
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>SKU</TableHead>
+                  <TableHead>Producto</TableHead>
+                  <TableHead>Lote</TableHead>
+                  <TableHead>Caducidad</TableHead>
+                  <TableHead>Almacén</TableHead>
+                  <TableHead className="text-right">Cantidad</TableHead>
+                  <TableHead>Estado</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filtered.length === 0 ? (
+                  <TableRow><TableCell colSpan={7} className="text-center text-muted-foreground py-8">Sin inventario en esta sucursal</TableCell></TableRow>
+                ) : filtered.map((inv: any) => {
+                  const prod = inv.lotes?.productos;
+                  const lote = inv.lotes;
+                  const expired = isExpired(lote?.fecha_caducidad);
+                  const nearExpiry = isNearExpiry(lote?.fecha_caducidad);
+                  return (
+                    <TableRow key={inv.id} className={expired ? 'bg-destructive/5' : nearExpiry ? 'bg-warning/5' : ''}>
+                      <TableCell className="font-mono text-xs">{prod?.sku}</TableCell>
+                      <TableCell className="font-medium">{prod?.nombre}</TableCell>
+                      <TableCell>{lote?.numero_lote}</TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-1">
+                          {lote?.fecha_caducidad || '—'}
+                          {expired && <AlertTriangle className="h-3 w-3 text-destructive" />}
+                          {nearExpiry && <AlertTriangle className="h-3 w-3 text-warning" />}
+                        </div>
+                      </TableCell>
+                      <TableCell>{(inv.almacenes as any)?.nombre}</TableCell>
+                      <TableCell className="text-right font-bold">{inv.cantidad}</TableCell>
+                      <TableCell>
+                        {expired ? <Badge variant="destructive">Vencido</Badge> :
+                         nearExpiry ? <Badge className="bg-warning text-warning-foreground">Próximo</Badge> :
+                         inv.cantidad === 0 ? <Badge variant="secondary">Agotado</Badge> :
+                         <Badge variant="default">OK</Badge>}
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
           )}
         </CardContent>
       </Card>
