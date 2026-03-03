@@ -25,6 +25,7 @@ type LoginFormValues = z.infer<typeof loginSchema>;
 
 const Auth = () => {
   const [isLoading, setIsLoading] = useState(false);
+  const [isSettingUp, setIsSettingUp] = useState(false);
   const navigate = useNavigate();
 
   const loginForm = useForm<LoginFormValues>({
@@ -33,41 +34,42 @@ const Auth = () => {
 
   const handleLogin = async (data: LoginFormValues) => {
     setIsLoading(true);
-    
     try {
-      // Convert username to email format for Supabase auth
       const email = `${data.username.toLowerCase()}@sistema.local`;
-      
       const { error } = await supabase.auth.signInWithPassword({
-        email: email,
+        email,
         password: data.password,
       });
 
       if (error) {
         if (error.message.includes('Invalid login credentials')) {
-          toast.error('Credenciales inválidas', {
-            description: 'Verifica tu usuario y contraseña',
-          });
-        } else if (error.message.includes('Email not confirmed')) {
-          toast.error('Usuario no confirmado', {
-            description: 'Contacta al administrador',
-          });
+          toast.error('Credenciales inválidas', { description: 'Verifica tu usuario y contraseña' });
         } else {
-          toast.error('Error al iniciar sesión', {
-            description: error.message,
-          });
+          toast.error('Error al iniciar sesión', { description: error.message });
         }
         return;
       }
 
       toast.success('¡Bienvenido!');
       navigate('/dashboard');
-    } catch (error) {
-      toast.error('Error inesperado', {
-        description: 'Por favor intenta nuevamente',
-      });
+    } catch {
+      toast.error('Error inesperado');
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleSetup = async () => {
+    setIsSettingUp(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('setup-initial-admin');
+      if (error) throw error;
+      toast.success('Usuarios creados exitosamente', { description: 'Ya puedes iniciar sesión' });
+      console.log('Setup results:', data);
+    } catch (err: any) {
+      toast.error('Error al crear usuarios', { description: err.message });
+    } finally {
+      setIsSettingUp(false);
     }
   };
 
@@ -76,9 +78,9 @@ const Auth = () => {
       <div className="w-full max-w-md space-y-4">
         <Card>
           <CardHeader className="text-center">
-            <CardTitle className="text-2xl font-bold">Sistema de Gestión de Anestesia</CardTitle>
+            <CardTitle className="text-2xl font-bold">MedDistributor</CardTitle>
             <CardDescription>
-              Ingresa tu usuario y contraseña
+              ERP para Distribuidora de Medicamentos
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -88,14 +90,12 @@ const Auth = () => {
                 <Input
                   id="login-username"
                   type="text"
-                  placeholder="Ej: auxiliar01, lider05, operaciones01"
+                  placeholder="Ej: admin, gerente01, cajero01"
                   autoComplete="username"
                   {...loginForm.register('username')}
                 />
                 {loginForm.formState.errors.username && (
-                  <p className="text-sm text-destructive">
-                    {loginForm.formState.errors.username.message}
-                  </p>
+                  <p className="text-sm text-destructive">{loginForm.formState.errors.username.message}</p>
                 )}
               </div>
 
@@ -109,9 +109,7 @@ const Auth = () => {
                   {...loginForm.register('password')}
                 />
                 {loginForm.formState.errors.password && (
-                  <p className="text-sm text-destructive">
-                    {loginForm.formState.errors.password.message}
-                  </p>
+                  <p className="text-sm text-destructive">{loginForm.formState.errors.password.message}</p>
                 )}
               </div>
 
@@ -121,18 +119,26 @@ const Auth = () => {
             </form>
 
             <div className="mt-6 p-4 bg-muted rounded-lg">
-              <p className="text-sm font-medium mb-2">Usuarios de ejemplo:</p>
+              <p className="text-sm font-medium mb-2">Usuarios del sistema:</p>
               <ul className="text-xs text-muted-foreground space-y-1">
-                <li><code className="bg-background px-1 rounded">auxiliar01</code> - Auxiliar Hospital 1</li>
-                <li><code className="bg-background px-1 rounded">lider01</code> - Líder Hospital 1</li>
-                <li><code className="bg-background px-1 rounded">almacenista01</code> - Almacenista Hospital 1</li>
-                <li><code className="bg-background px-1 rounded">supervisor01</code> - Supervisor Zona 1</li>
-                <li><code className="bg-background px-1 rounded">operaciones01</code> - Gerente Operaciones</li>
-                <li><code className="bg-background px-1 rounded">almacen_gral01</code> - Gerente Almacén</li>
-                <li><code className="bg-background px-1 rounded">suministros01</code> - Cadena Suministros</li>
-                <li><code className="bg-background px-1 rounded">finanzas</code> - Finanzas</li>
+                <li><code className="bg-background px-1 rounded">admin</code> — Administrador General</li>
+                <li><code className="bg-background px-1 rounded">gerente01</code> — Gerente Sucursal</li>
+                <li><code className="bg-background px-1 rounded">cajero01</code> — Cajero</li>
+                <li><code className="bg-background px-1 rounded">almacen01</code> — Almacenista</li>
+                <li><code className="bg-background px-1 rounded">repartidor01</code> — Repartidor</li>
+                <li><code className="bg-background px-1 rounded">auditor01</code> — Auditor</li>
               </ul>
-              <p className="text-xs text-muted-foreground mt-2">Contraseña: <code className="bg-background px-1 rounded">Imss2024!</code></p>
+              <p className="text-xs text-muted-foreground mt-2">Contraseña: <code className="bg-background px-1 rounded">[Rol]2024!</code> (ej: Admin2024!)</p>
+              
+              <Button 
+                variant="outline" 
+                size="sm" 
+                className="w-full mt-3" 
+                onClick={handleSetup}
+                disabled={isSettingUp}
+              >
+                {isSettingUp ? 'Creando usuarios...' : '⚡ Crear usuarios iniciales'}
+              </Button>
             </div>
           </CardContent>
         </Card>
