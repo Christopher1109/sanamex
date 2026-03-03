@@ -12,7 +12,17 @@ import InventarioPage from './pages/InventarioPage';
 import POS from './pages/POS';
 import Kardex from './pages/Kardex';
 import CortesCaja from './pages/CortesCaja';
-import StubPage from './pages/StubPage';
+import ProveedoresPage from './pages/ProveedoresPage';
+import ClientesPage from './pages/ClientesPage';
+import TraspasosPage from './pages/TraspasosPage';
+import AjustesMermasPage from './pages/AjustesMermasPage';
+import VentasHistorial from './pages/VentasHistorial';
+import RutasPage from './pages/RutasPage';
+import BolsasValoresPage from './pages/BolsasValoresPage';
+import ConciliacionPage from './pages/ConciliacionPage';
+import ReportesPage from './pages/ReportesPage';
+import UsuariosPage from './pages/UsuariosPage';
+import AuditoriaPage from './pages/AuditoriaPage';
 import Sidebar from './components/layout/Sidebar';
 import Header from './components/layout/Header';
 
@@ -51,22 +61,22 @@ const AppContent = () => {
               <Route path="/" element={<Navigate to="/dashboard" replace />} />
               <Route path="/dashboard" element={<Dashboard userRole={userRole} />} />
               <Route path="/productos" element={<Productos />} />
-              <Route path="/proveedores" element={<StubPage title="Proveedores" description="Gestión de proveedores" />} />
-              <Route path="/clientes" element={<StubPage title="Clientes" description="Gestión de clientes" />} />
+              <Route path="/proveedores" element={<ProveedoresPage />} />
+              <Route path="/clientes" element={<ClientesPage />} />
               <Route path="/inventario" element={<InventarioPage />} />
               <Route path="/kardex" element={<Kardex />} />
-              <Route path="/traspasos" element={<StubPage title="Traspasos" description="Traspasos entre sucursales" />} />
-              <Route path="/ajustes" element={<StubPage title="Ajustes / Mermas" description="Ajustes de inventario y mermas" />} />
+              <Route path="/traspasos" element={<TraspasosPage />} />
+              <Route path="/ajustes" element={<AjustesMermasPage />} />
               <Route path="/pos" element={<POS />} />
-              <Route path="/ventas" element={<StubPage title="Historial de Ventas" description="Consulta de ventas realizadas" />} />
-              <Route path="/rutas" element={<StubPage title="Rutas" description="Gestión de rutas de entrega" />} />
+              <Route path="/ventas" element={<VentasHistorial />} />
+              <Route path="/rutas" element={<RutasPage />} />
               <Route path="/cortes" element={<CortesCaja />} />
-              <Route path="/bolsas-valores" element={<StubPage title="Bolsas de Valores" description="Recolección de efectivo" />} />
-              <Route path="/conciliacion" element={<StubPage title="Conciliación Bancaria" description="Conciliación de estados de cuenta" />} />
-              <Route path="/reportes" element={<StubPage title="Reportes" description="Reportes operativos" />} />
-              <Route path="/usuarios" element={<StubPage title="Usuarios" description="Gestión de usuarios y roles" />} />
-              <Route path="/auditoria" element={<StubPage title="Auditoría" description="Log de auditoría del sistema" />} />
-              <Route path="/registro-actividad" element={<StubPage title="Registro de Actividad" description="Historial de actividades" />} />
+              <Route path="/bolsas-valores" element={<BolsasValoresPage />} />
+              <Route path="/conciliacion" element={<ConciliacionPage />} />
+              <Route path="/reportes" element={<ReportesPage />} />
+              <Route path="/usuarios" element={<UsuariosPage />} />
+              <Route path="/auditoria" element={<AuditoriaPage />} />
+              <Route path="/registro-actividad" element={<AuditoriaPage />} />
               <Route path="/auth" element={<Navigate to="/dashboard" replace />} />
               <Route path="*" element={<Navigate to="/dashboard" replace />} />
             </Routes>
