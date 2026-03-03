@@ -14,7 +14,10 @@ import ProveedoresPage from './pages/ProveedoresPage';
 import ClientesPage from './pages/ClientesPage';
 import TraspasosPage from './pages/TraspasosPage';
 import AjustesMermasPage from './pages/AjustesMermasPage';
+import MermasPage from './pages/MermasPage';
 import RutasPage from './pages/RutasPage';
+import PedidosPage from './pages/PedidosPage';
+import ComprasPage from './pages/ComprasPage';
 import ReportesPage from './pages/ReportesPage';
 import MargenesPage from './pages/MargenesPage';
 import UsuariosPage from './pages/UsuariosPage';
@@ -63,6 +66,9 @@ const AppContent = () => {
               <Route path="/kardex" element={<Kardex />} />
               <Route path="/traspasos" element={<TraspasosPage />} />
               <Route path="/ajustes" element={<AjustesMermasPage />} />
+              <Route path="/mermas" element={<MermasPage />} />
+              <Route path="/pedidos" element={<PedidosPage />} />
+              <Route path="/compras" element={<ComprasPage />} />
               <Route path="/rutas" element={<RutasPage />} />
               <Route path="/margenes" element={<MargenesPage />} />
               <Route path="/reportes" element={<ReportesPage />} />
