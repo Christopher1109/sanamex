@@ -5,7 +5,8 @@ import {
   LayoutDashboard, Package, Users, Truck, LogOut,
   Warehouse, ArrowLeftRight, ClipboardList, DollarSign,
   Scissors, History, BarChart3, Landmark, ShieldCheck,
-  Store, UserCog, Tag, FileSpreadsheet
+  Store, UserCog, Tag, FileSpreadsheet, ShoppingCart,
+  PackageCheck, AlertTriangle
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { SucursalSelector } from '@/components/SucursalSelector';
@@ -41,13 +42,17 @@ const Sidebar = ({ userRole, onLogout }: SidebarProps) => {
     { path: '/productos', icon: Package, label: 'Productos', roles: ['admin', 'gerente', 'almacen'], category: 'Catálogos' },
     { path: '/proveedores', icon: Store, label: 'Proveedores', roles: ['admin', 'gerente'], category: 'Catálogos' },
     { path: '/clientes', icon: Users, label: 'Clientes', roles: ['admin', 'gerente', 'cajero'], category: 'Catálogos' },
+    // Compras
+    { path: '/compras', icon: ShoppingCart, label: 'Compras', roles: ['admin', 'gerente', 'almacen'], category: 'Compras' },
     // Inventario
     { path: '/inventario', icon: Warehouse, label: 'Inventario', roles: ['admin', 'gerente', 'almacen'], category: 'Inventario' },
     { path: '/kardex', icon: ClipboardList, label: 'Kardex', roles: ['admin', 'gerente', 'almacen', 'auditor'], category: 'Inventario' },
     { path: '/traspasos', icon: ArrowLeftRight, label: 'Traspasos', roles: ['admin', 'gerente', 'almacen'], category: 'Inventario' },
     { path: '/ajustes', icon: Scissors, label: 'Ajustes / Mermas', roles: ['admin', 'gerente', 'almacen'], category: 'Inventario' },
-    // Rutas
-    { path: '/rutas', icon: Truck, label: 'Rutas', roles: ['admin', 'gerente', 'almacen', 'repartidor'], category: 'Rutas' },
+    { path: '/mermas', icon: AlertTriangle, label: 'Mermas Detalle', roles: ['admin', 'gerente', 'auditor'], category: 'Inventario' },
+    // Pedidos & Rutas
+    { path: '/pedidos', icon: PackageCheck, label: 'Pedidos', roles: ['admin', 'gerente', 'almacen', 'cajero'], category: 'Pedidos' },
+    { path: '/rutas', icon: Truck, label: 'Rutas', roles: ['admin', 'gerente', 'almacen', 'repartidor'], category: 'Pedidos' },
     // Finanzas
     { path: '/margenes', icon: BarChart3, label: 'Márgenes', roles: ['admin', 'gerente', 'auditor'], category: 'Finanzas' },
     // Reportes

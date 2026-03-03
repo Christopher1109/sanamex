@@ -1,0 +1,336 @@
+import { useState, useEffect } from 'react';
+import { supabase } from '@/integrations/supabase/client';
+import { useSucursal } from '@/contexts/SucursalContext';
+import { Card, CardContent } from '@/components/ui/card';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Textarea } from '@/components/ui/textarea';
+import { Plus, Eye, PackageCheck, Truck as TruckIcon } from 'lucide-react';
+import { toast } from 'sonner';
+
+const estadoColor: Record<string, string> = { ordenada: 'secondary', en_transito: 'default', recibida: 'outline', cancelada: 'destructive' };
+
+const ComprasPage = () => {
+  const { selectedSucursal } = useSucursal();
+  const [compras, setCompras] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showCreate, setShowCreate] = useState(false);
+  const [showRecepcion, setShowRecepcion] = useState<any>(null);
+  const [showDetail, setShowDetail] = useState<any>(null);
+  const [lineasDetail, setLineasDetail] = useState<any[]>([]);
+
+  // Create form
+  const [proveedores, setProveedores] = useState<any[]>([]);
+  const [productosDisp, setProductosDisp] = useState<any[]>([]);
+  const [form, setForm] = useState({ proveedor_id: '', notas: '' });
+  const [lineas, setLineas] = useState<{producto_id: string; cantidad: number; precio_est: number; nombre: string}[]>([]);
+  const [addItem, setAddItem] = useState({ producto_id: '', cantidad: '1', precio: '' });
+
+  // Recepcion form
+  const [recLineas, setRecLineas] = useState<any[]>([]);
+
+  useEffect(() => { if (selectedSucursal) load(); }, [selectedSucursal]);
+
+  const load = async () => {
+    if (!selectedSucursal) return;
+    setLoading(true);
+    const { data } = await supabase.from('compras')
+      .select('*, proveedores(nombre), sucursales(nombre)')
+      .eq('sucursal_id', selectedSucursal.id)
+      .order('created_at', { ascending: false });
+    setCompras(data || []);
+    setLoading(false);
+  };
+
+  const openCreate = async () => {
+    setShowCreate(true);
+    setForm({ proveedor_id: '', notas: '' });
+    setLineas([]);
+    setAddItem({ producto_id: '', cantidad: '1', precio: '' });
+    const [pRes, prRes] = await Promise.all([
+      supabase.from('productos').select('id, nombre, sku, precio_base').eq('activo', true),
+      supabase.from('proveedores').select('id, nombre').eq('activo', true),
+    ]);
+    setProductosDisp(pRes.data || []);
+    setProveedores(prRes.data || []);
+  };
+
+  const addLinea = () => {
+    if (!addItem.producto_id || parseInt(addItem.cantidad) <= 0) { toast.error('Complete los campos'); return; }
+    const prod = productosDisp.find(p => p.id === addItem.producto_id);
+    setLineas([...lineas, {
+      producto_id: addItem.producto_id, cantidad: parseInt(addItem.cantidad),
+      precio_est: parseFloat(addItem.precio) || prod?.precio_base || 0, nombre: prod?.nombre || '',
+    }]);
+    setAddItem({ producto_id: '', cantidad: '1', precio: '' });
+  };
+
+  const saveCompra = async () => {
+    if (!form.proveedor_id) { toast.error('Seleccione proveedor'); return; }
+    if (lineas.length === 0) { toast.error('Agregue productos'); return; }
+    const user = (await supabase.auth.getUser()).data.user;
+    const numCompra = `OC-${Date.now().toString(36).toUpperCase()}`;
+    const subtotal = lineas.reduce((s, l) => s + l.cantidad * l.precio_est, 0);
+
+    const { data: alm } = await supabase.from('almacenes').select('id').eq('sucursal_id', selectedSucursal!.id).limit(1);
+
+    const { data: compra, error } = await supabase.from('compras').insert({
+      numero_compra: numCompra, proveedor_id: form.proveedor_id,
+      sucursal_id: selectedSucursal!.id, almacen_id: alm?.[0]?.id || null,
+      subtotal, total: subtotal, notas: form.notas || null, creado_por: user?.id,
+    }).select().single();
+
+    if (error) { toast.error('Error al crear compra'); console.error(error); return; }
+
+    const lineasInsert = lineas.map(l => ({
+      compra_id: compra.id, producto_id: l.producto_id,
+      cantidad_ordenada: l.cantidad, precio_unitario_estimado: l.precio_est,
+    }));
+    await supabase.from('compra_lineas').insert(lineasInsert);
+    toast.success(`Orden ${numCompra} creada`);
+    setShowCreate(false);
+    load();
+  };
+
+  const cambiarEstado = async (id: string, estado: string) => {
+    await supabase.from('compras').update({ estado }).eq('id', id);
+    toast.success(`Compra ${estado.replace('_', ' ')}`);
+    load();
+  };
+
+  const openRecepcion = async (compra: any) => {
+    setShowRecepcion(compra);
+    const { data } = await supabase.from('compra_lineas')
+      .select('*, productos(nombre, sku)').eq('compra_id', compra.id);
+    setRecLineas((data || []).map(l => ({
+      ...l, cantidad_recibida_input: l.cantidad_ordenada.toString(),
+      lote_input: '', caducidad_input: '',
+      costo_real_input: l.precio_unitario_estimado.toString(),
+      merma_input: '0',
+    })));
+  };
+
+  const processRecepcion = async () => {
+    if (!showRecepcion) return;
+    const user = (await supabase.auth.getUser()).data.user;
+    const { data: alm } = await supabase.from('almacenes').select('id').eq('sucursal_id', showRecepcion.sucursal_id).limit(1);
+    if (!alm?.length) { toast.error('Sin almacén configurado'); return; }
+
+    for (const linea of recLineas) {
+      const cantRecibida = parseInt(linea.cantidad_recibida_input) || 0;
+      const merma = parseInt(linea.merma_input) || 0;
+      const costoReal = parseFloat(linea.costo_real_input) || 0;
+      const loteNum = linea.lote_input || `LOT-${Date.now().toString(36)}`;
+
+      // Create lot
+      const { data: lote } = await supabase.from('lotes').insert({
+        producto_id: linea.producto_id, numero_lote: loteNum,
+        fecha_caducidad: linea.caducidad_input || null,
+        costo_unitario: costoReal, proveedor_id: showRecepcion.proveedor_id,
+      }).select().single();
+
+      if (!lote) continue;
+
+      // Create/update inventory
+      const cantNeta = cantRecibida - merma;
+      if (cantNeta > 0) {
+        await supabase.from('inventario').insert({ almacen_id: alm[0].id, lote_id: lote.id, cantidad: cantNeta });
+        // Kardex entry
+        await supabase.from('movimientos_inventario').insert({
+          almacen_id: alm[0].id, lote_id: lote.id, tipo: 'entrada_compra',
+          cantidad: cantNeta, costo_unitario: costoReal,
+          referencia_tipo: 'compra', referencia_id: showRecepcion.id,
+          usuario_id: user?.id, sucursal_id: showRecepcion.sucursal_id,
+          notas: `Recepción OC ${showRecepcion.numero_compra}`,
+        });
+      }
+
+      // Merma in reception
+      if (merma > 0) {
+        await supabase.from('movimientos_inventario').insert({
+          almacen_id: alm[0].id, lote_id: lote.id, tipo: 'merma',
+          cantidad: merma, costo_unitario: costoReal,
+          referencia_tipo: 'compra', referencia_id: showRecepcion.id,
+          usuario_id: user?.id, sucursal_id: showRecepcion.sucursal_id,
+          notas: `Merma en recepción OC ${showRecepcion.numero_compra}`,
+        });
+      }
+
+      // Update compra_lineas
+      await supabase.from('compra_lineas').update({
+        cantidad_recibida: cantRecibida, precio_unitario_real: costoReal,
+        lote_asignado: loteNum, fecha_caducidad: linea.caducidad_input || null,
+        merma_recepcion: merma,
+      }).eq('id', linea.id);
+    }
+
+    await supabase.from('compras').update({ estado: 'recibida' }).eq('id', showRecepcion.id);
+    toast.success('Recepción completada — inventario actualizado');
+    setShowRecepcion(null);
+    load();
+  };
+
+  const viewDetail = async (compra: any) => {
+    setShowDetail(compra);
+    const { data } = await supabase.from('compra_lineas')
+      .select('*, productos(nombre, sku)').eq('compra_id', compra.id);
+    setLineasDetail(data || []);
+  };
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div><h1 className="text-2xl font-bold">Compras</h1><p className="text-muted-foreground">{selectedSucursal?.nombre}</p></div>
+        <Button onClick={openCreate}><Plus className="h-4 w-4 mr-2" />Nueva Orden de Compra</Button>
+      </div>
+
+      <div className="grid grid-cols-4 gap-4">
+        <Card><CardContent className="p-4"><p className="text-sm text-muted-foreground">Total OC</p><p className="text-2xl font-bold">{compras.length}</p></CardContent></Card>
+        <Card><CardContent className="p-4"><p className="text-sm text-muted-foreground">Ordenadas</p><p className="text-2xl font-bold text-warning">{compras.filter(c => c.estado === 'ordenada').length}</p></CardContent></Card>
+        <Card><CardContent className="p-4"><p className="text-sm text-muted-foreground">En Tránsito</p><p className="text-2xl font-bold text-primary">{compras.filter(c => c.estado === 'en_transito').length}</p></CardContent></Card>
+        <Card><CardContent className="p-4"><p className="text-sm text-muted-foreground">Recibidas</p><p className="text-2xl font-bold">{compras.filter(c => c.estado === 'recibida').length}</p></CardContent></Card>
+      </div>
+
+      <Card>
+        <CardContent className="p-0">
+          <Table>
+            <TableHeader><TableRow>
+              <TableHead># OC</TableHead><TableHead>Proveedor</TableHead><TableHead>Fecha</TableHead>
+              <TableHead>Total</TableHead><TableHead>Estado</TableHead><TableHead>Acciones</TableHead>
+            </TableRow></TableHeader>
+            <TableBody>
+              {loading ? <TableRow><TableCell colSpan={6} className="text-center py-8">Cargando...</TableCell></TableRow> :
+               compras.length === 0 ? <TableRow><TableCell colSpan={6} className="text-center py-8 text-muted-foreground">Sin compras</TableCell></TableRow> :
+               compras.map(c => (
+                <TableRow key={c.id}>
+                  <TableCell className="font-mono font-bold">{c.numero_compra}</TableCell>
+                  <TableCell>{(c.proveedores as any)?.nombre}</TableCell>
+                  <TableCell className="text-sm">{new Date(c.created_at).toLocaleDateString('es-MX')}</TableCell>
+                  <TableCell className="font-bold">${Number(c.total).toFixed(2)}</TableCell>
+                  <TableCell><Badge variant={(estadoColor[c.estado] || 'secondary') as any}>{c.estado.replace('_', ' ')}</Badge></TableCell>
+                  <TableCell className="space-x-1">
+                    <Button size="sm" variant="ghost" onClick={() => viewDetail(c)}><Eye className="h-4 w-4" /></Button>
+                    {c.estado === 'ordenada' && <Button size="sm" onClick={() => cambiarEstado(c.id, 'en_transito')}><TruckIcon className="h-4 w-4 mr-1" />En Tránsito</Button>}
+                    {c.estado === 'en_transito' && <Button size="sm" onClick={() => openRecepcion(c)}><PackageCheck className="h-4 w-4 mr-1" />Recibir</Button>}
+                  </TableCell>
+                </TableRow>
+               ))}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+
+      {/* Create OC */}
+      <Dialog open={showCreate} onOpenChange={setShowCreate}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader><DialogTitle>Nueva Orden de Compra</DialogTitle></DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label>Proveedor *</Label>
+              <Select value={form.proveedor_id} onValueChange={v => setForm({...form, proveedor_id: v})}>
+                <SelectTrigger><SelectValue placeholder="Seleccionar..." /></SelectTrigger>
+                <SelectContent>{proveedores.map(p => <SelectItem key={p.id} value={p.id}>{p.nombre}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div className="border rounded-lg p-3 space-y-3">
+              <Label>Agregar Productos</Label>
+              <div className="flex gap-2">
+                <Select value={addItem.producto_id} onValueChange={v => setAddItem({...addItem, producto_id: v})}>
+                  <SelectTrigger className="flex-1"><SelectValue placeholder="Producto..." /></SelectTrigger>
+                  <SelectContent>{productosDisp.map(p => <SelectItem key={p.id} value={p.id}>{p.sku} — {p.nombre}</SelectItem>)}</SelectContent>
+                </Select>
+                <Input type="number" min="1" className="w-20" placeholder="Cant" value={addItem.cantidad} onChange={e => setAddItem({...addItem, cantidad: e.target.value})} />
+                <Input type="number" step="0.01" className="w-28" placeholder="P. Est." value={addItem.precio} onChange={e => setAddItem({...addItem, precio: e.target.value})} />
+                <Button size="sm" onClick={addLinea}><Plus className="h-4 w-4" /></Button>
+              </div>
+            </div>
+            {lineas.length > 0 && (
+              <Table>
+                <TableHeader><TableRow><TableHead>Producto</TableHead><TableHead className="text-right">Cant</TableHead><TableHead className="text-right">Precio Est.</TableHead><TableHead className="text-right">Subtotal</TableHead><TableHead></TableHead></TableRow></TableHeader>
+                <TableBody>
+                  {lineas.map((l, i) => (
+                    <TableRow key={i}>
+                      <TableCell>{l.nombre}</TableCell>
+                      <TableCell className="text-right">{l.cantidad}</TableCell>
+                      <TableCell className="text-right">${l.precio_est.toFixed(2)}</TableCell>
+                      <TableCell className="text-right font-bold">${(l.cantidad * l.precio_est).toFixed(2)}</TableCell>
+                      <TableCell><Button size="sm" variant="ghost" onClick={() => setLineas(lineas.filter((_, idx) => idx !== i))}>✕</Button></TableCell>
+                    </TableRow>
+                  ))}
+                  <TableRow><TableCell colSpan={3} className="text-right font-bold">Total:</TableCell><TableCell className="text-right font-bold text-lg">${lineas.reduce((s, l) => s + l.cantidad * l.precio_est, 0).toFixed(2)}</TableCell><TableCell></TableCell></TableRow>
+                </TableBody>
+              </Table>
+            )}
+            <div><Label>Notas</Label><Textarea value={form.notas} onChange={e => setForm({...form, notas: e.target.value})} /></div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowCreate(false)}>Cancelar</Button>
+            <Button onClick={saveCompra}>Crear OC</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Recepción */}
+      <Dialog open={!!showRecepcion} onOpenChange={() => setShowRecepcion(null)}>
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader><DialogTitle>Recepción — {showRecepcion?.numero_compra}</DialogTitle></DialogHeader>
+          <div className="space-y-4">
+            {recLineas.map((l, i) => (
+              <Card key={l.id}>
+                <CardContent className="p-4 space-y-2">
+                  <p className="font-bold">{(l.productos as any)?.nombre} ({(l.productos as any)?.sku})</p>
+                  <p className="text-sm text-muted-foreground">Ordenados: {l.cantidad_ordenada}</p>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                    <div><Label className="text-xs">Cant. Recibida</Label><Input type="number" value={l.cantidad_recibida_input} onChange={e => { const nl = [...recLineas]; nl[i] = {...l, cantidad_recibida_input: e.target.value}; setRecLineas(nl); }} /></div>
+                    <div><Label className="text-xs">Merma</Label><Input type="number" value={l.merma_input} onChange={e => { const nl = [...recLineas]; nl[i] = {...l, merma_input: e.target.value}; setRecLineas(nl); }} /></div>
+                    <div><Label className="text-xs">Costo Real</Label><Input type="number" step="0.01" value={l.costo_real_input} onChange={e => { const nl = [...recLineas]; nl[i] = {...l, costo_real_input: e.target.value}; setRecLineas(nl); }} /></div>
+                    <div><Label className="text-xs"># Lote</Label><Input value={l.lote_input} onChange={e => { const nl = [...recLineas]; nl[i] = {...l, lote_input: e.target.value}; setRecLineas(nl); }} placeholder="LOT-XXX" /></div>
+                  </div>
+                  <div><Label className="text-xs">Caducidad</Label><Input type="date" value={l.caducidad_input} onChange={e => { const nl = [...recLineas]; nl[i] = {...l, caducidad_input: e.target.value}; setRecLineas(nl); }} /></div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowRecepcion(null)}>Cancelar</Button>
+            <Button onClick={processRecepcion}><PackageCheck className="h-4 w-4 mr-1" />Procesar Recepción</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Detail */}
+      <Dialog open={!!showDetail} onOpenChange={() => setShowDetail(null)}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader><DialogTitle>OC {showDetail?.numero_compra}</DialogTitle></DialogHeader>
+          <div className="space-y-2 text-sm">
+            <p><strong>Proveedor:</strong> {(showDetail?.proveedores as any)?.nombre}</p>
+            <p><strong>Estado:</strong> <Badge variant={(estadoColor[showDetail?.estado] || 'secondary') as any}>{showDetail?.estado?.replace('_', ' ')}</Badge></p>
+            <p><strong>Total:</strong> ${Number(showDetail?.total || 0).toFixed(2)}</p>
+          </div>
+          <Table>
+            <TableHeader><TableRow><TableHead>Producto</TableHead><TableHead className="text-right">Ordenados</TableHead><TableHead className="text-right">Recibidos</TableHead><TableHead className="text-right">Merma</TableHead><TableHead>Lote</TableHead><TableHead className="text-right">Costo Real</TableHead></TableRow></TableHeader>
+            <TableBody>
+              {lineasDetail.map(l => (
+                <TableRow key={l.id}>
+                  <TableCell>{(l.productos as any)?.nombre}</TableCell>
+                  <TableCell className="text-right">{l.cantidad_ordenada}</TableCell>
+                  <TableCell className="text-right">{l.cantidad_recibida || 0}</TableCell>
+                  <TableCell className="text-right text-destructive">{l.merma_recepcion || 0}</TableCell>
+                  <TableCell className="font-mono text-xs">{l.lote_asignado || '—'}</TableCell>
+                  <TableCell className="text-right">${Number(l.precio_unitario_real || 0).toFixed(2)}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+};
+
+export default ComprasPage;
