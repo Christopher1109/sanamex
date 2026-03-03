@@ -9,18 +9,14 @@ import Auth from './pages/Auth';
 import Dashboard from './pages/Dashboard';
 import Productos from './pages/Productos';
 import InventarioPage from './pages/InventarioPage';
-import POS from './pages/POS';
 import Kardex from './pages/Kardex';
-import CortesCaja from './pages/CortesCaja';
 import ProveedoresPage from './pages/ProveedoresPage';
 import ClientesPage from './pages/ClientesPage';
 import TraspasosPage from './pages/TraspasosPage';
 import AjustesMermasPage from './pages/AjustesMermasPage';
-import VentasHistorial from './pages/VentasHistorial';
 import RutasPage from './pages/RutasPage';
-import BolsasValoresPage from './pages/BolsasValoresPage';
-import ConciliacionPage from './pages/ConciliacionPage';
 import ReportesPage from './pages/ReportesPage';
+import MargenesPage from './pages/MargenesPage';
 import UsuariosPage from './pages/UsuariosPage';
 import AuditoriaPage from './pages/AuditoriaPage';
 import Sidebar from './components/layout/Sidebar';
@@ -67,12 +63,8 @@ const AppContent = () => {
               <Route path="/kardex" element={<Kardex />} />
               <Route path="/traspasos" element={<TraspasosPage />} />
               <Route path="/ajustes" element={<AjustesMermasPage />} />
-              <Route path="/pos" element={<POS />} />
-              <Route path="/ventas" element={<VentasHistorial />} />
               <Route path="/rutas" element={<RutasPage />} />
-              <Route path="/cortes" element={<CortesCaja />} />
-              <Route path="/bolsas-valores" element={<BolsasValoresPage />} />
-              <Route path="/conciliacion" element={<ConciliacionPage />} />
+              <Route path="/margenes" element={<MargenesPage />} />
               <Route path="/reportes" element={<ReportesPage />} />
               <Route path="/usuarios" element={<UsuariosPage />} />
               <Route path="/auditoria" element={<AuditoriaPage />} />

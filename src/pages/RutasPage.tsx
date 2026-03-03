@@ -7,7 +7,10 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Plus, Eye } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -19,6 +22,15 @@ const RutasPage = () => {
   const [entregas, setEntregas] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [detailRuta, setDetailRuta] = useState<any>(null);
+  const [showCreate, setShowCreate] = useState(false);
+
+  // Create form state
+  const [nombreRuta, setNombreRuta] = useState('');
+  const [notasRuta, setNotasRuta] = useState('');
+  const [sucursales, setSucursales] = useState<any[]>([]);
+  const [selectedSucursales, setSelectedSucursales] = useState<string[]>([]);
+  const [repartidores, setRepartidores] = useState<any[]>([]);
+  const [selectedRepartidor, setSelectedRepartidor] = useState('');
 
   useEffect(() => { if (selectedSucursal) load(); }, [selectedSucursal]);
 
@@ -28,6 +40,52 @@ const RutasPage = () => {
     const { data } = await supabase.from('rutas').select('*, profiles:repartidor_id(nombre)').eq('sucursal_id', selectedSucursal.id).order('fecha', { ascending: false }).limit(50);
     setRutas(data || []);
     setLoading(false);
+  };
+
+  const openCreate = async () => {
+    setShowCreate(true);
+    setNombreRuta('');
+    setNotasRuta('');
+    setSelectedSucursales([]);
+    setSelectedRepartidor('');
+
+    const [sucRes, repRes] = await Promise.all([
+      supabase.from('sucursales').select('id, nombre, codigo').eq('activo', true),
+      supabase.from('user_roles').select('user_id, role').eq('role', 'repartidor'),
+    ]);
+    setSucursales(sucRes.data || []);
+
+    if (repRes.data && repRes.data.length > 0) {
+      const userIds = repRes.data.map(r => r.user_id);
+      const { data: profiles } = await supabase.from('profiles').select('id, nombre').in('id', userIds);
+      setRepartidores(profiles || []);
+    } else {
+      setRepartidores([]);
+    }
+  };
+
+  const toggleSucursal = (id: string) => {
+    setSelectedSucursales(prev => prev.includes(id) ? prev.filter(s => s !== id) : [...prev, id]);
+  };
+
+  const createRuta = async () => {
+    if (!nombreRuta.trim()) { toast.error('Ingresa un nombre para la ruta'); return; }
+    if (!selectedRepartidor) { toast.error('Selecciona un repartidor'); return; }
+    if (selectedSucursales.length === 0) { toast.error('Selecciona al menos una sucursal'); return; }
+    if (!selectedSucursal) return;
+
+    const sucursalNames = sucursales.filter(s => selectedSucursales.includes(s.id)).map(s => s.nombre).join(', ');
+    const notas = `Ruta: ${nombreRuta}\nSucursales: ${sucursalNames}${notasRuta ? `\n${notasRuta}` : ''}`;
+
+    const { error } = await supabase.from('rutas').insert({
+      sucursal_id: selectedSucursal.id,
+      repartidor_id: selectedRepartidor,
+      notas,
+      estado: 'preparando',
+    });
+
+    if (error) { toast.error('Error al crear la ruta'); console.error(error); }
+    else { toast.success('Ruta creada exitosamente'); setShowCreate(false); load(); }
   };
 
   const viewDetail = async (ruta: any) => {
@@ -45,6 +103,7 @@ const RutasPage = () => {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div><h1 className="text-2xl font-bold">Rutas de Entrega</h1><p className="text-muted-foreground">{selectedSucursal?.nombre}</p></div>
+        <Button onClick={openCreate}><Plus className="h-4 w-4 mr-2" />Crear Ruta</Button>
       </div>
       <Card>
         <CardContent className="p-0">
@@ -70,6 +129,50 @@ const RutasPage = () => {
           </Table>
         </CardContent>
       </Card>
+
+      {/* Create Route Dialog */}
+      <Dialog open={showCreate} onOpenChange={setShowCreate}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader><DialogTitle>Crear Nueva Ruta</DialogTitle></DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label>Nombre de la Ruta</Label>
+              <Input placeholder="Ej: Ruta Norte CDMX" value={nombreRuta} onChange={e => setNombreRuta(e.target.value)} />
+            </div>
+            <div>
+              <Label>Repartidor</Label>
+              <Select value={selectedRepartidor} onValueChange={setSelectedRepartidor}>
+                <SelectTrigger><SelectValue placeholder="Seleccionar repartidor" /></SelectTrigger>
+                <SelectContent>
+                  {repartidores.map(r => <SelectItem key={r.id} value={r.id}>{r.nombre}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>Sucursales de la Ruta</Label>
+              <div className="border rounded-lg p-3 mt-1 space-y-2 max-h-48 overflow-y-auto">
+                {sucursales.length === 0 ? <p className="text-sm text-muted-foreground">Sin sucursales</p> :
+                 sucursales.map(s => (
+                  <div key={s.id} className="flex items-center gap-2">
+                    <Checkbox id={s.id} checked={selectedSucursales.includes(s.id)} onCheckedChange={() => toggleSucursal(s.id)} />
+                    <label htmlFor={s.id} className="text-sm cursor-pointer">{s.nombre} ({s.codigo})</label>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div>
+              <Label>Notas (opcional)</Label>
+              <Textarea placeholder="Notas adicionales..." value={notasRuta} onChange={e => setNotasRuta(e.target.value)} />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowCreate(false)}>Cancelar</Button>
+            <Button onClick={createRuta}>Crear Ruta</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Detail Dialog */}
       <Dialog open={!!detailRuta} onOpenChange={() => setDetailRuta(null)}>
         <DialogContent className="max-w-2xl">
           <DialogHeader><DialogTitle>Detalle de Ruta — {detailRuta?.fecha}</DialogTitle></DialogHeader>
