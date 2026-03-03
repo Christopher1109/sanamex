@@ -15,7 +15,7 @@ import { toast } from 'sonner';
 
 const estadoColor: Record<string, string> = {
   pendiente: 'secondary', en_ruta: 'default', entregado: 'outline', 
-  'entregado_confirmacion': 'default', cancelado: 'destructive'
+  entregado_confirmacion: 'default', cancelado: 'destructive'
 };
 
 const PedidosPage = () => {
@@ -26,12 +26,11 @@ const PedidosPage = () => {
   const [showDetail, setShowDetail] = useState<any>(null);
   const [lineasDetail, setLineasDetail] = useState<any[]>([]);
 
-  // Create form
   const [clientes, setClientes] = useState<any[]>([]);
   const [productos, setProductos] = useState<any[]>([]);
   const [rutas, setRutas] = useState<any[]>([]);
   const [lotesPorProducto, setLotesPorProducto] = useState<any[]>([]);
-  const [form, setForm] = useState({ cliente_id: '', notas: '' });
+  const [form, setForm] = useState({ cliente_id: '', ruta_id: '', notas: '' });
   const [lineas, setLineas] = useState<{producto_id: string; lote_id: string; cantidad: number; precio: number; nombre: string; lote_nombre: string; disponible: number}[]>([]);
   const [addProd, setAddProd] = useState({ producto_id: '', lote_id: '', cantidad: '1' });
 
@@ -40,7 +39,7 @@ const PedidosPage = () => {
   const load = async () => {
     if (!selectedSucursal) return;
     setLoading(true);
-    const { data } = await supabase.from('pedidos').select('*, clientes(nombre), sucursales(nombre)')
+    const { data } = await supabase.from('pedidos').select('*, clientes(nombre), rutas(notas, estado, fecha)')
       .eq('sucursal_id', selectedSucursal.id).order('created_at', { ascending: false });
     setPedidos(data || []);
     setLoading(false);
@@ -48,14 +47,14 @@ const PedidosPage = () => {
 
   const openCreate = async () => {
     setShowCreate(true);
-    setForm({ cliente_id: '', notas: '' });
+    setForm({ cliente_id: '', ruta_id: '', notas: '' });
     setLineas([]);
     setAddProd({ producto_id: '', lote_id: '', cantidad: '1' });
 
     const [cRes, pRes, rRes] = await Promise.all([
       supabase.from('clientes').select('id, nombre').eq('activo', true),
       supabase.from('productos').select('id, nombre, sku, precio_base').eq('activo', true),
-      supabase.from('rutas').select('id, notas, estado, fecha').eq('sucursal_id', selectedSucursal!.id).in('estado', ['preparando']),
+      supabase.from('rutas').select('id, notas, estado, fecha, profiles:repartidor_id(nombre)').eq('sucursal_id', selectedSucursal!.id).in('estado', ['preparando']),
     ]);
     setClientes(cRes.data || []);
     setProductos(pRes.data || []);
@@ -65,21 +64,9 @@ const PedidosPage = () => {
   const onSelectProducto = async (prodId: string) => {
     setAddProd({ ...addProd, producto_id: prodId, lote_id: '' });
     if (!selectedSucursal) return;
-    // Get available lots (FEFO)
     const { data: alm } = await supabase.from('almacenes').select('id').eq('sucursal_id', selectedSucursal.id);
     if (!alm?.length) { setLotesPorProducto([]); return; }
-    const { data } = await supabase.from('inventario')
-      .select('*, lotes(id, numero_lote, fecha_caducidad, costo_unitario)')
-      .in('almacen_id', alm.map(a => a.id))
-      .gt('cantidad', 0);
-
-    const filtered = (data || []).filter(i => {
-      const prod = productos.find(p => p.id === prodId);
-      // We need to check if the lot belongs to this product
-      return true; // Will filter by lote's producto_id
-    });
     
-    // Get lotes for this product
     const { data: lotesData } = await supabase.from('inventario')
       .select('cantidad, lotes(id, numero_lote, fecha_caducidad, producto_id)')
       .in('almacen_id', alm.map(a => a.id))
@@ -111,8 +98,6 @@ const PedidosPage = () => {
     setLotesPorProducto([]);
   };
 
-  const removeLinea = (idx: number) => setLineas(lineas.filter((_, i) => i !== idx));
-
   const savePedido = async () => {
     if (!form.cliente_id) { toast.error('Seleccione un cliente'); return; }
     if (lineas.length === 0) { toast.error('Agregue al menos un producto'); return; }
@@ -123,6 +108,7 @@ const PedidosPage = () => {
     const { data: pedido, error } = await supabase.from('pedidos').insert({
       numero_pedido: numPedido, cliente_id: form.cliente_id,
       sucursal_id: selectedSucursal!.id, estado: 'pendiente',
+      ruta_id: form.ruta_id || null,
       notas: form.notas || null, creado_por: user?.id,
     }).select().single();
 
@@ -140,16 +126,12 @@ const PedidosPage = () => {
   };
 
   const enviarARuta = async (pedido: any) => {
-    // Descuenta inventario y cambia estado
-    const { data: lineasPed } = await supabase.from('pedido_lineas')
-      .select('*').eq('pedido_id', pedido.id);
-    
+    const { data: lineasPed } = await supabase.from('pedido_lineas').select('*').eq('pedido_id', pedido.id);
     if (!lineasPed?.length) { toast.error('Pedido sin líneas'); return; }
 
     const { data: alm } = await supabase.from('almacenes').select('id').eq('sucursal_id', pedido.sucursal_id);
     if (!alm?.length) { toast.error('Sin almacén'); return; }
 
-    // Descuenta inventario
     for (const linea of lineasPed) {
       const { data: inv } = await supabase.from('inventario')
         .select('id, cantidad').eq('lote_id', linea.lote_id).in('almacen_id', alm.map(a => a.id)).limit(1);
@@ -157,7 +139,6 @@ const PedidosPage = () => {
       if (inv?.[0]) {
         const newCant = Math.max(0, inv[0].cantidad - linea.cantidad);
         await supabase.from('inventario').update({ cantidad: newCant }).eq('id', inv[0].id);
-        // Kardex movement
         const user = (await supabase.auth.getUser()).data.user;
         await supabase.from('movimientos_inventario').insert({
           almacen_id: alm[0].id, lote_id: linea.lote_id, tipo: 'salida_pedido',
@@ -195,10 +176,9 @@ const PedidosPage = () => {
         <Button onClick={openCreate}><Plus className="h-4 w-4 mr-2" />Nuevo Pedido</Button>
       </div>
 
-      {/* KPIs */}
       <div className="grid grid-cols-4 gap-4">
         <Card><CardContent className="p-4"><p className="text-sm text-muted-foreground">Total Pedidos</p><p className="text-2xl font-bold">{pedidos.length}</p></CardContent></Card>
-        <Card><CardContent className="p-4"><p className="text-sm text-muted-foreground">Pendientes</p><p className="text-2xl font-bold text-warning">{pedidos.filter(p => p.estado === 'pendiente').length}</p></CardContent></Card>
+        <Card><CardContent className="p-4"><p className="text-sm text-muted-foreground">Pendientes</p><p className="text-2xl font-bold">{pedidos.filter(p => p.estado === 'pendiente').length}</p></CardContent></Card>
         <Card><CardContent className="p-4"><p className="text-sm text-muted-foreground">En Ruta</p><p className="text-2xl font-bold text-primary">{pedidos.filter(p => p.estado === 'en_ruta').length}</p></CardContent></Card>
         <Card><CardContent className="p-4"><p className="text-sm text-muted-foreground">Entregados</p><p className="text-2xl font-bold">{pedidos.filter(p => p.estado.startsWith('entregado')).length}</p></CardContent></Card>
       </div>
@@ -207,16 +187,17 @@ const PedidosPage = () => {
         <CardContent className="p-0">
           <Table>
             <TableHeader><TableRow>
-              <TableHead># Pedido</TableHead><TableHead>Cliente</TableHead><TableHead>Fecha</TableHead>
+              <TableHead># Pedido</TableHead><TableHead>Cliente</TableHead><TableHead>Ruta</TableHead><TableHead>Fecha</TableHead>
               <TableHead>Estado</TableHead><TableHead>Acciones</TableHead>
             </TableRow></TableHeader>
             <TableBody>
-              {loading ? <TableRow><TableCell colSpan={5} className="text-center py-8">Cargando...</TableCell></TableRow> :
-               pedidos.length === 0 ? <TableRow><TableCell colSpan={5} className="text-center py-8 text-muted-foreground">Sin pedidos</TableCell></TableRow> :
+              {loading ? <TableRow><TableCell colSpan={6} className="text-center py-8">Cargando...</TableCell></TableRow> :
+               pedidos.length === 0 ? <TableRow><TableCell colSpan={6} className="text-center py-8 text-muted-foreground">Sin pedidos</TableCell></TableRow> :
                pedidos.map(p => (
                 <TableRow key={p.id}>
                   <TableCell className="font-mono font-bold">{p.numero_pedido}</TableCell>
                   <TableCell>{(p.clientes as any)?.nombre || '—'}</TableCell>
+                  <TableCell className="text-xs">{p.ruta_id ? ((p.rutas as any)?.notas?.split('\n')[0] || 'Asignada') : '—'}</TableCell>
                   <TableCell className="text-sm">{new Date(p.created_at).toLocaleDateString('es-MX')}</TableCell>
                   <TableCell><Badge variant={(estadoColor[p.estado] || 'secondary') as any}>{p.estado.replace('_', ' ')}</Badge></TableCell>
                   <TableCell className="space-x-1">
@@ -243,7 +224,24 @@ const PedidosPage = () => {
               </Select>
             </div>
 
-            {/* Add products */}
+            <div>
+              <Label>Ruta de Entrega</Label>
+              <Select value={form.ruta_id} onValueChange={v => setForm({...form, ruta_id: v})}>
+                <SelectTrigger><SelectValue placeholder="Seleccionar ruta (opcional)..." /></SelectTrigger>
+                <SelectContent>
+                  {rutas.length === 0 ? (
+                    <SelectItem value="__none" disabled>No hay rutas en preparación</SelectItem>
+                  ) : (
+                    rutas.map(r => (
+                      <SelectItem key={r.id} value={r.id}>
+                        {r.fecha} — {r.notas?.split('\n')[0] || 'Ruta'} ({(r.profiles as any)?.nombre || 'Sin repartidor'})
+                      </SelectItem>
+                    ))
+                  )}
+                </SelectContent>
+              </Select>
+            </div>
+
             <div className="border rounded-lg p-3 space-y-3">
               <Label>Agregar Productos</Label>
               <div className="flex gap-2">
@@ -271,7 +269,7 @@ const PedidosPage = () => {
                       <TableCell className="text-right">{l.cantidad}</TableCell>
                       <TableCell className="text-right">${l.precio.toFixed(2)}</TableCell>
                       <TableCell className="text-right font-bold">${(l.cantidad * l.precio).toFixed(2)}</TableCell>
-                      <TableCell><Button size="sm" variant="ghost" onClick={() => removeLinea(i)}>✕</Button></TableCell>
+                      <TableCell><Button size="sm" variant="ghost" onClick={() => setLineas(lineas.filter((_, idx) => idx !== i))}>✕</Button></TableCell>
                     </TableRow>
                   ))}
                   <TableRow>
@@ -299,6 +297,7 @@ const PedidosPage = () => {
           <div className="space-y-2 text-sm">
             <p><strong>Cliente:</strong> {(showDetail?.clientes as any)?.nombre}</p>
             <p><strong>Estado:</strong> <Badge variant={(estadoColor[showDetail?.estado] || 'secondary') as any}>{showDetail?.estado?.replace('_', ' ')}</Badge></p>
+            {showDetail?.ruta_id && <p><strong>Ruta:</strong> {(showDetail?.rutas as any)?.notas?.split('\n')[0] || 'Asignada'}</p>}
             <p><strong>Notas:</strong> {showDetail?.notas || '—'}</p>
           </div>
           <Table>

@@ -4,7 +4,7 @@ import { useSucursal } from '@/contexts/SucursalContext';
 import { Card, CardContent } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Input } from '@/components/ui/input';
 import { Search, AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
@@ -19,6 +19,7 @@ const origenLabels: Record<string, { label: string; color: string }> = {
 const MermasPage = () => {
   const { selectedSucursal } = useSucursal();
   const [mermas, setMermas] = useState<any[]>([]);
+  const [profiles, setProfiles] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [tab, setTab] = useState('todas');
@@ -28,15 +29,29 @@ const MermasPage = () => {
   const loadMermas = async () => {
     if (!selectedSucursal) return;
     setLoading(true);
-    const { data, error } = await supabase.from('movimientos_inventario')
-      .select('*, lotes(numero_lote, costo_unitario, productos(nombre, sku)), motivos_ajuste(nombre), profiles:usuario_id(nombre)')
-      .eq('tipo', 'merma')
-      .eq('sucursal_id', selectedSucursal.id)
-      .order('created_at', { ascending: false })
-      .limit(500);
+    try {
+      const { data, error } = await supabase.from('movimientos_inventario')
+        .select('*, lotes(numero_lote, costo_unitario, productos(nombre, sku))')
+        .eq('tipo', 'merma')
+        .eq('sucursal_id', selectedSucursal.id)
+        .order('created_at', { ascending: false })
+        .limit(500);
 
-    if (error) { toast.error('Error cargando mermas'); console.error(error); }
-    else setMermas(data || []);
+      if (error) throw error;
+      setMermas(data || []);
+
+      // Load profiles separately (no FK)
+      const userIds = [...new Set((data || []).map(m => m.usuario_id).filter(Boolean))];
+      if (userIds.length > 0) {
+        const { data: profs } = await supabase.from('profiles').select('id, nombre').in('id', userIds);
+        const map: Record<string, string> = {};
+        (profs || []).forEach(p => { map[p.id] = p.nombre; });
+        setProfiles(map);
+      }
+    } catch (err: any) {
+      toast.error('Error cargando mermas');
+      console.error(err);
+    }
     setLoading(false);
   };
 
@@ -73,7 +88,6 @@ const MermasPage = () => {
         <Card><CardContent className="p-4"><p className="text-sm text-muted-foreground">Costo Promedio</p><p className="text-2xl font-bold">${filtered.length > 0 ? (totalCostoPerdido / filtered.length).toFixed(2) : '0.00'}</p></CardContent></Card>
       </div>
 
-      {/* Origin breakdown */}
       <div className="grid grid-cols-4 gap-3">
         {Object.entries(origenLabels).map(([key, cfg]) => (
           <Card key={key} className="cursor-pointer hover:border-primary/50 transition-colors" onClick={() => setTab(key)}>
@@ -114,13 +128,12 @@ const MermasPage = () => {
                 <TableHead className="text-right">Costo Unit.</TableHead>
                 <TableHead className="text-right">Costo Total</TableHead>
                 <TableHead>Responsable</TableHead>
-                <TableHead>Motivo</TableHead>
                 <TableHead>Notas</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {loading ? <TableRow><TableCell colSpan={10} className="text-center py-8">Cargando...</TableCell></TableRow> :
-               filtered.length === 0 ? <TableRow><TableCell colSpan={10} className="text-center py-8 text-muted-foreground">Sin mermas registradas</TableCell></TableRow> :
+              {loading ? <TableRow><TableCell colSpan={9} className="text-center py-8">Cargando...</TableCell></TableRow> :
+               filtered.length === 0 ? <TableRow><TableCell colSpan={9} className="text-center py-8 text-muted-foreground">Sin mermas registradas</TableCell></TableRow> :
                filtered.map(m => {
                 const costoUnit = m.costo_unitario || (m.lotes as any)?.costo_unitario || 0;
                 const costoTotal = m.cantidad * costoUnit;
@@ -134,8 +147,7 @@ const MermasPage = () => {
                     <TableCell className="text-right font-bold text-destructive">{m.cantidad}</TableCell>
                     <TableCell className="text-right">${Number(costoUnit).toFixed(2)}</TableCell>
                     <TableCell className="text-right font-bold text-destructive">${costoTotal.toFixed(2)}</TableCell>
-                    <TableCell>{(m.profiles as any)?.nombre || '—'}</TableCell>
-                    <TableCell>{(m.motivos_ajuste as any)?.nombre || '—'}</TableCell>
+                    <TableCell>{profiles[m.usuario_id] || '—'}</TableCell>
                     <TableCell className="text-xs max-w-[150px] truncate">{m.notas || '—'}</TableCell>
                   </TableRow>
                 );

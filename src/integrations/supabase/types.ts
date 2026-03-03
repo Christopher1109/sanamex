@@ -258,6 +258,7 @@ export type Database = {
       compras: {
         Row: {
           almacen_id: string | null
+          comprobante_pago_url: string | null
           creado_por: string | null
           created_at: string | null
           estado: string
@@ -273,6 +274,7 @@ export type Database = {
         }
         Insert: {
           almacen_id?: string | null
+          comprobante_pago_url?: string | null
           creado_por?: string | null
           created_at?: string | null
           estado?: string
@@ -288,6 +290,7 @@ export type Database = {
         }
         Update: {
           almacen_id?: string | null
+          comprobante_pago_url?: string | null
           creado_por?: string | null
           created_at?: string | null
           estado?: string
