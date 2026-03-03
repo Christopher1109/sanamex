@@ -1,0 +1,1 @@
+ALTER TABLE public.productos ADD COLUMN stock_minimo integer DEFAULT 10;

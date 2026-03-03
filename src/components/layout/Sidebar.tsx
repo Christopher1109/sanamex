@@ -3,10 +3,9 @@ import { cn } from '@/lib/utils';
 import { UserRole } from '@/types';
 import {
   LayoutDashboard, Package, Users, Truck, LogOut,
-  Warehouse, ArrowLeftRight, ClipboardList, DollarSign,
-  Scissors, History, BarChart3, Landmark, ShieldCheck,
-  Store, UserCog, Tag, FileSpreadsheet, ShoppingCart,
-  PackageCheck, AlertTriangle
+  Warehouse, ArrowLeftRight, ClipboardList,
+  Scissors, BarChart3, Store, ShoppingCart,
+  PackageCheck, AlertTriangle, History, FileSpreadsheet
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { SucursalSelector } from '@/components/SucursalSelector';
@@ -42,25 +41,21 @@ const Sidebar = ({ userRole, onLogout }: SidebarProps) => {
     { path: '/productos', icon: Package, label: 'Productos', roles: ['admin', 'gerente', 'almacen'], category: 'Catálogos' },
     { path: '/proveedores', icon: Store, label: 'Proveedores', roles: ['admin', 'gerente'], category: 'Catálogos' },
     { path: '/clientes', icon: Users, label: 'Clientes', roles: ['admin', 'gerente', 'cajero'], category: 'Catálogos' },
-    // Compras
-    { path: '/compras', icon: ShoppingCart, label: 'Compras', roles: ['admin', 'gerente', 'almacen'], category: 'Compras' },
+    // Operaciones
+    { path: '/compras', icon: ShoppingCart, label: 'Compras', roles: ['admin', 'gerente', 'almacen'], category: 'Operaciones' },
+    { path: '/pedidos', icon: PackageCheck, label: 'Pedidos', roles: ['admin', 'gerente', 'almacen', 'cajero'], category: 'Operaciones' },
+    { path: '/traspasos', icon: ArrowLeftRight, label: 'Traspasos', roles: ['admin', 'gerente', 'almacen'], category: 'Operaciones' },
     // Inventario
     { path: '/inventario', icon: Warehouse, label: 'Inventario', roles: ['admin', 'gerente', 'almacen'], category: 'Inventario' },
     { path: '/kardex', icon: ClipboardList, label: 'Kardex', roles: ['admin', 'gerente', 'almacen', 'auditor'], category: 'Inventario' },
-    { path: '/traspasos', icon: ArrowLeftRight, label: 'Traspasos', roles: ['admin', 'gerente', 'almacen'], category: 'Inventario' },
-    { path: '/ajustes', icon: Scissors, label: 'Ajustes / Mermas', roles: ['admin', 'gerente', 'almacen'], category: 'Inventario' },
-    { path: '/mermas', icon: AlertTriangle, label: 'Mermas Detalle', roles: ['admin', 'gerente', 'auditor'], category: 'Inventario' },
-    // Pedidos & Rutas
-    { path: '/pedidos', icon: PackageCheck, label: 'Pedidos', roles: ['admin', 'gerente', 'almacen', 'cajero'], category: 'Pedidos' },
-    { path: '/rutas', icon: Truck, label: 'Rutas', roles: ['admin', 'gerente', 'almacen', 'repartidor'], category: 'Pedidos' },
-    // Finanzas
-    { path: '/margenes', icon: BarChart3, label: 'Márgenes', roles: ['admin', 'gerente', 'auditor'], category: 'Finanzas' },
-    // Reportes
-    { path: '/reportes', icon: FileSpreadsheet, label: 'Reportes', roles: ['admin', 'gerente', 'auditor'], category: 'Reportes' },
-    // Admin
-    { path: '/usuarios', icon: UserCog, label: 'Usuarios', roles: ['admin'], category: 'Administración' },
-    { path: '/auditoria', icon: ShieldCheck, label: 'Auditoría', roles: ['admin', 'auditor'], category: 'Administración' },
-    { path: '/registro-actividad', icon: History, label: 'Registro Actividad', roles: ['admin', 'gerente', 'auditor'], category: 'Administración' },
+    { path: '/mermas', icon: AlertTriangle, label: 'Mermas', roles: ['admin', 'gerente', 'almacen', 'auditor'], category: 'Inventario' },
+    // Distribución
+    { path: '/rutas', icon: Truck, label: 'Rutas', roles: ['admin', 'gerente', 'almacen', 'repartidor'], category: 'Distribución' },
+    // Análisis
+    { path: '/margenes', icon: BarChart3, label: 'Márgenes', roles: ['admin', 'gerente', 'auditor'], category: 'Análisis' },
+    { path: '/reportes', icon: FileSpreadsheet, label: 'Reportes', roles: ['admin', 'gerente', 'auditor'], category: 'Análisis' },
+    // Registro
+    { path: '/actividad', icon: History, label: 'Registro de Actividad', roles: ['admin', 'gerente', 'auditor'], category: 'Sistema' },
   ];
 
   const filtered = menuItems.filter(item => item.roles.includes(userRole));

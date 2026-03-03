@@ -20,7 +20,6 @@ import PedidosPage from './pages/PedidosPage';
 import ComprasPage from './pages/ComprasPage';
 import ReportesPage from './pages/ReportesPage';
 import MargenesPage from './pages/MargenesPage';
-import UsuariosPage from './pages/UsuariosPage';
 import AuditoriaPage from './pages/AuditoriaPage';
 import Sidebar from './components/layout/Sidebar';
 import Header from './components/layout/Header';
@@ -72,9 +71,7 @@ const AppContent = () => {
               <Route path="/rutas" element={<RutasPage />} />
               <Route path="/margenes" element={<MargenesPage />} />
               <Route path="/reportes" element={<ReportesPage />} />
-              <Route path="/usuarios" element={<UsuariosPage />} />
-              <Route path="/auditoria" element={<AuditoriaPage />} />
-              <Route path="/registro-actividad" element={<AuditoriaPage />} />
+              <Route path="/actividad" element={<AuditoriaPage />} />
               <Route path="/auth" element={<Navigate to="/dashboard" replace />} />
               <Route path="*" element={<Navigate to="/dashboard" replace />} />
             </Routes>

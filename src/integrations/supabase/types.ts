@@ -802,6 +802,7 @@ export type Database = {
           precio_base: number
           requiere_lote: boolean | null
           sku: string
+          stock_minimo: number | null
           unidad: string | null
           updated_at: string | null
         }
@@ -817,6 +818,7 @@ export type Database = {
           precio_base?: number
           requiere_lote?: boolean | null
           sku: string
+          stock_minimo?: number | null
           unidad?: string | null
           updated_at?: string | null
         }
@@ -832,6 +834,7 @@ export type Database = {
           precio_base?: number
           requiere_lote?: boolean | null
           sku?: string
+          stock_minimo?: number | null
           unidad?: string | null
           updated_at?: string | null
         }
