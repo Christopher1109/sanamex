@@ -46,15 +46,10 @@ const Sidebar = ({ userRole, onLogout }: SidebarProps) => {
     { path: '/kardex', icon: ClipboardList, label: 'Kardex', roles: ['admin', 'gerente', 'almacen', 'auditor'], category: 'Inventario' },
     { path: '/traspasos', icon: ArrowLeftRight, label: 'Traspasos', roles: ['admin', 'gerente', 'almacen'], category: 'Inventario' },
     { path: '/ajustes', icon: Scissors, label: 'Ajustes / Mermas', roles: ['admin', 'gerente', 'almacen'], category: 'Inventario' },
-    // Ventas
-    { path: '/pos', icon: DollarSign, label: 'Punto de Venta', roles: ['admin', 'gerente', 'cajero'], category: 'Ventas' },
-    { path: '/ventas', icon: FileSpreadsheet, label: 'Historial Ventas', roles: ['admin', 'gerente', 'cajero', 'auditor'], category: 'Ventas' },
     // Rutas
     { path: '/rutas', icon: Truck, label: 'Rutas', roles: ['admin', 'gerente', 'almacen', 'repartidor'], category: 'Rutas' },
-    // Caja
-    { path: '/cortes', icon: Tag, label: 'Cortes de Caja', roles: ['admin', 'gerente', 'cajero'], category: 'Caja' },
-    { path: '/bolsas-valores', icon: Landmark, label: 'Bolsas de Valores', roles: ['admin', 'gerente', 'auditor'], category: 'Caja' },
-    { path: '/conciliacion', icon: BarChart3, label: 'Conciliación', roles: ['admin', 'auditor'], category: 'Conciliación' },
+    // Finanzas
+    { path: '/margenes', icon: BarChart3, label: 'Márgenes', roles: ['admin', 'gerente', 'auditor'], category: 'Finanzas' },
     // Reportes
     { path: '/reportes', icon: FileSpreadsheet, label: 'Reportes', roles: ['admin', 'gerente', 'auditor'], category: 'Reportes' },
     // Admin
