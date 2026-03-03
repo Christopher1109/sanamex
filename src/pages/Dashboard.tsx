@@ -1,7 +1,10 @@
+import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
+import { supabase } from '@/integrations/supabase/client';
+import { useSucursal } from '@/contexts/SucursalContext';
 import { UserRole } from '@/types';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Package, DollarSign, Truck, AlertCircle, CheckCircle, TrendingUp, Warehouse, FileSpreadsheet, ShoppingCart, Banknote } from 'lucide-react';
+import { Package, DollarSign, Truck, AlertCircle, Warehouse, FileSpreadsheet, ShoppingCart, Banknote } from 'lucide-react';
 
 interface DashboardProps {
   userRole: UserRole;
@@ -46,6 +49,12 @@ const quickActionsByRole: Record<UserRole, Array<{
 };
 
 const Dashboard = ({ userRole }: DashboardProps) => {
+  const { selectedSucursal } = useSucursal();
+  const [ventasHoy, setVentasHoy] = useState(0);
+  const [productosActivos, setProductosActivos] = useState(0);
+  const [lotesPorVencer, setLotesPorVencer] = useState(0);
+  const [rutasActivas, setRutasActivas] = useState(0);
+
   const roleLabels: Record<UserRole, string> = {
     admin: 'Administrador',
     gerente: 'Gerente de Sucursal',
@@ -53,6 +62,46 @@ const Dashboard = ({ userRole }: DashboardProps) => {
     almacen: 'Almacenista',
     repartidor: 'Repartidor',
     auditor: 'Auditor',
+  };
+
+  useEffect(() => {
+    loadKPIs();
+  }, [selectedSucursal]);
+
+  const loadKPIs = async () => {
+    const today = new Date().toISOString().split('T')[0];
+
+    // Ventas hoy
+    const { data: ventas } = await supabase
+      .from('ventas')
+      .select('total')
+      .gte('fecha', today + 'T00:00:00')
+      .eq('estado', 'completada');
+    setVentasHoy((ventas || []).reduce((s, v) => s + Number(v.total), 0));
+
+    // Productos activos
+    const { count } = await supabase
+      .from('productos')
+      .select('id', { count: 'exact', head: true })
+      .eq('activo', true);
+    setProductosActivos(count || 0);
+
+    // Lotes por vencer (próximos 30 días)
+    const in30 = new Date();
+    in30.setDate(in30.getDate() + 30);
+    const { count: lotesCount } = await supabase
+      .from('lotes')
+      .select('id', { count: 'exact', head: true })
+      .gte('fecha_caducidad', today)
+      .lte('fecha_caducidad', in30.toISOString().split('T')[0]);
+    setLotesPorVencer(lotesCount || 0);
+
+    // Rutas activas
+    const { count: rutasCount } = await supabase
+      .from('rutas')
+      .select('id', { count: 'exact', head: true })
+      .in('estado', ['preparando', 'en_ruta']);
+    setRutasActivas(rutasCount || 0);
   };
 
   const quickActions = quickActionsByRole[userRole] || [];
@@ -71,7 +120,7 @@ const Dashboard = ({ userRole }: DashboardProps) => {
             <DollarSign className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">$0.00</div>
+            <div className="text-2xl font-bold">${ventasHoy.toLocaleString('es-MX', { minimumFractionDigits: 2 })}</div>
             <p className="text-xs text-muted-foreground">Total del día</p>
           </CardContent>
         </Card>
@@ -81,7 +130,7 @@ const Dashboard = ({ userRole }: DashboardProps) => {
             <Package className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">0</div>
+            <div className="text-2xl font-bold">{productosActivos}</div>
             <p className="text-xs text-muted-foreground">En catálogo</p>
           </CardContent>
         </Card>
@@ -91,7 +140,7 @@ const Dashboard = ({ userRole }: DashboardProps) => {
             <AlertCircle className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">0</div>
+            <div className="text-2xl font-bold">{lotesPorVencer}</div>
             <p className="text-xs text-muted-foreground">Próximos 30 días</p>
           </CardContent>
         </Card>
@@ -101,7 +150,7 @@ const Dashboard = ({ userRole }: DashboardProps) => {
             <Truck className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">0</div>
+            <div className="text-2xl font-bold">{rutasActivas}</div>
             <p className="text-xs text-muted-foreground">En tránsito hoy</p>
           </CardContent>
         </Card>
