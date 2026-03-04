@@ -10,7 +10,7 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
-import { Plus, Eye } from 'lucide-react';
+import { Plus, Eye, Search } from 'lucide-react';
 import { toast } from 'sonner';
 
 const estadoBadge: Record<string, string> = { pendiente: 'secondary', aprobado: 'default', completado: 'outline', rechazado: 'destructive' };
@@ -23,10 +23,9 @@ const TraspasosPage = () => {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [form, setForm] = useState({ almacen_origen_id: '', almacen_destino_id: '', notas: '' });
 
-  // Product lines for traspaso
   const [inventarioOrigen, setInventarioOrigen] = useState<any[]>([]);
   const [lineas, setLineas] = useState<{ lote_id: string; cantidad: number; nombre: string; lote_nombre: string; disponible: number }[]>([]);
-  const [addItem, setAddItem] = useState({ lote_id: '', cantidad: '1' });
+  const [searchProd, setSearchProd] = useState('');
 
   const [showDetail, setShowDetail] = useState<any>(null);
   const [lineasDetail, setLineasDetail] = useState<any[]>([]);
@@ -36,7 +35,6 @@ const TraspasosPage = () => {
   const load = async () => {
     if (!selectedSucursal) return;
     setLoading(true);
-    // Get almacenes for this sucursal
     const { data: alms } = await supabase.from('almacenes').select('id').eq('sucursal_id', selectedSucursal.id);
     const almIds = (alms || []).map(a => a.id);
 
@@ -44,7 +42,6 @@ const TraspasosPage = () => {
       .select('*, origen:almacenes!traspasos_almacen_origen_id_fkey(nombre, sucursal_id, sucursales:sucursales(nombre)), destino:almacenes!traspasos_almacen_destino_id_fkey(nombre, sucursal_id, sucursales:sucursales(nombre))')
       .order('created_at', { ascending: false }).limit(50);
 
-    // Show traspasos where this sucursal is origin or destination
     if (almIds.length > 0) {
       query = query.or(`almacen_origen_id.in.(${almIds.join(',')}),almacen_destino_id.in.(${almIds.join(',')})`);
     }
@@ -62,8 +59,7 @@ const TraspasosPage = () => {
   const onSelectOrigen = async (almacenId: string) => {
     setForm({ ...form, almacen_origen_id: almacenId });
     setLineas([]);
-    setAddItem({ lote_id: '', cantidad: '1' });
-    // Load inventory for this almacen
+    setSearchProd('');
     const { data } = await supabase.from('inventario')
       .select('*, lotes(id, numero_lote, fecha_caducidad, producto_id, costo_unitario, productos(nombre, sku))')
       .eq('almacen_id', almacenId)
@@ -72,21 +68,22 @@ const TraspasosPage = () => {
     setInventarioOrigen(data || []);
   };
 
-  const addLinea = () => {
-    if (!addItem.lote_id || parseInt(addItem.cantidad) <= 0) { toast.error('Seleccione producto y cantidad'); return; }
-    const inv = inventarioOrigen.find(i => (i.lotes as any)?.id === addItem.lote_id);
-    if (!inv) return;
-    const cant = parseInt(addItem.cantidad);
-    if (cant > inv.cantidad) { toast.error(`Solo hay ${inv.cantidad} disponibles`); return; }
-
+  const addLinea = (inv: any) => {
+    const loteId = (inv.lotes as any)?.id;
+    if (lineas.some(l => l.lote_id === loteId)) { toast.error('Ya está agregado'); return; }
     setLineas([...lineas, {
-      lote_id: addItem.lote_id,
-      cantidad: cant,
+      lote_id: loteId,
+      cantidad: 1,
       nombre: (inv.lotes as any)?.productos?.nombre || '',
       lote_nombre: (inv.lotes as any)?.numero_lote || '',
       disponible: inv.cantidad,
     }]);
-    setAddItem({ lote_id: '', cantidad: '1' });
+  };
+
+  const updateCantidad = (idx: number, cant: number) => {
+    const nl = [...lineas];
+    nl[idx] = { ...nl[idx], cantidad: Math.min(cant, nl[idx].disponible) };
+    setLineas(nl);
   };
 
   const save = async () => {
@@ -104,13 +101,19 @@ const TraspasosPage = () => {
 
     if (error) { toast.error('Error al crear traspaso'); return; }
 
-    // Insert traspaso_lineas
     const lineasInsert = lineas.map(l => ({
       traspaso_id: traspaso.id,
       lote_id: l.lote_id,
       cantidad: l.cantidad,
     }));
     await supabase.from('traspaso_lineas').insert(lineasInsert);
+
+    await supabase.from('audit_log').insert({
+      entidad: 'traspaso', accion: 'Traspaso creado', entidad_id: traspaso.id,
+      usuario_id: user?.id, usuario_nombre: user?.email,
+      sucursal_id: selectedSucursal?.id,
+      datos_despues: { productos: lineas.length, origen: form.almacen_origen_id, destino: form.almacen_destino_id },
+    });
 
     toast.success('Traspaso creado con productos');
     load();
@@ -121,7 +124,6 @@ const TraspasosPage = () => {
     const user = (await supabase.auth.getUser()).data.user;
 
     if (estado === 'completado') {
-      // Get traspaso with lines
       const traspaso = traspasos.find(t => t.id === id);
       if (!traspaso) return;
 
@@ -172,7 +174,15 @@ const TraspasosPage = () => {
     const updates: any = { estado };
     if (estado === 'completado') updates.recibido_por = user?.id;
     const { error } = await supabase.from('traspasos').update(updates).eq('id', id);
-    if (error) toast.error('Error'); else { toast.success(`Traspaso ${estado}`); load(); }
+    if (error) toast.error('Error'); else {
+      await supabase.from('audit_log').insert({
+        entidad: 'traspaso', accion: `Traspaso ${estado}`, entidad_id: id,
+        usuario_id: user?.id, usuario_nombre: user?.email,
+        sucursal_id: selectedSucursal?.id,
+      });
+      toast.success(`Traspaso ${estado}`);
+      load();
+    }
   };
 
   const viewDetail = async (traspaso: any) => {
@@ -182,11 +192,20 @@ const TraspasosPage = () => {
     setLineasDetail(data || []);
   };
 
+  // Filter inventory by search
+  const filteredInventario = inventarioOrigen.filter(inv => {
+    if (!searchProd) return true;
+    const s = searchProd.toLowerCase();
+    return (inv.lotes as any)?.productos?.nombre?.toLowerCase().includes(s) ||
+           (inv.lotes as any)?.productos?.sku?.toLowerCase().includes(s) ||
+           (inv.lotes as any)?.numero_lote?.toLowerCase().includes(s);
+  });
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div><h1 className="text-2xl font-bold">Traspasos entre Almacenes</h1><p className="text-muted-foreground">{selectedSucursal?.nombre} — Movimiento de inventario entre sucursales</p></div>
-        <Button onClick={() => { setForm({ almacen_origen_id: '', almacen_destino_id: '', notas: '' }); setLineas([]); setInventarioOrigen([]); setDialogOpen(true); }}><Plus className="h-4 w-4 mr-2" /> Nuevo Traspaso</Button>
+        <Button onClick={() => { setForm({ almacen_origen_id: '', almacen_destino_id: '', notas: '' }); setLineas([]); setInventarioOrigen([]); setSearchProd(''); setDialogOpen(true); }}><Plus className="h-4 w-4 mr-2" /> Nuevo Traspaso</Button>
       </div>
       <Card>
         <CardContent className="p-0">
@@ -236,23 +255,43 @@ const TraspasosPage = () => {
               </Select>
             </div>
 
-            {/* Product selection */}
+            {/* Product search and selection */}
             {form.almacen_origen_id && (
               <div className="border rounded-lg p-3 space-y-3">
                 <Label>Agregar Productos al Traspaso</Label>
-                <div className="flex gap-2">
-                  <Select value={addItem.lote_id} onValueChange={v => setAddItem({...addItem, lote_id: v})}>
-                    <SelectTrigger className="flex-1"><SelectValue placeholder="Producto / Lote..." /></SelectTrigger>
-                    <SelectContent>
-                      {inventarioOrigen.map(inv => (
-                        <SelectItem key={(inv.lotes as any)?.id} value={(inv.lotes as any)?.id}>
-                          {(inv.lotes as any)?.productos?.nombre} — Lote: {(inv.lotes as any)?.numero_lote} (Disp: {inv.cantidad})
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <Input type="number" min="1" className="w-20" placeholder="Cant" value={addItem.cantidad} onChange={e => setAddItem({...addItem, cantidad: e.target.value})} />
-                  <Button size="sm" onClick={addLinea}><Plus className="h-4 w-4" /></Button>
+                <div className="relative">
+                  <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Buscar producto por nombre, SKU o lote..."
+                    value={searchProd}
+                    onChange={e => setSearchProd(e.target.value)}
+                    className="pl-9"
+                  />
+                </div>
+                <div className="max-h-[200px] overflow-y-auto border rounded-md">
+                  {filteredInventario.length === 0 ? (
+                    <p className="text-center text-sm text-muted-foreground py-4">Sin productos disponibles</p>
+                  ) : (
+                    filteredInventario.slice(0, 20).map(inv => {
+                      const loteId = (inv.lotes as any)?.id;
+                      const alreadyAdded = lineas.some(l => l.lote_id === loteId);
+                      return (
+                        <button
+                          key={inv.id}
+                          type="button"
+                          disabled={alreadyAdded}
+                          className={`w-full text-left px-3 py-2 text-sm border-b last:border-b-0 flex justify-between items-center transition-colors ${alreadyAdded ? 'opacity-50 bg-muted' : 'hover:bg-accent'}`}
+                          onClick={() => addLinea(inv)}
+                        >
+                          <span>
+                            <span className="font-medium">{(inv.lotes as any)?.productos?.nombre}</span>
+                            <span className="text-xs text-muted-foreground ml-2">Lote: {(inv.lotes as any)?.numero_lote}</span>
+                          </span>
+                          <span className="text-xs font-mono">Disp: {inv.cantidad}</span>
+                        </button>
+                      );
+                    })
+                  )}
                 </div>
               </div>
             )}
@@ -265,7 +304,9 @@ const TraspasosPage = () => {
                     <TableRow key={i}>
                       <TableCell>{l.nombre}</TableCell>
                       <TableCell className="font-mono text-xs">{l.lote_nombre}</TableCell>
-                      <TableCell className="text-right font-bold">{l.cantidad}</TableCell>
+                      <TableCell className="text-right">
+                        <Input type="number" min="1" max={l.disponible} className="w-20 ml-auto" value={l.cantidad} onChange={e => updateCantidad(i, parseInt(e.target.value) || 1)} />
+                      </TableCell>
                       <TableCell className="text-right text-muted-foreground">{l.disponible}</TableCell>
                       <TableCell><Button size="sm" variant="ghost" onClick={() => setLineas(lineas.filter((_, idx) => idx !== i))}>✕</Button></TableCell>
                     </TableRow>
