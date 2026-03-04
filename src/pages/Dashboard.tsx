@@ -3,11 +3,45 @@ import { Link } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useSucursal } from '@/contexts/SucursalContext';
 import { UserRole } from '@/types';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Package, Truck, AlertCircle, Warehouse, FileSpreadsheet, BarChart3, ArrowLeftRight } from 'lucide-react';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Progress } from '@/components/ui/progress';
+import { Button } from '@/components/ui/button';
+import {
+  Package, Truck, AlertCircle, Warehouse, FileSpreadsheet, BarChart3,
+  ArrowLeftRight, Clock, CheckCircle2, AlertTriangle, ShoppingCart,
+  PackageCheck, TrendingUp, Activity, CalendarDays, ArrowRight
+} from 'lucide-react';
+import { format, formatDistanceToNow } from 'date-fns';
+import { es } from 'date-fns/locale';
 
 interface DashboardProps {
   userRole: UserRole;
+}
+
+interface PendingItem {
+  id: string;
+  type: 'compra' | 'pedido' | 'traspaso';
+  label: string;
+  detail: string;
+  estado: string;
+  date: string;
+  path: string;
+}
+
+interface AlertItem {
+  id: string;
+  type: 'caducidad' | 'stock_bajo';
+  product: string;
+  detail: string;
+  severity: 'warning' | 'destructive';
+}
+
+interface RecentActivity {
+  id: string;
+  description: string;
+  timestamp: string;
+  type: string;
 }
 
 const quickActionsByRole: Record<UserRole, Array<{
@@ -15,36 +49,52 @@ const quickActionsByRole: Record<UserRole, Array<{
   icon: any;
   label: string;
   description: string;
-  colorClass: string;
 }>> = {
   admin: [
-    { path: '/productos', icon: Package, label: 'Productos', description: 'Gestionar catálogo', colorClass: 'bg-primary/10 hover:bg-primary/20 text-primary' },
-    { path: '/inventario', icon: Warehouse, label: 'Inventario', description: 'Ver existencias', colorClass: 'bg-primary/10 hover:bg-primary/20 text-primary' },
-    { path: '/margenes', icon: BarChart3, label: 'Márgenes', description: 'Rentabilidad', colorClass: 'bg-primary/10 hover:bg-primary/20 text-primary' },
-    { path: '/reportes', icon: FileSpreadsheet, label: 'Reportes', description: 'Ver reportes', colorClass: 'bg-primary/10 hover:bg-primary/20 text-primary' },
+    { path: '/productos', icon: Package, label: 'Productos', description: 'Gestionar catálogo' },
+    { path: '/inventario', icon: Warehouse, label: 'Inventario', description: 'Ver existencias' },
+    { path: '/compras', icon: ShoppingCart, label: 'Compras', description: 'Órdenes de compra' },
+    { path: '/margenes', icon: BarChart3, label: 'Márgenes', description: 'Rentabilidad' },
+    { path: '/reportes', icon: FileSpreadsheet, label: 'Reportes', description: 'Ver reportes' },
+    { path: '/traspasos', icon: ArrowLeftRight, label: 'Traspasos', description: 'Entre sucursales' },
   ],
   gerente: [
-    { path: '/inventario', icon: Warehouse, label: 'Inventario', description: 'Ver existencias', colorClass: 'bg-primary/10 hover:bg-primary/20 text-primary' },
-    { path: '/rutas', icon: Truck, label: 'Rutas', description: 'Gestionar rutas', colorClass: 'bg-primary/10 hover:bg-primary/20 text-primary' },
-    { path: '/margenes', icon: BarChart3, label: 'Márgenes', description: 'Rentabilidad', colorClass: 'bg-primary/10 hover:bg-primary/20 text-primary' },
-    { path: '/reportes', icon: FileSpreadsheet, label: 'Reportes', description: 'Ver reportes', colorClass: 'bg-primary/10 hover:bg-primary/20 text-primary' },
+    { path: '/inventario', icon: Warehouse, label: 'Inventario', description: 'Ver existencias' },
+    { path: '/compras', icon: ShoppingCart, label: 'Compras', description: 'Órdenes de compra' },
+    { path: '/rutas', icon: Truck, label: 'Rutas', description: 'Gestionar rutas' },
+    { path: '/margenes', icon: BarChart3, label: 'Márgenes', description: 'Rentabilidad' },
+    { path: '/reportes', icon: FileSpreadsheet, label: 'Reportes', description: 'Ver reportes' },
   ],
   cajero: [
-    { path: '/inventario', icon: Warehouse, label: 'Inventario', description: 'Ver existencias', colorClass: 'bg-primary/10 hover:bg-primary/20 text-primary' },
+    { path: '/inventario', icon: Warehouse, label: 'Inventario', description: 'Ver existencias' },
+    { path: '/pedidos', icon: PackageCheck, label: 'Pedidos', description: 'Gestionar pedidos' },
   ],
   almacen: [
-    { path: '/inventario', icon: Warehouse, label: 'Inventario', description: 'Gestionar existencias', colorClass: 'bg-primary/10 hover:bg-primary/20 text-primary' },
-    { path: '/kardex', icon: FileSpreadsheet, label: 'Kardex', description: 'Ver movimientos', colorClass: 'bg-primary/10 hover:bg-primary/20 text-primary' },
-    { path: '/traspasos', icon: ArrowLeftRight, label: 'Traspasos', description: 'Entre sucursales', colorClass: 'bg-primary/10 hover:bg-primary/20 text-primary' },
+    { path: '/inventario', icon: Warehouse, label: 'Inventario', description: 'Gestionar existencias' },
+    { path: '/kardex', icon: FileSpreadsheet, label: 'Kardex', description: 'Ver movimientos' },
+    { path: '/traspasos', icon: ArrowLeftRight, label: 'Traspasos', description: 'Entre sucursales' },
+    { path: '/compras', icon: ShoppingCart, label: 'Compras', description: 'Recibir compras' },
   ],
   repartidor: [
-    { path: '/rutas', icon: Truck, label: 'Mis Rutas', description: 'Ver entregas', colorClass: 'bg-primary/10 hover:bg-primary/20 text-primary' },
+    { path: '/rutas', icon: Truck, label: 'Mis Rutas', description: 'Ver entregas' },
   ],
   auditor: [
-    { path: '/auditoria', icon: FileSpreadsheet, label: 'Auditoría', description: 'Ver logs', colorClass: 'bg-primary/10 hover:bg-primary/20 text-primary' },
-    { path: '/margenes', icon: BarChart3, label: 'Márgenes', description: 'Rentabilidad', colorClass: 'bg-primary/10 hover:bg-primary/20 text-primary' },
-    { path: '/reportes', icon: FileSpreadsheet, label: 'Reportes', description: 'Operativos', colorClass: 'bg-primary/10 hover:bg-primary/20 text-primary' },
+    { path: '/actividad', icon: Activity, label: 'Auditoría', description: 'Ver logs' },
+    { path: '/margenes', icon: BarChart3, label: 'Márgenes', description: 'Rentabilidad' },
+    { path: '/reportes', icon: FileSpreadsheet, label: 'Reportes', description: 'Operativos' },
   ],
+};
+
+const estadoBadge = (estado: string) => {
+  const map: Record<string, { variant: 'default' | 'secondary' | 'destructive' | 'outline'; label: string }> = {
+    en_transito: { variant: 'default', label: 'En Tránsito' },
+    ordenada: { variant: 'secondary', label: 'Ordenada' },
+    pendiente: { variant: 'outline', label: 'Pendiente' },
+    en_ruta: { variant: 'default', label: 'En Ruta' },
+    preparando: { variant: 'secondary', label: 'Preparando' },
+  };
+  const m = map[estado] || { variant: 'outline' as const, label: estado };
+  return <Badge variant={m.variant}>{m.label}</Badge>;
 };
 
 const Dashboard = ({ userRole }: DashboardProps) => {
@@ -52,6 +102,11 @@ const Dashboard = ({ userRole }: DashboardProps) => {
   const [productosActivos, setProductosActivos] = useState(0);
   const [lotesPorVencer, setLotesPorVencer] = useState(0);
   const [rutasActivas, setRutasActivas] = useState(0);
+  const [comprasPendientes, setComprasPendientes] = useState(0);
+  const [pendingItems, setPendingItems] = useState<PendingItem[]>([]);
+  const [alerts, setAlerts] = useState<AlertItem[]>([]);
+  const [recentActivity, setRecentActivity] = useState<RecentActivity[]>([]);
+  const [stockBajoCount, setStockBajoCount] = useState(0);
 
   const roleLabels: Record<UserRole, string> = {
     admin: 'Administrador',
@@ -63,81 +118,485 @@ const Dashboard = ({ userRole }: DashboardProps) => {
   };
 
   useEffect(() => {
-    loadKPIs();
+    if (selectedSucursal) {
+      loadAll();
+    }
   }, [selectedSucursal]);
+
+  const loadAll = async () => {
+    await Promise.all([loadKPIs(), loadPendingItems(), loadAlerts(), loadRecentActivity()]);
+  };
 
   const loadKPIs = async () => {
     const today = new Date().toISOString().split('T')[0];
     const in30 = new Date();
     in30.setDate(in30.getDate() + 30);
 
-    const [prodRes, lotesRes, rutasRes] = await Promise.all([
+    const [prodRes, lotesRes, rutasRes, comprasRes] = await Promise.all([
       supabase.from('productos').select('id', { count: 'exact', head: true }).eq('activo', true),
       supabase.from('lotes').select('id', { count: 'exact', head: true }).gte('fecha_caducidad', today).lte('fecha_caducidad', in30.toISOString().split('T')[0]),
       supabase.from('rutas').select('id', { count: 'exact', head: true }).in('estado', ['preparando', 'en_ruta']),
+      supabase.from('compras').select('id', { count: 'exact', head: true }).in('estado', ['ordenada', 'en_transito']),
     ]);
 
     setProductosActivos(prodRes.count || 0);
     setLotesPorVencer(lotesRes.count || 0);
     setRutasActivas(rutasRes.count || 0);
+    setComprasPendientes(comprasRes.count || 0);
+  };
+
+  const loadPendingItems = async () => {
+    const items: PendingItem[] = [];
+
+    // Compras pendientes de recibir
+    const { data: compras } = await supabase
+      .from('compras')
+      .select('id, numero_compra, estado, created_at, proveedor_id')
+      .in('estado', ['ordenada', 'en_transito'])
+      .order('created_at', { ascending: false })
+      .limit(5);
+
+    if (compras) {
+      for (const c of compras) {
+        items.push({
+          id: c.id,
+          type: 'compra',
+          label: `Compra ${c.numero_compra}`,
+          detail: c.estado === 'en_transito' ? 'Pendiente de recepción' : 'Pendiente de envío',
+          estado: c.estado,
+          date: c.created_at || '',
+          path: '/compras',
+        });
+      }
+    }
+
+    // Pedidos en ruta
+    const { data: pedidos } = await supabase
+      .from('pedidos')
+      .select('id, numero_pedido, estado, created_at')
+      .in('estado', ['en_ruta', 'pendiente'])
+      .order('created_at', { ascending: false })
+      .limit(5);
+
+    if (pedidos) {
+      for (const p of pedidos) {
+        items.push({
+          id: p.id,
+          type: 'pedido',
+          label: `Pedido ${p.numero_pedido}`,
+          detail: p.estado === 'en_ruta' ? 'En camino al cliente' : 'Pendiente de enviar',
+          estado: p.estado,
+          date: p.created_at || '',
+          path: '/pedidos',
+        });
+      }
+    }
+
+    // Traspasos pendientes
+    const { data: traspasos } = await supabase
+      .from('traspasos')
+      .select('id, estado, created_at')
+      .in('estado', ['pendiente', 'aprobado'])
+      .order('created_at', { ascending: false })
+      .limit(5);
+
+    if (traspasos) {
+      for (const t of traspasos) {
+        items.push({
+          id: t.id,
+          type: 'traspaso',
+          label: `Traspaso`,
+          detail: t.estado === 'pendiente' ? 'Esperando aprobación' : 'Aprobado, pendiente de completar',
+          estado: t.estado,
+          date: t.created_at || '',
+          path: '/traspasos',
+        });
+      }
+    }
+
+    items.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    setPendingItems(items.slice(0, 8));
+  };
+
+  const loadAlerts = async () => {
+    const alertItems: AlertItem[] = [];
+    const today = new Date().toISOString().split('T')[0];
+    const in15 = new Date();
+    in15.setDate(in15.getDate() + 15);
+
+    // Lotes próximos a vencer (15 días)
+    const { data: lotesProximos } = await supabase
+      .from('lotes')
+      .select('id, numero_lote, fecha_caducidad, producto_id, productos(nombre)')
+      .gte('fecha_caducidad', today)
+      .lte('fecha_caducidad', in15.toISOString().split('T')[0])
+      .limit(5);
+
+    if (lotesProximos) {
+      for (const l of lotesProximos) {
+        const prodName = (l as any).productos?.nombre || 'Producto';
+        alertItems.push({
+          id: l.id,
+          type: 'caducidad',
+          product: prodName,
+          detail: `Lote ${l.numero_lote} vence el ${l.fecha_caducidad}`,
+          severity: 'warning',
+        });
+      }
+    }
+
+    // Stock bajo - productos con inventario menor al mínimo
+    if (selectedSucursal) {
+      const { data: almacenes } = await supabase
+        .from('almacenes')
+        .select('id')
+        .eq('sucursal_id', selectedSucursal.id);
+
+      if (almacenes && almacenes.length > 0) {
+        const almacenIds = almacenes.map(a => a.id);
+        const { data: invData } = await supabase
+          .from('inventario')
+          .select('lote_id, cantidad, almacen_id, lotes(producto_id, productos(nombre, stock_minimo))')
+          .in('almacen_id', almacenIds);
+
+        if (invData) {
+          const stockByProduct: Record<string, { nombre: string; total: number; minimo: number }> = {};
+          for (const inv of invData) {
+            const prod = (inv as any).lotes?.productos;
+            const prodId = (inv as any).lotes?.producto_id;
+            if (prod && prodId) {
+              if (!stockByProduct[prodId]) {
+                stockByProduct[prodId] = { nombre: prod.nombre, total: 0, minimo: prod.stock_minimo || 10 };
+              }
+              stockByProduct[prodId].total += inv.cantidad;
+            }
+          }
+
+          let lowCount = 0;
+          for (const [id, info] of Object.entries(stockByProduct)) {
+            if (info.total < info.minimo) {
+              lowCount++;
+              if (alertItems.length < 8) {
+                alertItems.push({
+                  id,
+                  type: 'stock_bajo',
+                  product: info.nombre,
+                  detail: `Stock: ${info.total} / Mín: ${info.minimo}`,
+                  severity: 'destructive',
+                });
+              }
+            }
+          }
+          setStockBajoCount(lowCount);
+        }
+      }
+    }
+
+    setAlerts(alertItems);
+  };
+
+  const loadRecentActivity = async () => {
+    const { data } = await supabase
+      .from('movimientos_inventario')
+      .select('id, tipo, cantidad, created_at, notas, lotes(numero_lote, productos(nombre))')
+      .order('created_at', { ascending: false })
+      .limit(6);
+
+    if (data) {
+      const items: RecentActivity[] = data.map(m => {
+        const prodName = (m as any).lotes?.productos?.nombre || '';
+        const lote = (m as any).lotes?.numero_lote || '';
+        const tipoLabel: Record<string, string> = {
+          entrada: '📥 Entrada',
+          salida: '📤 Salida',
+          ajuste: '🔧 Ajuste',
+          merma: '⚠️ Merma',
+          traspaso_entrada: '📥 Traspaso entrada',
+          traspaso_salida: '📤 Traspaso salida',
+        };
+        return {
+          id: m.id,
+          description: `${tipoLabel[m.tipo] || m.tipo} — ${prodName} (${Math.abs(m.cantidad)} uds) ${lote ? `Lote: ${lote}` : ''}`,
+          timestamp: m.created_at || '',
+          type: m.tipo,
+        };
+      });
+      setRecentActivity(items);
+    }
   };
 
   const quickActions = quickActionsByRole[userRole] || [];
+  const pendingCount = pendingItems.length;
+  const alertCount = alerts.length;
+
+  const kpiCards = [
+    {
+      title: 'Productos Activos',
+      value: productosActivos,
+      subtitle: 'En catálogo',
+      icon: Package,
+      color: 'text-primary',
+      bgColor: 'bg-primary/10',
+    },
+    {
+      title: 'Compras Pendientes',
+      value: comprasPendientes,
+      subtitle: 'Por recibir',
+      icon: ShoppingCart,
+      color: 'text-[hsl(var(--warning))]',
+      bgColor: 'bg-[hsl(var(--warning))]/10',
+    },
+    {
+      title: 'Lotes por Vencer',
+      value: lotesPorVencer,
+      subtitle: 'Próximos 30 días',
+      icon: AlertCircle,
+      color: lotesPorVencer > 0 ? 'text-destructive' : 'text-muted-foreground',
+      bgColor: lotesPorVencer > 0 ? 'bg-destructive/10' : 'bg-muted',
+    },
+    {
+      title: 'Rutas Activas',
+      value: rutasActivas,
+      subtitle: 'En tránsito hoy',
+      icon: Truck,
+      color: 'text-[hsl(var(--accent))]',
+      bgColor: 'bg-[hsl(var(--accent))]/10',
+    },
+  ];
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold text-foreground">Dashboard</h1>
-        <p className="text-muted-foreground">Bienvenido, {roleLabels[userRole]}</p>
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold text-foreground">Dashboard</h1>
+          <p className="text-muted-foreground">
+            {roleLabels[userRole]} — {selectedSucursal?.nombre || 'Sin sucursal'}
+          </p>
+        </div>
+        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <CalendarDays className="h-4 w-4" />
+          {format(new Date(), "EEEE d 'de' MMMM, yyyy", { locale: es })}
+        </div>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-3">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Productos Activos</CardTitle>
-            <Package className="h-4 w-4 text-muted-foreground" />
+      {/* Summary banner */}
+      {(pendingCount > 0 || alertCount > 0) && (
+        <div className="rounded-lg border bg-card p-4 flex items-center gap-4 flex-wrap">
+          {pendingCount > 0 && (
+            <div className="flex items-center gap-2">
+              <div className="flex items-center justify-center h-8 w-8 rounded-full bg-primary/10">
+                <Clock className="h-4 w-4 text-primary" />
+              </div>
+              <span className="text-sm font-medium">{pendingCount} pendiente{pendingCount !== 1 ? 's' : ''}</span>
+            </div>
+          )}
+          {alertCount > 0 && (
+            <div className="flex items-center gap-2">
+              <div className="flex items-center justify-center h-8 w-8 rounded-full bg-destructive/10">
+                <AlertTriangle className="h-4 w-4 text-destructive" />
+              </div>
+              <span className="text-sm font-medium">{alertCount} alerta{alertCount !== 1 ? 's' : ''}</span>
+            </div>
+          )}
+          {stockBajoCount > 0 && (
+            <div className="flex items-center gap-2">
+              <div className="flex items-center justify-center h-8 w-8 rounded-full bg-[hsl(var(--warning))]/10">
+                <Package className="h-4 w-4 text-[hsl(var(--warning))]" />
+              </div>
+              <span className="text-sm font-medium">{stockBajoCount} producto{stockBajoCount !== 1 ? 's' : ''} con stock bajo</span>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* KPI Cards */}
+      <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
+        {kpiCards.map((kpi) => (
+          <Card key={kpi.title} className="relative overflow-hidden">
+            <CardContent className="p-5">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{kpi.title}</p>
+                  <p className="text-3xl font-bold mt-1">{kpi.value}</p>
+                  <p className="text-xs text-muted-foreground mt-1">{kpi.subtitle}</p>
+                </div>
+                <div className={`flex items-center justify-center h-12 w-12 rounded-xl ${kpi.bgColor}`}>
+                  <kpi.icon className={`h-6 w-6 ${kpi.color}`} />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+
+      {/* Main content: Pending + Alerts side by side */}
+      <div className="grid gap-6 lg:grid-cols-2">
+        {/* Pending items */}
+        <Card className="lg:row-span-1">
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Clock className="h-5 w-5 text-primary" />
+                <CardTitle className="text-lg">Pendientes</CardTitle>
+              </div>
+              {pendingCount > 0 && (
+                <Badge variant="secondary">{pendingCount}</Badge>
+              )}
+            </div>
+            <CardDescription>Operaciones que requieren atención</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{productosActivos}</div>
-            <p className="text-xs text-muted-foreground">En catálogo</p>
+            {pendingItems.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-8 text-muted-foreground">
+                <CheckCircle2 className="h-10 w-10 mb-2 text-[hsl(var(--accent))]" />
+                <p className="font-medium">¡Todo al día!</p>
+                <p className="text-xs">No hay operaciones pendientes</p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {pendingItems.map((item) => (
+                  <Link
+                    key={item.id}
+                    to={item.path}
+                    className="flex items-center gap-3 rounded-lg border p-3 hover:bg-muted/50 transition-colors group"
+                  >
+                    <div className={`flex items-center justify-center h-9 w-9 rounded-lg shrink-0 ${
+                      item.type === 'compra' ? 'bg-primary/10' :
+                      item.type === 'pedido' ? 'bg-[hsl(var(--accent))]/10' :
+                      'bg-[hsl(var(--warning))]/10'
+                    }`}>
+                      {item.type === 'compra' && <ShoppingCart className="h-4 w-4 text-primary" />}
+                      {item.type === 'pedido' && <PackageCheck className="h-4 w-4 text-[hsl(var(--accent))]" />}
+                      {item.type === 'traspaso' && <ArrowLeftRight className="h-4 w-4 text-[hsl(var(--warning))]" />}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium truncate">{item.label}</p>
+                      <p className="text-xs text-muted-foreground">{item.detail}</p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {estadoBadge(item.estado)}
+                      <ArrowRight className="h-4 w-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            )}
           </CardContent>
         </Card>
+
+        {/* Alerts */}
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Lotes por Vencer</CardTitle>
-            <AlertCircle className="h-4 w-4 text-muted-foreground" />
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <AlertTriangle className="h-5 w-5 text-[hsl(var(--warning))]" />
+                <CardTitle className="text-lg">Alertas</CardTitle>
+              </div>
+              {alertCount > 0 && (
+                <Badge variant="destructive">{alertCount}</Badge>
+              )}
+            </div>
+            <CardDescription>Caducidades próximas y stock bajo</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{lotesPorVencer}</div>
-            <p className="text-xs text-muted-foreground">Próximos 30 días</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Rutas Activas</CardTitle>
-            <Truck className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{rutasActivas}</div>
-            <p className="text-xs text-muted-foreground">En tránsito hoy</p>
+            {alerts.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-8 text-muted-foreground">
+                <CheckCircle2 className="h-10 w-10 mb-2 text-[hsl(var(--accent))]" />
+                <p className="font-medium">Sin alertas</p>
+                <p className="text-xs">Todo dentro de los parámetros normales</p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {alerts.map((alert) => (
+                  <div
+                    key={alert.id}
+                    className={`flex items-center gap-3 rounded-lg border p-3 ${
+                      alert.severity === 'destructive' ? 'border-destructive/30 bg-destructive/5' : 'border-[hsl(var(--warning))]/30 bg-[hsl(var(--warning))]/5'
+                    }`}
+                  >
+                    <div className={`flex items-center justify-center h-9 w-9 rounded-lg shrink-0 ${
+                      alert.severity === 'destructive' ? 'bg-destructive/10' : 'bg-[hsl(var(--warning))]/10'
+                    }`}>
+                      {alert.type === 'caducidad' ? (
+                        <AlertCircle className={`h-4 w-4 ${alert.severity === 'destructive' ? 'text-destructive' : 'text-[hsl(var(--warning))]'}`} />
+                      ) : (
+                        <Package className="h-4 w-4 text-destructive" />
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium truncate">{alert.product}</p>
+                      <p className="text-xs text-muted-foreground">{alert.detail}</p>
+                    </div>
+                    <Badge variant={alert.severity === 'destructive' ? 'destructive' : 'outline'}>
+                      {alert.type === 'caducidad' ? 'Vence pronto' : 'Stock bajo'}
+                    </Badge>
+                  </div>
+                ))}
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>
 
+      {/* Recent Activity */}
+      <Card>
+        <CardHeader className="pb-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Activity className="h-5 w-5 text-primary" />
+              <CardTitle className="text-lg">Actividad Reciente</CardTitle>
+            </div>
+            <Button variant="ghost" size="sm" asChild>
+              <Link to="/actividad" className="flex items-center gap-1">
+                Ver todo <ArrowRight className="h-3 w-3" />
+              </Link>
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {recentActivity.length === 0 ? (
+            <p className="text-sm text-muted-foreground text-center py-6">Sin actividad reciente</p>
+          ) : (
+            <div className="space-y-3">
+              {recentActivity.map((act, idx) => (
+                <div key={act.id} className="flex items-start gap-3">
+                  <div className="relative flex flex-col items-center">
+                    <div className="h-2 w-2 rounded-full bg-primary mt-2" />
+                    {idx < recentActivity.length - 1 && (
+                      <div className="w-px flex-1 bg-border mt-1" style={{ minHeight: '24px' }} />
+                    )}
+                  </div>
+                  <div className="flex-1 pb-3">
+                    <p className="text-sm">{act.description}</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      {act.timestamp && formatDistanceToNow(new Date(act.timestamp), { addSuffix: true, locale: es })}
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Quick Actions */}
       {quickActions.length > 0 && (
         <Card>
-          <CardHeader>
-            <CardTitle>Acciones Rápidas</CardTitle>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-lg">Acciones Rápidas</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid gap-3 grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
+            <div className="grid gap-3 grid-cols-2 md:grid-cols-3 lg:grid-cols-6">
               {quickActions.map((action) => (
                 <Link
                   key={action.path}
                   to={action.path}
-                  className={`rounded-lg border p-4 transition-colors flex flex-col items-center text-center ${action.colorClass}`}
+                  className="rounded-xl border p-4 transition-all hover:shadow-md hover:border-primary/30 flex flex-col items-center text-center group"
                 >
-                  <action.icon className="h-6 w-6 mb-2" />
+                  <div className="flex items-center justify-center h-10 w-10 rounded-lg bg-primary/10 group-hover:bg-primary/20 transition-colors mb-2">
+                    <action.icon className="h-5 w-5 text-primary" />
+                  </div>
                   <h4 className="font-semibold text-sm">{action.label}</h4>
                   <p className="text-xs text-muted-foreground">{action.description}</p>
                 </Link>
