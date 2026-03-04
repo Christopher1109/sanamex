@@ -12,6 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/textarea';
 import { Plus, Eye, PackageCheck, CreditCard, ChevronRight, Upload, ImageIcon } from 'lucide-react';
 import { toast } from 'sonner';
+import ProductSearchInput from '@/components/ProductSearchInput';
 
 const estadoConfig: Record<string, { color: string; label: string }> = {
   en_transito: { color: 'default', label: 'En Tránsito' },
@@ -100,6 +101,15 @@ const ComprasPage = () => {
       cantidad_ordenada: l.cantidad, precio_unitario_estimado: l.precio_est,
     }));
     await supabase.from('compra_lineas').insert(lineasInsert);
+
+    // Log activity
+    await supabase.from('audit_log').insert({
+      entidad: 'compra', accion: 'Orden de compra creada', entidad_id: compra.id,
+      usuario_id: user?.id, usuario_nombre: user?.email,
+      sucursal_id: selectedSucursal!.id,
+      datos_despues: { numero_compra: numCompra, total: subtotal, productos: lineas.length },
+    });
+
     toast.success(`Orden ${numCompra} creada — En Tránsito`);
     setShowCreate(false);
     load();
@@ -167,6 +177,14 @@ const ComprasPage = () => {
     }
 
     await supabase.from('compras').update({ estado: 'recibida' }).eq('id', showRecepcion.id);
+
+    // Log activity
+    await supabase.from('audit_log').insert({
+      entidad: 'compra', accion: 'Recepción completada', entidad_id: showRecepcion.id,
+      usuario_id: user?.id, usuario_nombre: user?.email,
+      sucursal_id: showRecepcion.sucursal_id,
+    });
+
     toast.success('Recepción completada — inventario actualizado');
     setShowRecepcion(null);
     load();
@@ -194,8 +212,8 @@ const ComprasPage = () => {
         setUploading(false);
         return;
       }
-      const { data: urlData } = supabase.storage.from('comprobantes-pago').getPublicUrl(filePath);
-      comprobanteUrl = urlData.publicUrl;
+      // Store just the file path, not the full URL
+      comprobanteUrl = filePath;
     }
 
     await supabase.from('compras').update({
@@ -203,10 +221,44 @@ const ComprasPage = () => {
       comprobante_pago_url: comprobanteUrl,
     }).eq('id', showPago.id);
 
+    const user = (await supabase.auth.getUser()).data.user;
+    await supabase.from('audit_log').insert({
+      entidad: 'compra', accion: 'Compra marcada como pagada', entidad_id: showPago.id,
+      usuario_id: user?.id, usuario_nombre: user?.email,
+      sucursal_id: showPago.sucursal_id,
+    });
+
     toast.success('Compra marcada como pagada');
     setShowPago(null);
     setUploading(false);
     load();
+  };
+
+  const viewComprobante = async (compra: any) => {
+    if (!compra.comprobante_pago_url) return;
+    // If it's a path (not full URL), download via signed URL
+    const path = compra.comprobante_pago_url;
+    if (path.startsWith('http')) {
+      // Legacy full URLs - try downloading via blob
+      try {
+        const response = await fetch(path);
+        const blob = await response.blob();
+        const url = URL.createObjectURL(blob);
+        window.open(url, '_blank');
+      } catch {
+        toast.error('No se pudo abrir el comprobante. Verifique que no tenga un bloqueador de anuncios activo.');
+      }
+      return;
+    }
+    // Use signed URL approach
+    const { data, error } = await supabase.storage
+      .from('comprobantes-pago')
+      .createSignedUrl(path, 300); // 5 min
+    if (error || !data?.signedUrl) {
+      toast.error('Error al obtener comprobante');
+      return;
+    }
+    window.open(data.signedUrl, '_blank');
   };
 
   const viewDetail = async (compra: any) => {
@@ -225,7 +277,6 @@ const ComprasPage = () => {
         <Button onClick={openCreate}><Plus className="h-4 w-4 mr-2" />Nueva Orden de Compra</Button>
       </div>
 
-      {/* Flow visualization */}
       <Card>
         <CardContent className="p-4">
           <div className="flex items-center justify-between">
@@ -304,11 +355,13 @@ const ComprasPage = () => {
             </div>
             <div className="border rounded-lg p-3 space-y-3">
               <Label>Agregar Productos</Label>
-              <div className="flex gap-2">
-                <Select value={addItem.producto_id} onValueChange={v => setAddItem({...addItem, producto_id: v})}>
-                  <SelectTrigger className="flex-1"><SelectValue placeholder="Producto..." /></SelectTrigger>
-                  <SelectContent>{productosDisp.map(p => <SelectItem key={p.id} value={p.id}>{p.sku} — {p.nombre}</SelectItem>)}</SelectContent>
-                </Select>
+              <div className="flex gap-2 items-end">
+                <ProductSearchInput
+                  products={productosDisp}
+                  value={addItem.producto_id}
+                  onSelect={v => setAddItem({...addItem, producto_id: v})}
+                  placeholder="Buscar producto..."
+                />
                 <Input type="number" min="1" className="w-20" placeholder="Cant" value={addItem.cantidad} onChange={e => setAddItem({...addItem, cantidad: e.target.value})} />
                 <Input type="number" step="0.01" className="w-28" placeholder="P. Est." value={addItem.precio} onChange={e => setAddItem({...addItem, precio: e.target.value})} />
                 <Button size="sm" onClick={addLinea}><Plus className="h-4 w-4" /></Button>
@@ -372,7 +425,7 @@ const ComprasPage = () => {
         </DialogContent>
       </Dialog>
 
-      {/* Pago Dialog with image upload */}
+      {/* Pago Dialog */}
       <Dialog open={!!showPago} onOpenChange={() => setShowPago(null)}>
         <DialogContent>
           <DialogHeader><DialogTitle>Marcar como Pagada — {showPago?.numero_compra}</DialogTitle></DialogHeader>
@@ -396,13 +449,7 @@ const ComprasPage = () => {
                   </div>
                 )}
               </div>
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/*,.pdf"
-                className="hidden"
-                onChange={e => setPagoFile(e.target.files?.[0] || null)}
-              />
+              <input ref={fileInputRef} type="file" accept="image/*,.pdf" className="hidden" onChange={e => setPagoFile(e.target.files?.[0] || null)} />
             </div>
           </div>
           <DialogFooter>
@@ -426,7 +473,7 @@ const ComprasPage = () => {
             {showDetail?.comprobante_pago_url && (
               <div>
                 <strong>Comprobante:</strong>{' '}
-                <a href={showDetail.comprobante_pago_url} target="_blank" rel="noopener noreferrer" className="text-primary underline">Ver comprobante</a>
+                <button onClick={() => viewComprobante(showDetail)} className="text-primary underline cursor-pointer">Ver comprobante</button>
               </div>
             )}
           </div>
