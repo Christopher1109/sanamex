@@ -5,7 +5,8 @@ import {
   LayoutDashboard, Package, Users, Truck, LogOut,
   Warehouse, ArrowLeftRight, ClipboardList,
   Scissors, BarChart3, Store, ShoppingCart,
-  PackageCheck, AlertTriangle, History, FileSpreadsheet
+  PackageCheck, AlertTriangle, History, FileSpreadsheet,
+  Monitor
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { SucursalSelector } from '@/components/SucursalSelector';
@@ -44,6 +45,7 @@ const Sidebar = ({ userRole, onLogout }: SidebarProps) => {
     // Operaciones
     { path: '/compras', icon: ShoppingCart, label: 'Compras', roles: ['admin', 'gerente', 'almacen'], category: 'Operaciones' },
     { path: '/pedidos', icon: PackageCheck, label: 'Ventas', roles: ['admin', 'gerente', 'almacen', 'cajero'], category: 'Operaciones' },
+    { path: '/pos', icon: Monitor, label: 'Punto de Venta', roles: ['admin', 'gerente', 'cajero'], category: 'Operaciones' },
     { path: '/traspasos', icon: ArrowLeftRight, label: 'Traspasos', roles: ['admin', 'gerente', 'almacen'], category: 'Operaciones' },
     // Inventario
     { path: '/inventario', icon: Warehouse, label: 'Inventario', roles: ['admin', 'gerente', 'almacen'], category: 'Inventario' },

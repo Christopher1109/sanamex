@@ -21,6 +21,7 @@ import ComprasPage from './pages/ComprasPage';
 import ReportesPage from './pages/ReportesPage';
 import MargenesPage from './pages/MargenesPage';
 import AuditoriaPage from './pages/AuditoriaPage';
+import POSPage from './pages/POSPage';
 import Sidebar from './components/layout/Sidebar';
 import Header from './components/layout/Header';
 
@@ -72,6 +73,7 @@ const AppContent = () => {
               <Route path="/margenes" element={<MargenesPage />} />
               <Route path="/reportes" element={<ReportesPage />} />
               <Route path="/actividad" element={<AuditoriaPage />} />
+              <Route path="/pos" element={<POSPage />} />
               <Route path="/auth" element={<Navigate to="/dashboard" replace />} />
               <Route path="*" element={<Navigate to="/dashboard" replace />} />
             </Routes>
