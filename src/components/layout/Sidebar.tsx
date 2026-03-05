@@ -43,7 +43,7 @@ const Sidebar = ({ userRole, onLogout }: SidebarProps) => {
     { path: '/clientes', icon: Users, label: 'Clientes', roles: ['admin', 'gerente', 'cajero'], category: 'Catálogos' },
     // Operaciones
     { path: '/compras', icon: ShoppingCart, label: 'Compras', roles: ['admin', 'gerente', 'almacen'], category: 'Operaciones' },
-    { path: '/pedidos', icon: PackageCheck, label: 'Pedidos', roles: ['admin', 'gerente', 'almacen', 'cajero'], category: 'Operaciones' },
+    { path: '/pedidos', icon: PackageCheck, label: 'Ventas', roles: ['admin', 'gerente', 'almacen', 'cajero'], category: 'Operaciones' },
     { path: '/traspasos', icon: ArrowLeftRight, label: 'Traspasos', roles: ['admin', 'gerente', 'almacen'], category: 'Operaciones' },
     // Inventario
     { path: '/inventario', icon: Warehouse, label: 'Inventario', roles: ['admin', 'gerente', 'almacen'], category: 'Inventario' },
