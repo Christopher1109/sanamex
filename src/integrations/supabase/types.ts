@@ -1347,6 +1347,18 @@ export type Database = {
         }
         Returns: boolean
       }
+      process_pos_sale: {
+        Args: {
+          p_cajero_id: string
+          p_cliente_id?: string
+          p_efectivo_recibido?: number
+          p_items: Json
+          p_metodo_pago?: string
+          p_nota?: string
+          p_sucursal_id: string
+        }
+        Returns: Json
+      }
     }
     Enums: {
       app_role:
