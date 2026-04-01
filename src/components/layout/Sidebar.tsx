@@ -2,10 +2,10 @@ import { Link, useLocation } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import { UserRole } from '@/types';
 import {
-  LayoutDashboard, Package, Users, Truck, LogOut,
+  LayoutDashboard, Package, Users, LogOut,
   Warehouse, ArrowLeftRight, ClipboardList,
-  Scissors, BarChart3, Store, ShoppingCart,
-  PackageCheck, AlertTriangle, History, FileSpreadsheet,
+  Store, ShoppingCart,
+  PackageCheck, AlertTriangle, AlertCircle, History, FileSpreadsheet,
   Monitor
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';

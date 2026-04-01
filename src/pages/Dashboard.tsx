@@ -7,9 +7,9 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
-  Package, Truck, AlertCircle, Warehouse, FileSpreadsheet, BarChart3,
+  Package, AlertCircle, Warehouse, FileSpreadsheet,
   ArrowLeftRight, Clock, CheckCircle2, AlertTriangle, ShoppingCart,
-  PackageCheck, Activity, CalendarDays, ArrowRight
+  PackageCheck, Activity, CalendarDays, ArrowRight, TrendingDown
 } from 'lucide-react';
 import { format, formatDistanceToNow } from 'date-fns';
 import { es } from 'date-fns/locale';

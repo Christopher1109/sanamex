@@ -66,10 +66,9 @@ const AppContent = () => {
               <Route path="/traspasos" element={<TraspasosPage />} />
               <Route path="/ajustes" element={<AjustesMermasPage />} />
               <Route path="/mermas" element={<MermasPage />} />
+              <Route path="/caducidades" element={<CaducidadesPage />} />
               <Route path="/pedidos" element={<PedidosPage />} />
               <Route path="/compras" element={<ComprasPage />} />
-              <Route path="/rutas" element={<RutasPage />} />
-              <Route path="/margenes" element={<MargenesPage />} />
               <Route path="/reportes" element={<ReportesPage />} />
               <Route path="/actividad" element={<AuditoriaPage />} />
               <Route path="/pos" element={<POSPage />} />
