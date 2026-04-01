@@ -161,7 +161,6 @@ const Dashboard = ({ userRole }: DashboardProps) => {
 
     setProductosActivos(prodRes.count || 0);
     setLotesPorVencer(lotesCount);
-    setRutasActivas(rutasRes.count || 0);
     setComprasPendientes(comprasRes.count || 0);
   };
 
