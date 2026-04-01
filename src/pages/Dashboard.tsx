@@ -135,9 +135,8 @@ const Dashboard = ({ userRole }: DashboardProps) => {
     in30.setDate(in30.getDate() + 30);
     const almacenIds = await getAlmacenIds();
 
-    const [prodRes, rutasRes, comprasRes] = await Promise.all([
+    const [prodRes, comprasRes] = await Promise.all([
       supabase.from('productos').select('id', { count: 'exact', head: true }).eq('activo', true),
-      supabase.from('rutas').select('id', { count: 'exact', head: true }).eq('sucursal_id', selectedSucursal.id).in('estado', ['preparando', 'en_ruta']),
       supabase.from('compras').select('id', { count: 'exact', head: true }).eq('sucursal_id', selectedSucursal.id).in('estado', ['ordenada', 'en_transito']),
     ]);
 
