@@ -99,7 +99,6 @@ const Dashboard = ({ userRole }: DashboardProps) => {
   const { selectedSucursal } = useSucursal();
   const [productosActivos, setProductosActivos] = useState(0);
   const [lotesPorVencer, setLotesPorVencer] = useState(0);
-  const [rutasActivas, setRutasActivas] = useState(0);
   const [comprasPendientes, setComprasPendientes] = useState(0);
   const [pendingItems, setPendingItems] = useState<PendingItem[]>([]);
   const [alerts, setAlerts] = useState<AlertItem[]>([]);
