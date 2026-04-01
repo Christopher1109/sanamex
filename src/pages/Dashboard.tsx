@@ -53,15 +53,14 @@ const quickActionsByRole: Record<UserRole, Array<{
     { path: '/productos', icon: Package, label: 'Productos', description: 'Gestionar catálogo' },
     { path: '/inventario', icon: Warehouse, label: 'Inventario', description: 'Ver existencias' },
     { path: '/compras', icon: ShoppingCart, label: 'Compras', description: 'Órdenes de compra' },
-    { path: '/margenes', icon: BarChart3, label: 'Márgenes', description: 'Rentabilidad' },
+    { path: '/caducidades', icon: AlertCircle, label: 'Caducidades', description: 'Vencimientos' },
     { path: '/reportes', icon: FileSpreadsheet, label: 'Reportes', description: 'Ver reportes' },
     { path: '/traspasos', icon: ArrowLeftRight, label: 'Traspasos', description: 'Entre sucursales' },
   ],
   gerente: [
     { path: '/inventario', icon: Warehouse, label: 'Inventario', description: 'Ver existencias' },
     { path: '/compras', icon: ShoppingCart, label: 'Compras', description: 'Órdenes de compra' },
-    { path: '/rutas', icon: Truck, label: 'Rutas', description: 'Gestionar rutas' },
-    { path: '/margenes', icon: BarChart3, label: 'Márgenes', description: 'Rentabilidad' },
+    { path: '/caducidades', icon: AlertCircle, label: 'Caducidades', description: 'Vencimientos' },
     { path: '/reportes', icon: FileSpreadsheet, label: 'Reportes', description: 'Ver reportes' },
   ],
   cajero: [
@@ -75,11 +74,11 @@ const quickActionsByRole: Record<UserRole, Array<{
     { path: '/compras', icon: ShoppingCart, label: 'Compras', description: 'Recibir compras' },
   ],
   repartidor: [
-    { path: '/rutas', icon: Truck, label: 'Mis Rutas', description: 'Ver entregas' },
+    { path: '/pedidos', icon: PackageCheck, label: 'Mis Pedidos', description: 'Ver entregas' },
   ],
   auditor: [
     { path: '/actividad', icon: Activity, label: 'Auditoría', description: 'Ver logs' },
-    { path: '/margenes', icon: BarChart3, label: 'Márgenes', description: 'Rentabilidad' },
+    { path: '/caducidades', icon: AlertCircle, label: 'Caducidades', description: 'Vencimientos' },
     { path: '/reportes', icon: FileSpreadsheet, label: 'Reportes', description: 'Operativos' },
   ],
 };
