@@ -51,10 +51,8 @@ const Sidebar = ({ userRole, onLogout }: SidebarProps) => {
     { path: '/inventario', icon: Warehouse, label: 'Inventario', roles: ['admin', 'gerente', 'almacen'], category: 'Inventario' },
     { path: '/kardex', icon: ClipboardList, label: 'Kardex', roles: ['admin', 'gerente', 'almacen', 'auditor'], category: 'Inventario' },
     { path: '/mermas', icon: AlertTriangle, label: 'Mermas', roles: ['admin', 'gerente', 'almacen', 'auditor'], category: 'Inventario' },
-    // Distribución
-    { path: '/rutas', icon: Truck, label: 'Rutas', roles: ['admin', 'gerente', 'almacen', 'repartidor'], category: 'Distribución' },
+    { path: '/caducidades', icon: AlertCircle, label: 'Caducidades', roles: ['admin', 'gerente', 'almacen', 'auditor'], category: 'Inventario' },
     // Análisis
-    { path: '/margenes', icon: BarChart3, label: 'Márgenes', roles: ['admin', 'gerente', 'auditor'], category: 'Análisis' },
     { path: '/reportes', icon: FileSpreadsheet, label: 'Reportes', roles: ['admin', 'gerente', 'auditor'], category: 'Análisis' },
     // Registro
     { path: '/actividad', icon: History, label: 'Registro de Actividad', roles: ['admin', 'gerente', 'auditor'], category: 'Sistema' },
