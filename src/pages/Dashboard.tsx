@@ -295,7 +295,9 @@ const Dashboard = ({ userRole }: DashboardProps) => {
     { title: 'Lotes por Vencer', value: lotesPorVencer, subtitle: 'Próximos 30 días', icon: AlertCircle,
       color: lotesPorVencer > 0 ? 'text-destructive' : 'text-muted-foreground',
       bgColor: lotesPorVencer > 0 ? 'bg-destructive/10' : 'bg-muted' },
-    { title: 'Rutas Activas', value: rutasActivas, subtitle: 'En tránsito hoy', icon: Truck, color: 'text-accent', bgColor: 'bg-accent/10' },
+    { title: 'Stock Bajo', value: stockBajoCount, subtitle: 'Bajo mínimo', icon: TrendingDown,
+      color: stockBajoCount > 0 ? 'text-destructive' : 'text-muted-foreground',
+      bgColor: stockBajoCount > 0 ? 'bg-destructive/10' : 'bg-muted' },
   ];
 
   return (
