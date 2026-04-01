@@ -7,9 +7,9 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
-  Package, Truck, AlertCircle, Warehouse, FileSpreadsheet, BarChart3,
+  Package, AlertCircle, Warehouse, FileSpreadsheet,
   ArrowLeftRight, Clock, CheckCircle2, AlertTriangle, ShoppingCart,
-  PackageCheck, Activity, CalendarDays, ArrowRight
+  PackageCheck, Activity, CalendarDays, ArrowRight, TrendingDown
 } from 'lucide-react';
 import { format, formatDistanceToNow } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -53,15 +53,14 @@ const quickActionsByRole: Record<UserRole, Array<{
     { path: '/productos', icon: Package, label: 'Productos', description: 'Gestionar catálogo' },
     { path: '/inventario', icon: Warehouse, label: 'Inventario', description: 'Ver existencias' },
     { path: '/compras', icon: ShoppingCart, label: 'Compras', description: 'Órdenes de compra' },
-    { path: '/margenes', icon: BarChart3, label: 'Márgenes', description: 'Rentabilidad' },
+    { path: '/caducidades', icon: AlertCircle, label: 'Caducidades', description: 'Vencimientos' },
     { path: '/reportes', icon: FileSpreadsheet, label: 'Reportes', description: 'Ver reportes' },
     { path: '/traspasos', icon: ArrowLeftRight, label: 'Traspasos', description: 'Entre sucursales' },
   ],
   gerente: [
     { path: '/inventario', icon: Warehouse, label: 'Inventario', description: 'Ver existencias' },
     { path: '/compras', icon: ShoppingCart, label: 'Compras', description: 'Órdenes de compra' },
-    { path: '/rutas', icon: Truck, label: 'Rutas', description: 'Gestionar rutas' },
-    { path: '/margenes', icon: BarChart3, label: 'Márgenes', description: 'Rentabilidad' },
+    { path: '/caducidades', icon: AlertCircle, label: 'Caducidades', description: 'Vencimientos' },
     { path: '/reportes', icon: FileSpreadsheet, label: 'Reportes', description: 'Ver reportes' },
   ],
   cajero: [
@@ -75,11 +74,11 @@ const quickActionsByRole: Record<UserRole, Array<{
     { path: '/compras', icon: ShoppingCart, label: 'Compras', description: 'Recibir compras' },
   ],
   repartidor: [
-    { path: '/rutas', icon: Truck, label: 'Mis Rutas', description: 'Ver entregas' },
+    { path: '/pedidos', icon: PackageCheck, label: 'Mis Pedidos', description: 'Ver entregas' },
   ],
   auditor: [
     { path: '/actividad', icon: Activity, label: 'Auditoría', description: 'Ver logs' },
-    { path: '/margenes', icon: BarChart3, label: 'Márgenes', description: 'Rentabilidad' },
+    { path: '/caducidades', icon: AlertCircle, label: 'Caducidades', description: 'Vencimientos' },
     { path: '/reportes', icon: FileSpreadsheet, label: 'Reportes', description: 'Operativos' },
   ],
 };
@@ -100,7 +99,6 @@ const Dashboard = ({ userRole }: DashboardProps) => {
   const { selectedSucursal } = useSucursal();
   const [productosActivos, setProductosActivos] = useState(0);
   const [lotesPorVencer, setLotesPorVencer] = useState(0);
-  const [rutasActivas, setRutasActivas] = useState(0);
   const [comprasPendientes, setComprasPendientes] = useState(0);
   const [pendingItems, setPendingItems] = useState<PendingItem[]>([]);
   const [alerts, setAlerts] = useState<AlertItem[]>([]);
@@ -137,9 +135,8 @@ const Dashboard = ({ userRole }: DashboardProps) => {
     in30.setDate(in30.getDate() + 30);
     const almacenIds = await getAlmacenIds();
 
-    const [prodRes, rutasRes, comprasRes] = await Promise.all([
+    const [prodRes, comprasRes] = await Promise.all([
       supabase.from('productos').select('id', { count: 'exact', head: true }).eq('activo', true),
-      supabase.from('rutas').select('id', { count: 'exact', head: true }).eq('sucursal_id', selectedSucursal.id).in('estado', ['preparando', 'en_ruta']),
       supabase.from('compras').select('id', { count: 'exact', head: true }).eq('sucursal_id', selectedSucursal.id).in('estado', ['ordenada', 'en_transito']),
     ]);
 
@@ -164,7 +161,6 @@ const Dashboard = ({ userRole }: DashboardProps) => {
 
     setProductosActivos(prodRes.count || 0);
     setLotesPorVencer(lotesCount);
-    setRutasActivas(rutasRes.count || 0);
     setComprasPendientes(comprasRes.count || 0);
   };
 
@@ -299,7 +295,9 @@ const Dashboard = ({ userRole }: DashboardProps) => {
     { title: 'Lotes por Vencer', value: lotesPorVencer, subtitle: 'Próximos 30 días', icon: AlertCircle,
       color: lotesPorVencer > 0 ? 'text-destructive' : 'text-muted-foreground',
       bgColor: lotesPorVencer > 0 ? 'bg-destructive/10' : 'bg-muted' },
-    { title: 'Rutas Activas', value: rutasActivas, subtitle: 'En tránsito hoy', icon: Truck, color: 'text-accent', bgColor: 'bg-accent/10' },
+    { title: 'Stock Bajo', value: stockBajoCount, subtitle: 'Bajo mínimo', icon: TrendingDown,
+      color: stockBajoCount > 0 ? 'text-destructive' : 'text-muted-foreground',
+      bgColor: stockBajoCount > 0 ? 'bg-destructive/10' : 'bg-muted' },
   ];
 
   return (
