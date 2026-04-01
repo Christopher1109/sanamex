@@ -15,13 +15,12 @@ import ClientesPage from './pages/ClientesPage';
 import TraspasosPage from './pages/TraspasosPage';
 import AjustesMermasPage from './pages/AjustesMermasPage';
 import MermasPage from './pages/MermasPage';
-import RutasPage from './pages/RutasPage';
 import PedidosPage from './pages/PedidosPage';
 import ComprasPage from './pages/ComprasPage';
 import ReportesPage from './pages/ReportesPage';
-import MargenesPage from './pages/MargenesPage';
 import AuditoriaPage from './pages/AuditoriaPage';
 import POSPage from './pages/POSPage';
+import CaducidadesPage from './pages/CaducidadesPage';
 import Sidebar from './components/layout/Sidebar';
 import Header from './components/layout/Header';
 
