@@ -6,22 +6,51 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { Search, AlertTriangle, Warehouse, Bell } from 'lucide-react';
+import { Search, AlertTriangle, Warehouse, Bell, WifiOff } from 'lucide-react';
 import { toast } from 'sonner';
+import { useOnlineStatus } from '@/hooks/useOnlineStatus';
+import { offlineDB } from '@/lib/offline/db';
 
 const InventarioPage = () => {
   const { selectedSucursal } = useSucursal();
+  const onlineStatus = useOnlineStatus();
+  const isOffline = onlineStatus === 'offline';
   const [inventario, setInventario] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchProducto, setSearchProducto] = useState('');
   const [searchLote, setSearchLote] = useState('');
 
-  useEffect(() => { if (selectedSucursal) loadInventario(); }, [selectedSucursal]);
+  useEffect(() => { if (selectedSucursal) loadInventario(); }, [selectedSucursal, isOffline]);
 
   const loadInventario = async () => {
     if (!selectedSucursal) return;
     setLoading(true);
-    // Get almacén for selected sucursal
+
+    if (isOffline) {
+      // Build from cache
+      const almacenes = await offlineDB.almacenes.where({ sucursal_id: selectedSucursal.id }).toArray();
+      const almIds = new Set(almacenes.map(a => a.id));
+      const invAll = await offlineDB.inventario.toArray();
+      const inv = invAll.filter(i => almIds.has(i.almacen_id));
+      const lotes = await offlineDB.lotes.bulkGet(inv.map(i => i.lote_id));
+      const productos = await offlineDB.productos.toArray();
+      const prodMap = new Map(productos.map(p => [p.id, p]));
+      const almMap = new Map(almacenes.map(a => [a.id, a]));
+      const merged = inv.map((i, idx) => {
+        const lote = lotes[idx];
+        const prod = lote ? prodMap.get(lote.producto_id) : null;
+        return {
+          id: i.id,
+          cantidad: i.cantidad,
+          almacenes: lote ? almMap.get(i.almacen_id) : null,
+          lotes: lote ? { ...lote, productos: prod } : null,
+        };
+      });
+      setInventario(merged);
+      setLoading(false);
+      return;
+    }
+
     const { data: almacenes } = await supabase.from('almacenes').select('id').eq('sucursal_id', selectedSucursal.id);
     if (!almacenes || almacenes.length === 0) { setInventario([]); setLoading(false); return; }
 
