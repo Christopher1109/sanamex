@@ -56,6 +56,7 @@ const AppContent = () => {
         <Sidebar userRole={userRole} onLogout={signOut} />
         <div className="flex flex-1 flex-col overflow-hidden">
           <Header />
+          <OfflineStatusBar />
           <main className="flex-1 overflow-y-auto bg-background p-6">
             <Routes>
               <Route path="/" element={<Navigate to="/dashboard" replace />} />
@@ -74,6 +75,7 @@ const AppContent = () => {
               <Route path="/reportes" element={<ReportesPage />} />
               <Route path="/actividad" element={<AuditoriaPage />} />
               <Route path="/pos" element={<POSPage />} />
+              <Route path="/conflictos" element={<ConflictosPage />} />
               <Route path="/auth" element={<Navigate to="/dashboard" replace />} />
               <Route path="*" element={<Navigate to="/dashboard" replace />} />
             </Routes>
