@@ -6,7 +6,7 @@ import {
   Warehouse, ArrowLeftRight, ClipboardList,
   Store, ShoppingCart,
   PackageCheck, AlertTriangle, AlertCircle, History, FileSpreadsheet,
-  Monitor
+  Monitor, CloudOff
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { SucursalSelector } from '@/components/SucursalSelector';
