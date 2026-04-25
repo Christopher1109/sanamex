@@ -7,11 +7,15 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Textarea } from '@/components/ui/textarea';
-import { Trash2, Barcode, Plus, Minus, ShoppingCart, Search, Printer, RotateCcw } from 'lucide-react';
+import { Trash2, Barcode, Plus, Minus, ShoppingCart, Search, Printer, RotateCcw, WifiOff } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { useSucursal } from '@/contexts/SucursalContext';
 import { toast } from 'sonner';
+import { useOnlineStatus } from '@/hooks/useOnlineStatus';
+import { offlineDB } from '@/lib/offline/db';
+import { deductInventoryLocalFEFO, getLocalStock } from '@/lib/offline/sync';
+import { Badge } from '@/components/ui/badge';
 
 // ── Types ──
 
@@ -113,6 +117,9 @@ const POSPage = () => {
   const { user } = useAuth();
   const { selectedSucursal, availableSucursales, setSelectedSucursal } = useSucursal();
 
+  const onlineStatus = useOnlineStatus();
+  const isOffline = onlineStatus === 'offline';
+
   const [cart, dispatch] = useReducer(cartReducer, []);
   const [scanInput, setScanInput] = useState('');
   const [searchInput, setSearchInput] = useState('');
@@ -163,9 +170,23 @@ const POSPage = () => {
     return () => window.removeEventListener('keydown', handler);
   }, [cart.length, refocusScan]);
 
-  // ── Get stock for a product in the selected sucursal ──
+  // ── Get stock for a product in the selected sucursal (online or offline) ──
   const getStockForProduct = async (productoId: string): Promise<number> => {
     if (!selectedSucursal) return 0;
+
+    if (isOffline) {
+      // Use cached almacen + inventory
+      const almacenes = await offlineDB.almacenes
+        .where({ sucursal_id: selectedSucursal.id })
+        .toArray();
+      if (!almacenes.length) return 0;
+      let total = 0;
+      for (const a of almacenes) {
+        total += await getLocalStock(a.id, productoId);
+      }
+      return total;
+    }
+
     const { data: almacenes } = await supabase
       .from('almacenes')
       .select('id')
@@ -186,25 +207,44 @@ const POSPage = () => {
       .reduce((sum: number, row: any) => sum + (row.cantidad || 0), 0);
   };
 
+  // ── Get sucursal-specific price (with cache fallback) ──
+  const getPrecioForProduct = async (producto: any): Promise<number> => {
+    if (!selectedSucursal) return producto.precio_base;
+    if (isOffline) {
+      const cached = await offlineDB.precios_sucursal
+        .where({ producto_id: producto.id, sucursal_id: selectedSucursal.id })
+        .first();
+      return cached?.precio ?? producto.precio_base;
+    }
+    return producto.precio_base;
+  };
+
   // ── Barcode scan handler ──
   const handleScan = async (barcode: string) => {
     if (!barcode.trim() || !selectedSucursal) return;
+    const code = barcode.trim();
 
-    const { data: productos, error } = await supabase
-      .from('productos')
-      .select('*')
-      .eq('codigo_barras', barcode.trim())
-      .eq('activo', true)
-      .limit(1);
+    let prod: any = null;
+    if (isOffline) {
+      prod = await offlineDB.productos.where('codigo_barras').equals(code).first();
+      if (!prod) prod = await offlineDB.productos.where('sku').equals(code).first();
+    } else {
+      const { data: productos, error } = await supabase
+        .from('productos')
+        .select('*')
+        .eq('codigo_barras', code)
+        .eq('activo', true)
+        .limit(1);
+      if (!error && productos?.length) prod = productos[0];
+    }
 
-    if (error || !productos?.length) {
+    if (!prod) {
       toast.error('Producto no encontrado');
       setScanInput('');
       refocusScan();
       return;
     }
 
-    const prod = productos[0];
     const stock = await getStockForProduct(prod.id);
 
     if (stock <= 0) {
@@ -214,7 +254,6 @@ const POSPage = () => {
       return;
     }
 
-    // Check if already in cart and at max stock
     const existing = cart.find(i => i.producto_id === prod.id);
     if (existing && existing.cantidad >= stock) {
       toast.warning(`Stock máximo alcanzado: ${stock} unidades`);
@@ -223,6 +262,7 @@ const POSPage = () => {
       return;
     }
 
+    const precio = await getPrecioForProduct(prod);
     dispatch({
       type: 'ADD_ITEM',
       payload: {
@@ -230,13 +270,13 @@ const POSPage = () => {
         nombre: prod.nombre,
         sku: prod.sku || '',
         codigo_barras: prod.codigo_barras || '',
-        precio_unitario: prod.precio_base,
+        precio_unitario: precio,
         cantidad: 1,
         stock_disponible: stock,
       },
     });
 
-    toast.success(`${prod.nombre} agregado`);
+    toast.success(`${prod.nombre} agregado${isOffline ? ' (offline)' : ''}`);
     setScanInput('');
     refocusScan();
   };
@@ -244,6 +284,24 @@ const POSPage = () => {
   // ── Manual search ──
   const handleSearch = async () => {
     if (!searchInput.trim() || !selectedSucursal) return;
+    const term = searchInput.trim().toLowerCase();
+
+    if (isOffline) {
+      const all = await offlineDB.productos.where('activo').equals(1 as any).toArray()
+        .catch(async () => offlineDB.productos.toArray());
+      const filtered = all
+        .filter((p: any) => p.activo !== false)
+        .filter((p: any) =>
+          (p.nombre || '').toLowerCase().includes(term) ||
+          (p.sku || '').toLowerCase().includes(term) ||
+          (p.codigo_barras || '').toLowerCase().includes(term)
+        )
+        .slice(0, 20);
+      setSearchResults(filtered);
+      setSearchOpen(true);
+      return;
+    }
+
     const { data } = await supabase
       .from('productos')
       .select('*')
@@ -260,6 +318,7 @@ const POSPage = () => {
       toast.error(`Sin stock en ${selectedSucursal?.nombre}`);
       return;
     }
+    const precio = await getPrecioForProduct(prod);
     dispatch({
       type: 'ADD_ITEM',
       payload: {
@@ -267,12 +326,12 @@ const POSPage = () => {
         nombre: prod.nombre,
         sku: prod.sku || '',
         codigo_barras: prod.codigo_barras || '',
-        precio_unitario: prod.precio_base,
+        precio_unitario: precio,
         cantidad: 1,
         stock_disponible: stock,
       },
     });
-    toast.success(`${prod.nombre} agregado`);
+    toast.success(`${prod.nombre} agregado${isOffline ? ' (offline)' : ''}`);
     setSearchOpen(false);
     setSearchInput('');
     refocusScan();
@@ -297,21 +356,82 @@ const POSPage = () => {
     }
   };
 
-  // ── Checkout ──
+  // ── Checkout (online or offline) ──
   const handleCheckout = async () => {
     if (!user || !selectedSucursal) return;
     setLoading(true);
     setConfirmOpen(false);
 
+    const itemsPayload = cart.map(i => ({
+      producto_id: i.producto_id,
+      cantidad: i.cantidad,
+      precio_unitario: i.precio_unitario,
+    }));
+
     try {
+      if (isOffline) {
+        // ── OFFLINE PATH ──
+        const uuid = crypto.randomUUID();
+        const totalLocal = cart.reduce((s, i) => s + i.subtotal, 0);
+        const cambioLocal = metodoPago === 'Efectivo' && efectivoRecibido
+          ? Math.max(0, parseFloat(efectivoRecibido) - totalLocal) : 0;
+
+        // 1. Save to pending queue
+        await offlineDB.pending_ventas.put({
+          cliente_uuid_local: uuid,
+          sucursal_id: selectedSucursal.id,
+          cajero_id: user.id,
+          cliente_id: null,
+          metodo_pago: metodoPago,
+          efectivo_recibido: metodoPago === 'Efectivo' ? parseFloat(efectivoRecibido || '0') : null,
+          notas: nota || null,
+          items: cart.map(i => ({
+            producto_id: i.producto_id,
+            sku: i.sku,
+            nombre: i.nombre,
+            cantidad: i.cantidad,
+            precio_unitario: i.precio_unitario,
+          })),
+          total: totalLocal,
+          created_at: new Date().toISOString(),
+          status: 'pending',
+          error_message: null,
+          numero_venta_servidor: null,
+          synced_at: null,
+          retry_count: 0,
+        });
+
+        // 2. Decrement local cache (FEFO) — Opción B reserva
+        const almacenes = await offlineDB.almacenes.where({ sucursal_id: selectedSucursal.id }).toArray();
+        const almacenId = almacenes[0]?.id;
+        if (almacenId) {
+          for (const i of cart) {
+            await deductInventoryLocalFEFO(almacenId, i.producto_id, i.cantidad);
+          }
+        }
+
+        const result: SaleResult = {
+          sale_id: uuid,
+          numero_venta: `OFFLINE-${uuid.slice(0, 8).toUpperCase()}`,
+          subtotal: totalLocal,
+          total: totalLocal,
+          cambio: cambioLocal,
+          items_count: cart.length,
+        };
+        setSaleResult(result);
+        setSuccessOpen(true);
+        dispatch({ type: 'CLEAR' });
+        setEfectivoRecibido('');
+        setNota('');
+        toast.success(`Venta offline registrada · se sincronizará al recuperar conexión`);
+        return;
+      }
+
+      // ── ONLINE PATH ──
       const { data, error } = await supabase.rpc('process_pos_sale', {
         p_sucursal_id: selectedSucursal.id,
         p_cajero_id: user.id,
-        p_items: cart.map(i => ({
-          producto_id: i.producto_id,
-          cantidad: i.cantidad,
-          precio_unitario: i.precio_unitario,
-        })),
+        p_items: itemsPayload as any,
         p_metodo_pago: metodoPago,
         p_efectivo_recibido: metodoPago === 'Efectivo' ? parseFloat(efectivoRecibido || '0') : null,
         p_nota: nota || null,
@@ -356,6 +476,11 @@ const POSPage = () => {
               ))}
             </SelectContent>
           </Select>
+          {isOffline && (
+            <Badge variant="destructive" className="gap-1">
+              <WifiOff className="h-3 w-3" /> Offline
+            </Badge>
+          )}
         </div>
 
         <div className="flex-1 flex gap-2">

@@ -6,7 +6,7 @@ import {
   Warehouse, ArrowLeftRight, ClipboardList,
   Store, ShoppingCart,
   PackageCheck, AlertTriangle, AlertCircle, History, FileSpreadsheet,
-  Monitor
+  Monitor, CloudOff
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { SucursalSelector } from '@/components/SucursalSelector';
@@ -54,7 +54,8 @@ const Sidebar = ({ userRole, onLogout }: SidebarProps) => {
     { path: '/caducidades', icon: AlertCircle, label: 'Caducidades', roles: ['admin', 'gerente', 'almacen', 'auditor'], category: 'Inventario' },
     // Análisis
     { path: '/reportes', icon: FileSpreadsheet, label: 'Reportes', roles: ['admin', 'gerente', 'auditor'], category: 'Análisis' },
-    // Registro
+    // Sistema
+    { path: '/conflictos', icon: CloudOff, label: 'Ventas Offline', roles: ['admin', 'gerente', 'cajero'], category: 'Sistema' },
     { path: '/actividad', icon: History, label: 'Registro de Actividad', roles: ['admin', 'gerente', 'auditor'], category: 'Sistema' },
   ];
 
