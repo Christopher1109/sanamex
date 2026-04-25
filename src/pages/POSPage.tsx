@@ -7,11 +7,15 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Textarea } from '@/components/ui/textarea';
-import { Trash2, Barcode, Plus, Minus, ShoppingCart, Search, Printer, RotateCcw } from 'lucide-react';
+import { Trash2, Barcode, Plus, Minus, ShoppingCart, Search, Printer, RotateCcw, WifiOff } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { useSucursal } from '@/contexts/SucursalContext';
 import { toast } from 'sonner';
+import { useOnlineStatus } from '@/hooks/useOnlineStatus';
+import { offlineDB } from '@/lib/offline/db';
+import { deductInventoryLocalFEFO, getLocalStock } from '@/lib/offline/sync';
+import { Badge } from '@/components/ui/badge';
 
 // ── Types ──
 
