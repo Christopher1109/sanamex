@@ -21,8 +21,10 @@ import ReportesPage from './pages/ReportesPage';
 import AuditoriaPage from './pages/AuditoriaPage';
 import POSPage from './pages/POSPage';
 import CaducidadesPage from './pages/CaducidadesPage';
+import ConflictosPage from './pages/ConflictosPage';
 import Sidebar from './components/layout/Sidebar';
 import Header from './components/layout/Header';
+import OfflineStatusBar from './components/OfflineStatusBar';
 
 const queryClient = new QueryClient({
   defaultOptions: {
