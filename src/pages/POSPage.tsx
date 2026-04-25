@@ -476,6 +476,11 @@ const POSPage = () => {
               ))}
             </SelectContent>
           </Select>
+          {isOffline && (
+            <Badge variant="destructive" className="gap-1">
+              <WifiOff className="h-3 w-3" /> Offline
+            </Badge>
+          )}
         </div>
 
         <div className="flex-1 flex gap-2">
