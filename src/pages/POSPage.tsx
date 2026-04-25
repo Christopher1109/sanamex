@@ -117,6 +117,9 @@ const POSPage = () => {
   const { user } = useAuth();
   const { selectedSucursal, availableSucursales, setSelectedSucursal } = useSucursal();
 
+  const onlineStatus = useOnlineStatus();
+  const isOffline = onlineStatus === 'offline';
+
   const [cart, dispatch] = useReducer(cartReducer, []);
   const [scanInput, setScanInput] = useState('');
   const [searchInput, setSearchInput] = useState('');
