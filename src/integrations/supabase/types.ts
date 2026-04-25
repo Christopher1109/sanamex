@@ -1269,14 +1269,18 @@ export type Database = {
         Row: {
           cajero_id: string
           cliente_id: string | null
+          cliente_uuid_local: string | null
           corte_id: string | null
           created_at: string | null
           estado: string
           fecha: string | null
           id: string
           impuestos: number
+          motivo_revision: string | null
           notas: string | null
           numero_venta: string
+          origen: string
+          sincronizada_at: string | null
           subtotal: number
           sucursal_id: string
           total: number
@@ -1284,14 +1288,18 @@ export type Database = {
         Insert: {
           cajero_id: string
           cliente_id?: string | null
+          cliente_uuid_local?: string | null
           corte_id?: string | null
           created_at?: string | null
           estado?: string
           fecha?: string | null
           id?: string
           impuestos?: number
+          motivo_revision?: string | null
           notas?: string | null
           numero_venta: string
+          origen?: string
+          sincronizada_at?: string | null
           subtotal?: number
           sucursal_id: string
           total?: number
@@ -1299,14 +1307,18 @@ export type Database = {
         Update: {
           cajero_id?: string
           cliente_id?: string | null
+          cliente_uuid_local?: string | null
           corte_id?: string | null
           created_at?: string | null
           estado?: string
           fecha?: string | null
           id?: string
           impuestos?: number
+          motivo_revision?: string | null
           notas?: string | null
           numero_venta?: string
+          origen?: string
+          sincronizada_at?: string | null
           subtotal?: number
           sucursal_id?: string
           total?: number
@@ -1347,18 +1359,33 @@ export type Database = {
         }
         Returns: boolean
       }
-      process_pos_sale: {
-        Args: {
-          p_cajero_id: string
-          p_cliente_id?: string
-          p_efectivo_recibido?: number
-          p_items: Json
-          p_metodo_pago?: string
-          p_nota?: string
-          p_sucursal_id: string
-        }
-        Returns: Json
-      }
+      process_pos_sale:
+        | {
+            Args: {
+              p_cajero_id: string
+              p_cliente_id?: string
+              p_efectivo_recibido?: number
+              p_items: Json
+              p_metodo_pago?: string
+              p_nota?: string
+              p_sucursal_id: string
+            }
+            Returns: Json
+          }
+        | {
+            Args: {
+              p_cajero_id: string
+              p_cliente_id?: string
+              p_cliente_uuid_local?: string
+              p_efectivo_recibido?: number
+              p_items: Json
+              p_metodo_pago?: string
+              p_nota?: string
+              p_origen?: string
+              p_sucursal_id: string
+            }
+            Returns: Json
+          }
     }
     Enums: {
       app_role:
