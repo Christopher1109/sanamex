@@ -170,9 +170,23 @@ const POSPage = () => {
     return () => window.removeEventListener('keydown', handler);
   }, [cart.length, refocusScan]);
 
-  // ── Get stock for a product in the selected sucursal ──
+  // ── Get stock for a product in the selected sucursal (online or offline) ──
   const getStockForProduct = async (productoId: string): Promise<number> => {
     if (!selectedSucursal) return 0;
+
+    if (isOffline) {
+      // Use cached almacen + inventory
+      const almacenes = await offlineDB.almacenes
+        .where({ sucursal_id: selectedSucursal.id })
+        .toArray();
+      if (!almacenes.length) return 0;
+      let total = 0;
+      for (const a of almacenes) {
+        total += await getLocalStock(a.id, productoId);
+      }
+      return total;
+    }
+
     const { data: almacenes } = await supabase
       .from('almacenes')
       .select('id')
@@ -193,25 +207,44 @@ const POSPage = () => {
       .reduce((sum: number, row: any) => sum + (row.cantidad || 0), 0);
   };
 
+  // ── Get sucursal-specific price (with cache fallback) ──
+  const getPrecioForProduct = async (producto: any): Promise<number> => {
+    if (!selectedSucursal) return producto.precio_base;
+    if (isOffline) {
+      const cached = await offlineDB.precios_sucursal
+        .where({ producto_id: producto.id, sucursal_id: selectedSucursal.id })
+        .first();
+      return cached?.precio ?? producto.precio_base;
+    }
+    return producto.precio_base;
+  };
+
   // ── Barcode scan handler ──
   const handleScan = async (barcode: string) => {
     if (!barcode.trim() || !selectedSucursal) return;
+    const code = barcode.trim();
 
-    const { data: productos, error } = await supabase
-      .from('productos')
-      .select('*')
-      .eq('codigo_barras', barcode.trim())
-      .eq('activo', true)
-      .limit(1);
+    let prod: any = null;
+    if (isOffline) {
+      prod = await offlineDB.productos.where('codigo_barras').equals(code).first();
+      if (!prod) prod = await offlineDB.productos.where('sku').equals(code).first();
+    } else {
+      const { data: productos, error } = await supabase
+        .from('productos')
+        .select('*')
+        .eq('codigo_barras', code)
+        .eq('activo', true)
+        .limit(1);
+      if (!error && productos?.length) prod = productos[0];
+    }
 
-    if (error || !productos?.length) {
+    if (!prod) {
       toast.error('Producto no encontrado');
       setScanInput('');
       refocusScan();
       return;
     }
 
-    const prod = productos[0];
     const stock = await getStockForProduct(prod.id);
 
     if (stock <= 0) {
@@ -221,7 +254,6 @@ const POSPage = () => {
       return;
     }
 
-    // Check if already in cart and at max stock
     const existing = cart.find(i => i.producto_id === prod.id);
     if (existing && existing.cantidad >= stock) {
       toast.warning(`Stock máximo alcanzado: ${stock} unidades`);
@@ -230,6 +262,7 @@ const POSPage = () => {
       return;
     }
 
+    const precio = await getPrecioForProduct(prod);
     dispatch({
       type: 'ADD_ITEM',
       payload: {
@@ -237,13 +270,13 @@ const POSPage = () => {
         nombre: prod.nombre,
         sku: prod.sku || '',
         codigo_barras: prod.codigo_barras || '',
-        precio_unitario: prod.precio_base,
+        precio_unitario: precio,
         cantidad: 1,
         stock_disponible: stock,
       },
     });
 
-    toast.success(`${prod.nombre} agregado`);
+    toast.success(`${prod.nombre} agregado${isOffline ? ' (offline)' : ''}`);
     setScanInput('');
     refocusScan();
   };
@@ -251,6 +284,24 @@ const POSPage = () => {
   // ── Manual search ──
   const handleSearch = async () => {
     if (!searchInput.trim() || !selectedSucursal) return;
+    const term = searchInput.trim().toLowerCase();
+
+    if (isOffline) {
+      const all = await offlineDB.productos.where('activo').equals(1 as any).toArray()
+        .catch(async () => offlineDB.productos.toArray());
+      const filtered = all
+        .filter((p: any) => p.activo !== false)
+        .filter((p: any) =>
+          (p.nombre || '').toLowerCase().includes(term) ||
+          (p.sku || '').toLowerCase().includes(term) ||
+          (p.codigo_barras || '').toLowerCase().includes(term)
+        )
+        .slice(0, 20);
+      setSearchResults(filtered);
+      setSearchOpen(true);
+      return;
+    }
+
     const { data } = await supabase
       .from('productos')
       .select('*')
@@ -267,6 +318,7 @@ const POSPage = () => {
       toast.error(`Sin stock en ${selectedSucursal?.nombre}`);
       return;
     }
+    const precio = await getPrecioForProduct(prod);
     dispatch({
       type: 'ADD_ITEM',
       payload: {
@@ -274,12 +326,12 @@ const POSPage = () => {
         nombre: prod.nombre,
         sku: prod.sku || '',
         codigo_barras: prod.codigo_barras || '',
-        precio_unitario: prod.precio_base,
+        precio_unitario: precio,
         cantidad: 1,
         stock_disponible: stock,
       },
     });
-    toast.success(`${prod.nombre} agregado`);
+    toast.success(`${prod.nombre} agregado${isOffline ? ' (offline)' : ''}`);
     setSearchOpen(false);
     setSearchInput('');
     refocusScan();
