@@ -356,21 +356,82 @@ const POSPage = () => {
     }
   };
 
-  // ── Checkout ──
+  // ── Checkout (online or offline) ──
   const handleCheckout = async () => {
     if (!user || !selectedSucursal) return;
     setLoading(true);
     setConfirmOpen(false);
 
+    const itemsPayload = cart.map(i => ({
+      producto_id: i.producto_id,
+      cantidad: i.cantidad,
+      precio_unitario: i.precio_unitario,
+    }));
+
     try {
+      if (isOffline) {
+        // ── OFFLINE PATH ──
+        const uuid = crypto.randomUUID();
+        const totalLocal = cart.reduce((s, i) => s + i.subtotal, 0);
+        const cambioLocal = metodoPago === 'Efectivo' && efectivoRecibido
+          ? Math.max(0, parseFloat(efectivoRecibido) - totalLocal) : 0;
+
+        // 1. Save to pending queue
+        await offlineDB.pending_ventas.put({
+          cliente_uuid_local: uuid,
+          sucursal_id: selectedSucursal.id,
+          cajero_id: user.id,
+          cliente_id: null,
+          metodo_pago: metodoPago,
+          efectivo_recibido: metodoPago === 'Efectivo' ? parseFloat(efectivoRecibido || '0') : null,
+          notas: nota || null,
+          items: cart.map(i => ({
+            producto_id: i.producto_id,
+            sku: i.sku,
+            nombre: i.nombre,
+            cantidad: i.cantidad,
+            precio_unitario: i.precio_unitario,
+          })),
+          total: totalLocal,
+          created_at: new Date().toISOString(),
+          status: 'pending',
+          error_message: null,
+          numero_venta_servidor: null,
+          synced_at: null,
+          retry_count: 0,
+        });
+
+        // 2. Decrement local cache (FEFO) — Opción B reserva
+        const almacenes = await offlineDB.almacenes.where({ sucursal_id: selectedSucursal.id }).toArray();
+        const almacenId = almacenes[0]?.id;
+        if (almacenId) {
+          for (const i of cart) {
+            await deductInventoryLocalFEFO(almacenId, i.producto_id, i.cantidad);
+          }
+        }
+
+        const result: SaleResult = {
+          sale_id: uuid,
+          numero_venta: `OFFLINE-${uuid.slice(0, 8).toUpperCase()}`,
+          subtotal: totalLocal,
+          total: totalLocal,
+          cambio: cambioLocal,
+          items_count: cart.length,
+        };
+        setSaleResult(result);
+        setSuccessOpen(true);
+        dispatch({ type: 'CLEAR' });
+        setEfectivoRecibido('');
+        setNota('');
+        toast.success(`Venta offline registrada · se sincronizará al recuperar conexión`);
+        return;
+      }
+
+      // ── ONLINE PATH ──
       const { data, error } = await supabase.rpc('process_pos_sale', {
         p_sucursal_id: selectedSucursal.id,
         p_cajero_id: user.id,
-        p_items: cart.map(i => ({
-          producto_id: i.producto_id,
-          cantidad: i.cantidad,
-          precio_unitario: i.precio_unitario,
-        })),
+        p_items: itemsPayload as any,
         p_metodo_pago: metodoPago,
         p_efectivo_recibido: metodoPago === 'Efectivo' ? parseFloat(efectivoRecibido || '0') : null,
         p_nota: nota || null,
