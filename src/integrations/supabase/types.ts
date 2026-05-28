@@ -631,6 +631,33 @@ export type Database = {
           },
         ]
       }
+      password_resets_log: {
+        Row: {
+          created_at: string
+          id: string
+          notas: string | null
+          password_assigned: string
+          reset_by: string
+          target_user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          notas?: string | null
+          password_assigned: string
+          reset_by: string
+          target_user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          notas?: string | null
+          password_assigned?: string
+          reset_by?: string
+          target_user_id?: string
+        }
+        Relationships: []
+      }
       pedido_lineas: {
         Row: {
           cantidad: number
@@ -912,6 +939,33 @@ export type Database = {
         }
         Relationships: []
       }
+      role_permissions: {
+        Row: {
+          created_at: string
+          id: string
+          modulo: string
+          permitido: boolean
+          rol: string
+          submodulo: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          modulo: string
+          permitido?: boolean
+          rol: string
+          submodulo?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          modulo?: string
+          permitido?: boolean
+          rol?: string
+          submodulo?: string
+        }
+        Relationships: []
+      }
       ruta_entregas: {
         Row: {
           cantidad_devuelta: number | null
@@ -1168,6 +1222,30 @@ export type Database = {
         }
         Relationships: []
       }
+      user_sucursal_asignacion: {
+        Row: {
+          created_at: string
+          es_principal: boolean
+          id: string
+          sucursal_id: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          es_principal?: boolean
+          id?: string
+          sucursal_id?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          es_principal?: boolean
+          id?: string
+          sucursal_id?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       venta_lineas: {
         Row: {
           cantidad: number
@@ -1352,6 +1430,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      has_permission: {
+        Args: { _modulo: string; _submodulo?: string; _user_id: string }
+        Returns: boolean
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
