@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
 
 export interface Sucursal {
   id: string;
@@ -15,6 +16,7 @@ interface SucursalContextType {
   availableSucursales: Sucursal[];
   setSelectedSucursal: (s: Sucursal | null) => void;
   loading: boolean;
+  canSwitchSucursal: boolean;
 }
 
 const SucursalContext = createContext<SucursalContextType | undefined>(undefined);
@@ -26,23 +28,48 @@ export const useSucursal = (): SucursalContextType => {
 };
 
 export const SucursalProvider = ({ children }: { children: ReactNode }) => {
-  const [selectedSucursal, setSelectedSucursal] = useState<Sucursal | null>(null);
+  const { user, userRole } = useAuth();
+  const [selectedSucursal, setSelectedSucursalState] = useState<Sucursal | null>(null);
   const [availableSucursales, setAvailableSucursales] = useState<Sucursal[]>([]);
   const [loading, setLoading] = useState(true);
 
+  const canSwitchSucursal = userRole === "super_admin" || userRole === "admin";
+
+  const setSelectedSucursal = (s: Sucursal | null) => {
+    if (!canSwitchSucursal) return; // bloqueado para usuarios locales
+    setSelectedSucursalState(s);
+  };
+
   useEffect(() => {
     const load = async () => {
+      if (!user || !userRole) {
+        setLoading(false);
+        return;
+      }
       try {
-        const { data, error } = await supabase
+        const { data: allSucursales, error } = await supabase
           .from("sucursales")
           .select("*")
           .eq("activo", true)
           .order("codigo");
-
         if (error) throw error;
-        const sucursales = (data || []) as Sucursal[];
-        setAvailableSucursales(sucursales);
-        if (sucursales.length > 0) setSelectedSucursal(sucursales[0]);
+        const todas = (allSucursales || []) as Sucursal[];
+
+        let visibles: Sucursal[];
+        if (canSwitchSucursal) {
+          visibles = todas;
+        } else {
+          const { data: asign } = await supabase
+            .from("user_sucursal_asignacion")
+            .select("sucursal_id")
+            .eq("user_id", user.id);
+          const ids = new Set((asign || []).map((a: any) => a.sucursal_id));
+          visibles = todas.filter((s) => ids.has(s.id));
+        }
+
+        setAvailableSucursales(visibles);
+        if (visibles.length > 0) setSelectedSucursalState(visibles[0]);
+        else setSelectedSucursalState(null);
       } catch (err) {
         console.error("Error loading sucursales:", err);
       } finally {
@@ -50,10 +77,12 @@ export const SucursalProvider = ({ children }: { children: ReactNode }) => {
       }
     };
     load();
-  }, []);
+  }, [user?.id, userRole, canSwitchSucursal]);
 
   return (
-    <SucursalContext.Provider value={{ selectedSucursal, availableSucursales, setSelectedSucursal, loading }}>
+    <SucursalContext.Provider
+      value={{ selectedSucursal, availableSucursales, setSelectedSucursal, loading, canSwitchSucursal }}
+    >
       {children}
     </SucursalContext.Provider>
   );
