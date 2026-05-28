@@ -1,4 +1,16 @@
-export type UserRole = 'admin' | 'gerente' | 'cajero' | 'almacen' | 'repartidor' | 'auditor';
+export type UserRole =
+  | 'super_admin'
+  | 'admin'
+  | 'gerente'
+  | 'subgerente'
+  | 'cajero'
+  | 'ventas'
+  | 'almacen'
+  | 'almacen_ventas'
+  | 'repartidor'
+  | 'auditor'
+  | 'auditoria'
+  | 'supervisor';
 
 export interface Sucursal {
   id: string;
@@ -26,6 +38,7 @@ export interface Producto {
   categoria?: string;
   unidad: string;
   precio_base: number;
+  costo_promedio?: number;
   iva_incluido: boolean;
   activo: boolean;
 }
@@ -97,4 +110,15 @@ export interface CorteCaja {
   diferencia: number;
   estado: 'abierto' | 'revision' | 'cerrado';
   notas?: string;
+}
+
+export interface Notificacion {
+  id: string;
+  sucursal_id?: string;
+  tipo: 'stock_bajo' | 'caducidad' | 'sistema';
+  severidad: 'info' | 'warning' | 'critical';
+  titulo: string;
+  mensaje: string;
+  leida: boolean;
+  created_at: string;
 }
