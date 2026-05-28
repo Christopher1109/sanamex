@@ -25,6 +25,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
+import { NotificacionesBell } from '@/components/NotificacionesBell';
 
 const Header = () => {
   const location = useLocation();
@@ -109,6 +110,8 @@ const Header = () => {
       </div>
 
       <div className="flex items-center gap-2">
+        <NotificacionesBell />
+
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" size="icon">

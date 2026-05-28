@@ -22,6 +22,10 @@ import AuditoriaPage from './pages/AuditoriaPage';
 import POSPage from './pages/POSPage';
 import CaducidadesPage from './pages/CaducidadesPage';
 import ConflictosPage from './pages/ConflictosPage';
+import SuperAdminPage from './pages/SuperAdminPage';
+import RecomendacionesPage from './pages/RecomendacionesPage';
+import FiscalPage from './pages/FiscalPage';
+import CargasMasivasPage from './pages/CargasMasivasPage';
 import Sidebar from './components/layout/Sidebar';
 import Header from './components/layout/Header';
 import OfflineStatusBar from './components/OfflineStatusBar';
@@ -76,6 +80,10 @@ const AppContent = () => {
               <Route path="/actividad" element={<AuditoriaPage />} />
               <Route path="/pos" element={<POSPage />} />
               <Route path="/conflictos" element={<ConflictosPage />} />
+              <Route path="/super-admin" element={<SuperAdminPage />} />
+              <Route path="/recomendaciones" element={<RecomendacionesPage />} />
+              <Route path="/fiscal" element={<FiscalPage />} />
+              <Route path="/cargas-masivas" element={<CargasMasivasPage />} />
               <Route path="/auth" element={<Navigate to="/dashboard" replace />} />
               <Route path="*" element={<Navigate to="/dashboard" replace />} />
             </Routes>
