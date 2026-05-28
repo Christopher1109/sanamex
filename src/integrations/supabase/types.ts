@@ -1395,6 +1395,12 @@ export type Database = {
         | "almacen"
         | "repartidor"
         | "auditor"
+        | "super_admin"
+        | "supervisor"
+        | "subgerente"
+        | "auditoria"
+        | "almacen_ventas"
+        | "ventas"
       estado_traspaso: "pendiente" | "aprobado" | "rechazado" | "completado"
       genero: "masculino" | "femenino"
       tipo_actividad:
@@ -1544,6 +1550,12 @@ export const Constants = {
         "almacen",
         "repartidor",
         "auditor",
+        "super_admin",
+        "supervisor",
+        "subgerente",
+        "auditoria",
+        "almacen_ventas",
+        "ventas",
       ],
       estado_traspaso: ["pendiente", "aprobado", "rechazado", "completado"],
       genero: ["masculino", "femenino"],
