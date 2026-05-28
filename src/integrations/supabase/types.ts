@@ -156,6 +156,102 @@ export type Database = {
           },
         ]
       }
+      cargas_masivas_historico: {
+        Row: {
+          cargado_por: string | null
+          created_at: string
+          errores: Json | null
+          filas_error: number
+          filas_ok: number
+          id: string
+          nombre_archivo: string | null
+          resumen: Json | null
+          sucursal_id: string | null
+          tipo: string
+          total_filas: number
+        }
+        Insert: {
+          cargado_por?: string | null
+          created_at?: string
+          errores?: Json | null
+          filas_error?: number
+          filas_ok?: number
+          id?: string
+          nombre_archivo?: string | null
+          resumen?: Json | null
+          sucursal_id?: string | null
+          tipo: string
+          total_filas?: number
+        }
+        Update: {
+          cargado_por?: string | null
+          created_at?: string
+          errores?: Json | null
+          filas_error?: number
+          filas_ok?: number
+          id?: string
+          nombre_archivo?: string | null
+          resumen?: Json | null
+          sucursal_id?: string | null
+          tipo?: string
+          total_filas?: number
+        }
+        Relationships: []
+      }
+      cfdi_emitidos: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          estado: string
+          folio: number | null
+          id: string
+          pac_response: Json | null
+          pdf_url: string | null
+          rfc_receptor: string | null
+          serie: string | null
+          sucursal_id: string
+          timbrado_at: string | null
+          total: number
+          uuid_sat: string | null
+          venta_id: string | null
+          xml_url: string | null
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          estado?: string
+          folio?: number | null
+          id?: string
+          pac_response?: Json | null
+          pdf_url?: string | null
+          rfc_receptor?: string | null
+          serie?: string | null
+          sucursal_id: string
+          timbrado_at?: string | null
+          total?: number
+          uuid_sat?: string | null
+          venta_id?: string | null
+          xml_url?: string | null
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          estado?: string
+          folio?: number | null
+          id?: string
+          pac_response?: Json | null
+          pdf_url?: string | null
+          rfc_receptor?: string | null
+          serie?: string | null
+          sucursal_id?: string
+          timbrado_at?: string | null
+          total?: number
+          uuid_sat?: string | null
+          venta_id?: string | null
+          xml_url?: string | null
+        }
+        Relationships: []
+      }
       clientes: {
         Row: {
           activo: boolean | null
@@ -368,6 +464,63 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      configuracion_fiscal: {
+        Row: {
+          activo: boolean
+          certificado_csd_url: string | null
+          cp_emisor: string | null
+          created_at: string
+          csd_password_hint: string | null
+          folio_actual: number | null
+          id: string
+          llave_csd_url: string | null
+          pac_proveedor: string | null
+          pac_usuario: string | null
+          razon_social: string
+          regimen_fiscal: string | null
+          rfc: string
+          serie_default: string | null
+          sucursal_id: string
+          updated_at: string
+        }
+        Insert: {
+          activo?: boolean
+          certificado_csd_url?: string | null
+          cp_emisor?: string | null
+          created_at?: string
+          csd_password_hint?: string | null
+          folio_actual?: number | null
+          id?: string
+          llave_csd_url?: string | null
+          pac_proveedor?: string | null
+          pac_usuario?: string | null
+          razon_social: string
+          regimen_fiscal?: string | null
+          rfc: string
+          serie_default?: string | null
+          sucursal_id: string
+          updated_at?: string
+        }
+        Update: {
+          activo?: boolean
+          certificado_csd_url?: string | null
+          cp_emisor?: string | null
+          created_at?: string
+          csd_password_hint?: string | null
+          folio_actual?: number | null
+          id?: string
+          llave_csd_url?: string | null
+          pac_proveedor?: string | null
+          pac_usuario?: string | null
+          razon_social?: string
+          regimen_fiscal?: string | null
+          rfc?: string
+          serie_default?: string | null
+          sucursal_id?: string
+          updated_at?: string
+        }
+        Relationships: []
       }
       cortes_caja: {
         Row: {
@@ -631,6 +784,48 @@ export type Database = {
           },
         ]
       }
+      notificaciones: {
+        Row: {
+          created_at: string
+          id: string
+          leida: boolean
+          leida_at: string | null
+          mensaje: string
+          referencia_id: string | null
+          referencia_tipo: string | null
+          severidad: string
+          sucursal_id: string | null
+          tipo: string
+          titulo: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          leida?: boolean
+          leida_at?: string | null
+          mensaje: string
+          referencia_id?: string | null
+          referencia_tipo?: string | null
+          severidad?: string
+          sucursal_id?: string | null
+          tipo: string
+          titulo: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          leida?: boolean
+          leida_at?: string | null
+          mensaje?: string
+          referencia_id?: string | null
+          referencia_tipo?: string | null
+          severidad?: string
+          sucursal_id?: string | null
+          tipo?: string
+          titulo?: string
+        }
+        Relationships: []
+      }
       password_resets_log: {
         Row: {
           created_at: string
@@ -824,6 +1019,7 @@ export type Database = {
           activo: boolean | null
           categoria: string | null
           codigo_barras: string | null
+          costo_promedio: number
           created_at: string | null
           descripcion: string | null
           id: string
@@ -840,6 +1036,7 @@ export type Database = {
           activo?: boolean | null
           categoria?: string | null
           codigo_barras?: string | null
+          costo_promedio?: number
           created_at?: string | null
           descripcion?: string | null
           id?: string
@@ -856,6 +1053,7 @@ export type Database = {
           activo?: boolean | null
           categoria?: string | null
           codigo_barras?: string | null
+          costo_promedio?: number
           created_at?: string | null
           descripcion?: string | null
           id?: string
@@ -936,6 +1134,42 @@ export type Database = {
           rfc?: string | null
           telefono?: string | null
           updated_at?: string | null
+        }
+        Relationships: []
+      }
+      recomendaciones: {
+        Row: {
+          expira_at: string
+          generada_at: string
+          generada_por: string | null
+          id: string
+          modelo: string | null
+          payload: Json
+          resumen_ia: string | null
+          sucursal_id: string
+          tipo: string
+        }
+        Insert: {
+          expira_at?: string
+          generada_at?: string
+          generada_por?: string | null
+          id?: string
+          modelo?: string | null
+          payload: Json
+          resumen_ia?: string | null
+          sucursal_id: string
+          tipo?: string
+        }
+        Update: {
+          expira_at?: string
+          generada_at?: string
+          generada_por?: string | null
+          id?: string
+          modelo?: string | null
+          payload?: Json
+          resumen_ia?: string | null
+          sucursal_id?: string
+          tipo?: string
         }
         Relationships: []
       }
@@ -1425,6 +1659,45 @@ export type Database = {
           },
         ]
       }
+      ventas_historicas: {
+        Row: {
+          cantidad: number
+          carga_id: string | null
+          created_at: string
+          fecha: string
+          id: string
+          precio_unitario: number
+          producto_nombre: string | null
+          producto_sku: string | null
+          proveedor_sugerido: string | null
+          sucursal_id: string | null
+        }
+        Insert: {
+          cantidad?: number
+          carga_id?: string | null
+          created_at?: string
+          fecha: string
+          id?: string
+          precio_unitario?: number
+          producto_nombre?: string | null
+          producto_sku?: string | null
+          proveedor_sugerido?: string | null
+          sucursal_id?: string | null
+        }
+        Update: {
+          cantidad?: number
+          carga_id?: string | null
+          created_at?: string
+          fecha?: string
+          id?: string
+          precio_unitario?: number
+          producto_nombre?: string | null
+          producto_sku?: string | null
+          proveedor_sugerido?: string | null
+          sucursal_id?: string | null
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
@@ -1468,6 +1741,10 @@ export type Database = {
             }
             Returns: Json
           }
+      recalc_costo_promedio: {
+        Args: { _producto_id: string }
+        Returns: undefined
+      }
     }
     Enums: {
       app_role:
