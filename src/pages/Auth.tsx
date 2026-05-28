@@ -16,40 +16,42 @@ const loginSchema = z.object({
     .min(3, { message: "El usuario debe tener al menos 3 caracteres" })
     .max(50, { message: "Máximo 50 caracteres" })
     .regex(/^[a-zA-Z0-9_]+$/, { message: "Solo letras, números y guiones bajos" }),
-  password: z.string()
-    .min(6, { message: "La contraseña debe tener al menos 6 caracteres" })
-    .max(100, { message: "Máximo 100 caracteres" }),
+  password: z.string().min(6, { message: "Mínimo 6 caracteres" }).max(100),
 });
 
 type LoginFormValues = z.infer<typeof loginSchema>;
 
+const SUC = [
+  { code: 'sv', label: 'San Vicente' },
+  { code: 'f36', label: 'Iztapalapa F36' },
+  { code: 'h', label: 'Iztapalapa H' },
+  { code: 'eca', label: 'Ecatepec' },
+];
+
+const ROLES = [
+  { key: 'gerente', label: 'Gerente' },
+  { key: 'subgerente', label: 'Subgerente' },
+  { key: 'ventas1', label: 'Ventas 1' },
+  { key: 'ventas2', label: 'Ventas 2' },
+  { key: 'almacen', label: 'Almacenista' },
+  { key: 'chofer', label: 'Chofer' },
+];
+
 const Auth = () => {
   const [isLoading, setIsLoading] = useState(false);
-  const [isSettingUp, setIsSettingUp] = useState(false);
   const navigate = useNavigate();
 
-  const loginForm = useForm<LoginFormValues>({
-    resolver: zodResolver(loginSchema),
-  });
+  const loginForm = useForm<LoginFormValues>({ resolver: zodResolver(loginSchema) });
 
   const handleLogin = async (data: LoginFormValues) => {
     setIsLoading(true);
     try {
-      const email = `${data.username.toLowerCase()}@sistema.local`;
-      const { error } = await supabase.auth.signInWithPassword({
-        email,
-        password: data.password,
-      });
-
+      const email = `${data.username.toLowerCase()}@sanamex.local`;
+      const { error } = await supabase.auth.signInWithPassword({ email, password: data.password });
       if (error) {
-        if (error.message.includes('Invalid login credentials')) {
-          toast.error('Credenciales inválidas', { description: 'Verifica tu usuario y contraseña' });
-        } else {
-          toast.error('Error al iniciar sesión', { description: error.message });
-        }
+        toast.error('Credenciales inválidas', { description: error.message });
         return;
       }
-
       toast.success('¡Bienvenido!');
       navigate('/dashboard');
     } catch {
@@ -59,38 +61,21 @@ const Auth = () => {
     }
   };
 
-  const handleSetup = async () => {
-    setIsSettingUp(true);
-    try {
-      const { data, error } = await supabase.functions.invoke('setup-initial-admin');
-      if (error) throw error;
-      toast.success('Usuarios creados exitosamente', { description: 'Ya puedes iniciar sesión' });
-      console.log('Setup results:', data);
-    } catch (err: any) {
-      toast.error('Error al crear usuarios', { description: err.message });
-    } finally {
-      setIsSettingUp(false);
-    }
-  };
-
   return (
     <div className="flex min-h-screen items-center justify-center bg-background p-4">
-      <div className="w-full max-w-md space-y-4">
+      <div className="w-full max-w-2xl space-y-4">
         <Card>
           <CardHeader className="text-center">
-            <CardTitle className="text-2xl font-bold">MedDistributor</CardTitle>
-            <CardDescription>
-              ERP para Distribuidora de Medicamentos
-            </CardDescription>
+            <CardTitle className="text-2xl font-bold">Sanamex ERP</CardTitle>
+            <CardDescription>Distribuidora Farmacéutica Sanamex</CardDescription>
           </CardHeader>
           <CardContent>
-            <form onSubmit={loginForm.handleSubmit(handleLogin)} className="space-y-4">
+            <form onSubmit={loginForm.handleSubmit(handleLogin)} className="space-y-4 max-w-sm mx-auto">
               <div className="space-y-2">
                 <Label htmlFor="login-username">Usuario</Label>
                 <Input
-                  id="login-username"
-                  type="text"
-                  placeholder="Ej: admin, gerente01, cajero01"
+                  id="login-username" type="text"
+                  placeholder="Ej: superadmin, gerente_sv"
                   autoComplete="username"
                   {...loginForm.register('username')}
                 />
@@ -98,13 +83,10 @@ const Auth = () => {
                   <p className="text-sm text-destructive">{loginForm.formState.errors.username.message}</p>
                 )}
               </div>
-
               <div className="space-y-2">
                 <Label htmlFor="login-password">Contraseña</Label>
                 <Input
-                  id="login-password"
-                  type="password"
-                  placeholder="••••••••"
+                  id="login-password" type="password" placeholder="••••••••"
                   autoComplete="current-password"
                   {...loginForm.register('password')}
                 />
@@ -112,33 +94,39 @@ const Auth = () => {
                   <p className="text-sm text-destructive">{loginForm.formState.errors.password.message}</p>
                 )}
               </div>
-
               <Button type="submit" className="w-full" disabled={isLoading}>
                 {isLoading ? 'Iniciando sesión...' : 'Iniciar Sesión'}
               </Button>
             </form>
 
             <div className="mt-6 p-4 bg-muted rounded-lg">
-              <p className="text-sm font-medium mb-2">Usuarios del sistema:</p>
-              <ul className="text-xs text-muted-foreground space-y-1">
-                <li><code className="bg-background px-1 rounded">admin</code> — Administrador General</li>
-                <li><code className="bg-background px-1 rounded">gerente01</code> — Gerente Sucursal</li>
-                <li><code className="bg-background px-1 rounded">cajero01</code> — Cajero</li>
-                <li><code className="bg-background px-1 rounded">almacen01</code> — Almacenista</li>
-                <li><code className="bg-background px-1 rounded">repartidor01</code> — Repartidor</li>
-                <li><code className="bg-background px-1 rounded">auditor01</code> — Auditor</li>
-              </ul>
-              <p className="text-xs text-muted-foreground mt-2">Contraseña: <code className="bg-background px-1 rounded">[Rol]2024!</code> (ej: Admin2024!)</p>
-              
-              <Button 
-                variant="outline" 
-                size="sm" 
-                className="w-full mt-3" 
-                onClick={handleSetup}
-                disabled={isSettingUp}
-              >
-                {isSettingUp ? 'Creando usuarios...' : '⚡ Crear usuarios iniciales'}
-              </Button>
+              <p className="text-sm font-medium mb-2">Usuarios del sistema</p>
+              <p className="text-xs text-muted-foreground mb-3">
+                Contraseña para todos: <code className="bg-background px-1.5 py-0.5 rounded">Sanamex2026!</code>
+              </p>
+
+              <div className="space-y-3 text-xs">
+                <div>
+                  <p className="font-semibold mb-1">Globales</p>
+                  <ul className="text-muted-foreground space-y-0.5">
+                    <li><code className="bg-background px-1 rounded">superadmin</code> — Super Administrador</li>
+                    <li><code className="bg-background px-1 rounded">admin_general</code> — Administrador General</li>
+                  </ul>
+                </div>
+
+                {SUC.map(s => (
+                  <div key={s.code}>
+                    <p className="font-semibold mb-1">Sucursal {s.label}</p>
+                    <ul className="text-muted-foreground grid grid-cols-2 gap-x-3 gap-y-0.5">
+                      {ROLES.map(r => (
+                        <li key={r.key}>
+                          <code className="bg-background px-1 rounded">{r.key}_{s.code}</code> — {r.label}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ))}
+              </div>
             </div>
           </CardContent>
         </Card>
