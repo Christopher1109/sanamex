@@ -49,6 +49,11 @@ const quickActionsByRole: Record<UserRole, Array<{
   label: string;
   description: string;
 }>> = {
+  super_admin: [
+    { path: '/super-admin', icon: Activity, label: 'Super Admin', description: 'Gestión de usuarios' },
+    { path: '/reportes', icon: FileSpreadsheet, label: 'Reportes', description: 'Ver reportes' },
+    { path: '/recomendaciones', icon: ShoppingCart, label: 'Recomendaciones', description: 'Sugerencias IA' },
+  ],
   admin: [
     { path: '/productos', icon: Package, label: 'Productos', description: 'Gestionar catálogo' },
     { path: '/inventario', icon: Warehouse, label: 'Inventario', description: 'Ver existencias' },
@@ -60,12 +65,26 @@ const quickActionsByRole: Record<UserRole, Array<{
   gerente: [
     { path: '/inventario', icon: Warehouse, label: 'Inventario', description: 'Ver existencias' },
     { path: '/compras', icon: ShoppingCart, label: 'Compras', description: 'Órdenes de compra' },
+    { path: '/recomendaciones', icon: ShoppingCart, label: 'Recomendaciones IA', description: 'Qué comprar' },
     { path: '/caducidades', icon: AlertCircle, label: 'Caducidades', description: 'Vencimientos' },
     { path: '/reportes', icon: FileSpreadsheet, label: 'Reportes', description: 'Ver reportes' },
+  ],
+  subgerente: [
+    { path: '/inventario', icon: Warehouse, label: 'Inventario', description: 'Ver existencias' },
+    { path: '/pedidos', icon: PackageCheck, label: 'Pedidos', description: 'Gestionar pedidos' },
+    { path: '/caducidades', icon: AlertCircle, label: 'Caducidades', description: 'Vencimientos' },
+  ],
+  supervisor: [
+    { path: '/reportes', icon: FileSpreadsheet, label: 'Reportes', description: 'Operativos' },
+    { path: '/actividad', icon: Activity, label: 'Actividad', description: 'Auditoría' },
   ],
   cajero: [
     { path: '/inventario', icon: Warehouse, label: 'Inventario', description: 'Ver existencias' },
     { path: '/pedidos', icon: PackageCheck, label: 'Pedidos', description: 'Gestionar pedidos' },
+  ],
+  ventas: [
+    { path: '/pos', icon: Package, label: 'Punto de Venta', description: 'Vender' },
+    { path: '/pedidos', icon: PackageCheck, label: 'Pedidos', description: 'Mis ventas' },
   ],
   almacen: [
     { path: '/inventario', icon: Warehouse, label: 'Inventario', description: 'Gestionar existencias' },
@@ -73,12 +92,21 @@ const quickActionsByRole: Record<UserRole, Array<{
     { path: '/traspasos', icon: ArrowLeftRight, label: 'Traspasos', description: 'Entre sucursales' },
     { path: '/compras', icon: ShoppingCart, label: 'Compras', description: 'Recibir compras' },
   ],
+  almacen_ventas: [
+    { path: '/inventario', icon: Warehouse, label: 'Inventario', description: 'Gestionar existencias' },
+    { path: '/pos', icon: Package, label: 'Punto de Venta', description: 'Vender' },
+    { path: '/traspasos', icon: ArrowLeftRight, label: 'Traspasos', description: 'Entre sucursales' },
+  ],
   repartidor: [
     { path: '/pedidos', icon: PackageCheck, label: 'Mis Pedidos', description: 'Ver entregas' },
   ],
   auditor: [
     { path: '/actividad', icon: Activity, label: 'Auditoría', description: 'Ver logs' },
     { path: '/caducidades', icon: AlertCircle, label: 'Caducidades', description: 'Vencimientos' },
+    { path: '/reportes', icon: FileSpreadsheet, label: 'Reportes', description: 'Operativos' },
+  ],
+  auditoria: [
+    { path: '/actividad', icon: Activity, label: 'Auditoría', description: 'Ver logs' },
     { path: '/reportes', icon: FileSpreadsheet, label: 'Reportes', description: 'Operativos' },
   ],
 };
@@ -106,12 +134,18 @@ const Dashboard = ({ userRole }: DashboardProps) => {
   const [stockBajoCount, setStockBajoCount] = useState(0);
 
   const roleLabels: Record<UserRole, string> = {
+    super_admin: 'Super Administrador',
     admin: 'Administrador',
     gerente: 'Gerente de Sucursal',
+    subgerente: 'Subgerente',
+    supervisor: 'Supervisor',
     cajero: 'Cajero',
+    ventas: 'Ventas',
     almacen: 'Almacenista',
+    almacen_ventas: 'Almacén y Ventas',
     repartidor: 'Repartidor',
     auditor: 'Auditor',
+    auditoria: 'Auditoría',
   };
 
   useEffect(() => {

@@ -28,12 +28,18 @@ const Sidebar = ({ userRole, onLogout }: SidebarProps) => {
   const location = useLocation();
 
   const roleLabels: Record<UserRole, string> = {
+    super_admin: 'Super Administrador',
     admin: 'Administrador',
     gerente: 'Gerente',
+    subgerente: 'Subgerente',
+    supervisor: 'Supervisor',
     cajero: 'Cajero',
+    ventas: 'Ventas',
     almacen: 'Almacén',
+    almacen_ventas: 'Almacén y Ventas',
     repartidor: 'Repartidor',
     auditor: 'Auditor',
+    auditoria: 'Auditoría',
   };
 
   const menuItems: MenuItem[] = [
