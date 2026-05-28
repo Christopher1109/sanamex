@@ -6,7 +6,7 @@ import {
   Warehouse, ArrowLeftRight, ClipboardList,
   Store, ShoppingCart,
   PackageCheck, AlertTriangle, AlertCircle, History, FileSpreadsheet,
-  Monitor, CloudOff
+  Monitor, CloudOff, Shield, Sparkles, Upload, Receipt, Bell
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { SucursalSelector } from '@/components/SucursalSelector';
@@ -28,35 +28,52 @@ const Sidebar = ({ userRole, onLogout }: SidebarProps) => {
   const location = useLocation();
 
   const roleLabels: Record<UserRole, string> = {
+    super_admin: 'Super Administrador',
     admin: 'Administrador',
     gerente: 'Gerente',
+    subgerente: 'Subgerente',
+    supervisor: 'Supervisor',
     cajero: 'Cajero',
+    ventas: 'Ventas',
     almacen: 'Almacén',
+    almacen_ventas: 'Almacén y Ventas',
     repartidor: 'Repartidor',
     auditor: 'Auditor',
+    auditoria: 'Auditoría',
   };
 
+  const ALL: UserRole[] = ['super_admin','admin','gerente','subgerente','supervisor','cajero','ventas','almacen','almacen_ventas','repartidor','auditor','auditoria'];
+  const MGMT: UserRole[] = ['super_admin','admin','gerente','subgerente'];
+  const OPS: UserRole[] = ['super_admin','admin','gerente','subgerente','almacen','almacen_ventas'];
+  const SALES: UserRole[] = ['super_admin','admin','gerente','subgerente','cajero','ventas','almacen_ventas'];
+  const AUDIT: UserRole[] = ['super_admin','admin','gerente','auditor','auditoria','supervisor'];
+
   const menuItems: MenuItem[] = [
-    { path: '/dashboard', icon: LayoutDashboard, label: 'Dashboard', roles: ['admin', 'gerente', 'cajero', 'almacen', 'repartidor', 'auditor'], category: 'Principal' },
+    { path: '/dashboard', icon: LayoutDashboard, label: 'Dashboard', roles: ALL, category: 'Principal' },
     // Catálogos
-    { path: '/productos', icon: Package, label: 'Productos', roles: ['admin', 'gerente', 'almacen'], category: 'Catálogos' },
-    { path: '/proveedores', icon: Store, label: 'Proveedores', roles: ['admin', 'gerente'], category: 'Catálogos' },
-    { path: '/clientes', icon: Users, label: 'Clientes', roles: ['admin', 'gerente', 'cajero'], category: 'Catálogos' },
+    { path: '/productos', icon: Package, label: 'Productos', roles: ['super_admin','admin','gerente','subgerente','almacen','almacen_ventas'], category: 'Catálogos' },
+    { path: '/proveedores', icon: Store, label: 'Proveedores', roles: MGMT, category: 'Catálogos' },
+    { path: '/clientes', icon: Users, label: 'Clientes', roles: [...MGMT,'cajero','ventas'], category: 'Catálogos' },
     // Operaciones
-    { path: '/compras', icon: ShoppingCart, label: 'Compras', roles: ['admin', 'gerente', 'almacen'], category: 'Operaciones' },
-    { path: '/pedidos', icon: PackageCheck, label: 'Ventas', roles: ['admin', 'gerente', 'almacen', 'cajero'], category: 'Operaciones' },
-    { path: '/pos', icon: Monitor, label: 'Punto de Venta', roles: ['admin', 'gerente', 'cajero'], category: 'Operaciones' },
-    { path: '/traspasos', icon: ArrowLeftRight, label: 'Traspasos', roles: ['admin', 'gerente', 'almacen'], category: 'Operaciones' },
+    { path: '/compras', icon: ShoppingCart, label: 'Compras', roles: OPS, category: 'Operaciones' },
+    { path: '/pedidos', icon: PackageCheck, label: 'Ventas', roles: SALES, category: 'Operaciones' },
+    { path: '/pos', icon: Monitor, label: 'Punto de Venta', roles: SALES, category: 'Operaciones' },
+    { path: '/traspasos', icon: ArrowLeftRight, label: 'Traspasos', roles: OPS, category: 'Operaciones' },
     // Inventario
-    { path: '/inventario', icon: Warehouse, label: 'Inventario', roles: ['admin', 'gerente', 'almacen'], category: 'Inventario' },
-    { path: '/kardex', icon: ClipboardList, label: 'Kardex', roles: ['admin', 'gerente', 'almacen', 'auditor'], category: 'Inventario' },
-    { path: '/mermas', icon: AlertTriangle, label: 'Mermas', roles: ['admin', 'gerente', 'almacen', 'auditor'], category: 'Inventario' },
-    { path: '/caducidades', icon: AlertCircle, label: 'Caducidades', roles: ['admin', 'gerente', 'almacen', 'auditor'], category: 'Inventario' },
+    { path: '/inventario', icon: Warehouse, label: 'Inventario', roles: ['super_admin','admin','gerente','subgerente','almacen','almacen_ventas'], category: 'Inventario' },
+    { path: '/kardex', icon: ClipboardList, label: 'Kardex', roles: [...OPS,'auditor','auditoria'], category: 'Inventario' },
+    { path: '/mermas', icon: AlertTriangle, label: 'Mermas', roles: [...OPS,'auditor','auditoria'], category: 'Inventario' },
+    { path: '/caducidades', icon: AlertCircle, label: 'Caducidades', roles: [...OPS,'auditor','auditoria'], category: 'Inventario' },
     // Análisis
-    { path: '/reportes', icon: FileSpreadsheet, label: 'Reportes', roles: ['admin', 'gerente', 'auditor'], category: 'Análisis' },
+    { path: '/recomendaciones', icon: Sparkles, label: 'Recomendaciones IA', roles: MGMT, category: 'Análisis' },
+    { path: '/reportes', icon: FileSpreadsheet, label: 'Reportes', roles: AUDIT, category: 'Análisis' },
+    // Fiscal
+    { path: '/fiscal', icon: Receipt, label: 'Facturación (CFDI)', roles: MGMT, category: 'Fiscal' },
     // Sistema
-    { path: '/conflictos', icon: CloudOff, label: 'Ventas Offline', roles: ['admin', 'gerente', 'cajero'], category: 'Sistema' },
-    { path: '/actividad', icon: History, label: 'Registro de Actividad', roles: ['admin', 'gerente', 'auditor'], category: 'Sistema' },
+    { path: '/cargas-masivas', icon: Upload, label: 'Cargas Masivas', roles: MGMT, category: 'Sistema' },
+    { path: '/conflictos', icon: CloudOff, label: 'Ventas Offline', roles: SALES, category: 'Sistema' },
+    { path: '/actividad', icon: History, label: 'Registro de Actividad', roles: AUDIT, category: 'Sistema' },
+    { path: '/super-admin', icon: Shield, label: 'Super Admin', roles: ['super_admin'], category: 'Sistema' },
   ];
 
   const filtered = menuItems.filter(item => item.roles.includes(userRole));
