@@ -28,7 +28,7 @@ import FiscalPage from './pages/FiscalPage';
 import CargasMasivasPage from './pages/CargasMasivasPage';
 import Sidebar from './components/layout/Sidebar';
 import Header from './components/layout/Header';
-import OfflineStatusBar from './components/OfflineStatusBar';
+
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -60,7 +60,7 @@ const AppContent = () => {
         <Sidebar userRole={userRole} onLogout={signOut} />
         <div className="flex flex-1 flex-col overflow-hidden">
           <Header />
-          <OfflineStatusBar />
+          
           <main className="flex-1 overflow-y-auto bg-background p-6">
             <Routes>
               <Route path="/" element={<Navigate to="/dashboard" replace />} />
