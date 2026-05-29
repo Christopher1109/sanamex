@@ -28,7 +28,7 @@ import FiscalPage from './pages/FiscalPage';
 import CargasMasivasPage from './pages/CargasMasivasPage';
 import Sidebar from './components/layout/Sidebar';
 import Header from './components/layout/Header';
-import OfflineStatusBar from './components/OfflineStatusBar';
+
 
 const queryClient = new QueryClient({
   defaultOptions: {
