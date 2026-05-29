@@ -313,10 +313,11 @@ const ComprasPage = () => {
         </CardContent>
       </Card>
 
-      <div className="grid grid-cols-3 gap-4">
-        <Card><CardContent className="p-4"><p className="text-sm text-muted-foreground">En Tránsito</p><p className="text-2xl font-bold text-primary">{compras.filter(c => c.estado === 'en_transito').length}</p><p className="text-xs text-muted-foreground">${compras.filter(c => c.estado === 'en_transito').reduce((s, c) => s + Number(c.total), 0).toLocaleString('es-MX', { minimumFractionDigits: 2 })}</p></CardContent></Card>
-        <Card><CardContent className="p-4"><p className="text-sm text-muted-foreground">Pendientes de Pago</p><p className="text-2xl font-bold">{compras.filter(c => c.estado === 'recibida').length}</p></CardContent></Card>
-        <Card><CardContent className="p-4"><p className="text-sm text-muted-foreground">Total Pagado</p><p className="text-2xl font-bold">${compras.filter(c => c.estado === 'pagada').reduce((s, c) => s + Number(c.total), 0).toLocaleString('es-MX', { minimumFractionDigits: 2 })}</p></CardContent></Card>
+      <div className="grid grid-cols-4 gap-4">
+        <Card><CardContent className="p-4"><p className="text-sm text-muted-foreground">Ordenadas</p><p className="text-2xl font-bold text-primary">{compras.filter(c => c.estado === 'ordenada' || c.estado === 'en_transito').length}</p><p className="text-xs text-muted-foreground">Pendientes de pago</p></CardContent></Card>
+        <Card><CardContent className="p-4"><p className="text-sm text-muted-foreground">Pagadas</p><p className="text-2xl font-bold">{compras.filter(c => c.estado === 'pagada').length}</p><p className="text-xs text-muted-foreground">Esperando mercancía</p></CardContent></Card>
+        <Card><CardContent className="p-4"><p className="text-sm text-muted-foreground">Recibidas</p><p className="text-2xl font-bold">{compras.filter(c => c.estado === 'recibida').length}</p><p className="text-xs text-muted-foreground">Listas para cerrar</p></CardContent></Card>
+        <Card><CardContent className="p-4"><p className="text-sm text-muted-foreground">Total Cerradas</p><p className="text-2xl font-bold">${compras.filter(c => c.estado === 'cerrada').reduce((s, c) => s + Number(c.total), 0).toLocaleString('es-MX', { minimumFractionDigits: 2 })}</p></CardContent></Card>
       </div>
 
       <Card>
