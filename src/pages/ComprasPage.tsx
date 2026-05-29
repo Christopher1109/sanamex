@@ -10,14 +10,16 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
-import { Plus, Eye, PackageCheck, CreditCard, ChevronRight, Upload, ImageIcon } from 'lucide-react';
+import { Plus, Eye, PackageCheck, CreditCard, ChevronRight, Upload, ImageIcon, CheckCircle2, Lock } from 'lucide-react';
 import { toast } from 'sonner';
 import ProductSearchInput from '@/components/ProductSearchInput';
 
 const estadoConfig: Record<string, { color: string; label: string }> = {
-  en_transito: { color: 'default', label: 'En Tránsito' },
-  recibida: { color: 'outline', label: 'Recibida' },
+  ordenada: { color: 'secondary', label: 'Ordenada' },
+  en_transito: { color: 'secondary', label: 'Ordenada' }, // legacy alias
   pagada: { color: 'default', label: 'Pagada' },
+  recibida: { color: 'outline', label: 'Recibida' },
+  cerrada: { color: 'default', label: 'Cerrada' },
   cancelada: { color: 'destructive', label: 'Cancelada' },
 };
 
