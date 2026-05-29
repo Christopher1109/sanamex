@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react';
-import { Settings, User, Lock, Moon, Sun } from 'lucide-react';
+import { Settings, User, Lock, Moon, Sun, Wifi, WifiOff, RefreshCw, CloudUpload } from 'lucide-react';
 import { useLocation } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { useSucursal } from '@/contexts/SucursalContext';
 import { Badge } from '@/components/ui/badge';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
+import { useOfflineSync } from '@/hooks/useOfflineSync';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -26,6 +27,68 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
 import { NotificacionesBell } from '@/components/NotificacionesBell';
+
+const formatRelative = (iso: string | null) => {
+  if (!iso) return 'nunca';
+  const diff = Date.now() - new Date(iso).getTime();
+  const m = Math.floor(diff / 60000);
+  if (m < 1) return 'recién';
+  if (m < 60) return `hace ${m} min`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `hace ${h} h`;
+  return `hace ${Math.floor(h / 24)} d`;
+};
+
+const SyncIndicator = () => {
+  const { status, lastSync, pendingCount, syncing, runSync } = useOfflineSync();
+  const isOffline = status === 'offline';
+
+  if (!isOffline && pendingCount === 0 && !syncing) return null;
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button variant="ghost" size="icon" className="relative">
+          {syncing ? (
+            <RefreshCw className="h-5 w-5 animate-spin text-primary" />
+          ) : isOffline ? (
+            <WifiOff className="h-5 w-5 text-destructive" />
+          ) : (
+            <CloudUpload className="h-5 w-5 text-warning" />
+          )}
+          {pendingCount > 0 && !syncing && (
+            <span className="absolute -top-0.5 -right-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-destructive text-[10px] font-bold text-destructive-foreground">
+              {pendingCount}
+            </span>
+          )}
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-56">
+        <DropdownMenuLabel className="flex items-center gap-2">
+          {syncing ? <RefreshCw className="h-4 w-4 animate-spin text-primary" /> : isOffline ? <WifiOff className="h-4 w-4 text-destructive" /> : <Wifi className="h-4 w-4 text-primary" />}
+          <span>{syncing ? 'Sincronizando…' : isOffline ? 'Modo offline' : 'Conectado'}</span>
+        </DropdownMenuLabel>
+        <DropdownMenuSeparator />
+        <div className="px-3 py-2 text-xs text-muted-foreground">
+          Última sincronización: {formatRelative(lastSync)}
+        </div>
+        {pendingCount > 0 && (
+          <div className="px-3 py-2 text-xs text-warning">
+            {pendingCount} venta(s) pendiente(s) de subir
+          </div>
+        )}
+        <DropdownMenuItem
+          onClick={runSync}
+          disabled={syncing || isOffline}
+          className="cursor-pointer"
+        >
+          <RefreshCw className="h-4 w-4 mr-2" />
+          Sincronizar ahora
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+};
 
 const Header = () => {
   const location = useLocation();
