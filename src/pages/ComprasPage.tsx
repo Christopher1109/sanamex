@@ -112,7 +112,7 @@ const ComprasPage = () => {
       datos_despues: { numero_compra: numCompra, total: subtotal, productos: lineas.length },
     });
 
-    toast.success(`Orden ${numCompra} creada — En Tránsito`);
+    toast.success(`Orden ${numCompra} creada — Ordenada`);
     setShowCreate(false);
     load();
   };
