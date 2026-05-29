@@ -173,6 +173,7 @@ const Header = () => {
       </div>
 
       <div className="flex items-center gap-2">
+        <SyncIndicator />
         <NotificacionesBell />
 
         <DropdownMenu>
