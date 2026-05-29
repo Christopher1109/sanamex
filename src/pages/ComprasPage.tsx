@@ -295,7 +295,7 @@ const ComprasPage = () => {
         <CardContent className="p-4">
           <div className="flex items-center justify-between">
             {flowSteps.map((step, i) => {
-              const count = compras.filter(c => c.estado === step).length;
+              const count = compras.filter(c => c.estado === step || (step === 'ordenada' && c.estado === 'en_transito')).length;
               const cfg = estadoConfig[step];
               return (
                 <div key={step} className="flex items-center">
