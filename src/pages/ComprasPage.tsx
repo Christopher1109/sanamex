@@ -93,7 +93,7 @@ const ComprasPage = () => {
       numero_compra: numCompra, proveedor_id: form.proveedor_id,
       sucursal_id: selectedSucursal!.id, almacen_id: alm?.[0]?.id || null,
       subtotal, total: subtotal, notas: form.notas || null, creado_por: user?.id,
-      estado: 'en_transito',
+      estado: 'ordenada',
     }).select().single();
 
     if (error) { toast.error('Error al crear compra'); console.error(error); return; }
