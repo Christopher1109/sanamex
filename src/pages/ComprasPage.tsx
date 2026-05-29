@@ -10,14 +10,16 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
-import { Plus, Eye, PackageCheck, CreditCard, ChevronRight, Upload, ImageIcon } from 'lucide-react';
+import { Plus, Eye, PackageCheck, CreditCard, ChevronRight, Upload, ImageIcon, CheckCircle2, Lock } from 'lucide-react';
 import { toast } from 'sonner';
 import ProductSearchInput from '@/components/ProductSearchInput';
 
 const estadoConfig: Record<string, { color: string; label: string }> = {
-  en_transito: { color: 'default', label: 'En Tránsito' },
-  recibida: { color: 'outline', label: 'Recibida' },
+  ordenada: { color: 'secondary', label: 'Ordenada' },
+  en_transito: { color: 'secondary', label: 'Ordenada' }, // legacy alias
   pagada: { color: 'default', label: 'Pagada' },
+  recibida: { color: 'outline', label: 'Recibida' },
+  cerrada: { color: 'default', label: 'Cerrada' },
   cancelada: { color: 'destructive', label: 'Cancelada' },
 };
 
@@ -91,7 +93,7 @@ const ComprasPage = () => {
       numero_compra: numCompra, proveedor_id: form.proveedor_id,
       sucursal_id: selectedSucursal!.id, almacen_id: alm?.[0]?.id || null,
       subtotal, total: subtotal, notas: form.notas || null, creado_por: user?.id,
-      estado: 'en_transito',
+      estado: 'ordenada',
     }).select().single();
 
     if (error) { toast.error('Error al crear compra'); console.error(error); return; }
@@ -110,7 +112,7 @@ const ComprasPage = () => {
       datos_despues: { numero_compra: numCompra, total: subtotal, productos: lineas.length },
     });
 
-    toast.success(`Orden ${numCompra} creada — En Tránsito`);
+    toast.success(`Orden ${numCompra} creada — Ordenada`);
     setShowCreate(false);
     load();
   };
@@ -268,7 +270,19 @@ const ComprasPage = () => {
     setLineasDetail(data || []);
   };
 
-  const flowSteps = ['en_transito', 'recibida', 'pagada'];
+  const flowSteps = ['ordenada', 'pagada', 'recibida', 'cerrada'];
+
+  const cerrarCompra = async (compra: any) => {
+    const user = (await supabase.auth.getUser()).data.user;
+    await supabase.from('compras').update({ estado: 'cerrada' }).eq('id', compra.id);
+    await supabase.from('audit_log').insert({
+      entidad: 'compra', accion: 'Compra cerrada', entidad_id: compra.id,
+      usuario_id: user?.id, usuario_nombre: user?.email,
+      sucursal_id: compra.sucursal_id,
+    });
+    toast.success(`OC ${compra.numero_compra} cerrada`);
+    load();
+  };
 
   return (
     <div className="space-y-6">
@@ -281,7 +295,7 @@ const ComprasPage = () => {
         <CardContent className="p-4">
           <div className="flex items-center justify-between">
             {flowSteps.map((step, i) => {
-              const count = compras.filter(c => c.estado === step).length;
+              const count = compras.filter(c => c.estado === step || (step === 'ordenada' && c.estado === 'en_transito')).length;
               const cfg = estadoConfig[step];
               return (
                 <div key={step} className="flex items-center">
@@ -299,10 +313,11 @@ const ComprasPage = () => {
         </CardContent>
       </Card>
 
-      <div className="grid grid-cols-3 gap-4">
-        <Card><CardContent className="p-4"><p className="text-sm text-muted-foreground">En Tránsito</p><p className="text-2xl font-bold text-primary">{compras.filter(c => c.estado === 'en_transito').length}</p><p className="text-xs text-muted-foreground">${compras.filter(c => c.estado === 'en_transito').reduce((s, c) => s + Number(c.total), 0).toLocaleString('es-MX', { minimumFractionDigits: 2 })}</p></CardContent></Card>
-        <Card><CardContent className="p-4"><p className="text-sm text-muted-foreground">Pendientes de Pago</p><p className="text-2xl font-bold">{compras.filter(c => c.estado === 'recibida').length}</p></CardContent></Card>
-        <Card><CardContent className="p-4"><p className="text-sm text-muted-foreground">Total Pagado</p><p className="text-2xl font-bold">${compras.filter(c => c.estado === 'pagada').reduce((s, c) => s + Number(c.total), 0).toLocaleString('es-MX', { minimumFractionDigits: 2 })}</p></CardContent></Card>
+      <div className="grid grid-cols-4 gap-4">
+        <Card><CardContent className="p-4"><p className="text-sm text-muted-foreground">Ordenadas</p><p className="text-2xl font-bold text-primary">{compras.filter(c => c.estado === 'ordenada' || c.estado === 'en_transito').length}</p><p className="text-xs text-muted-foreground">Pendientes de pago</p></CardContent></Card>
+        <Card><CardContent className="p-4"><p className="text-sm text-muted-foreground">Pagadas</p><p className="text-2xl font-bold">{compras.filter(c => c.estado === 'pagada').length}</p><p className="text-xs text-muted-foreground">Esperando mercancía</p></CardContent></Card>
+        <Card><CardContent className="p-4"><p className="text-sm text-muted-foreground">Recibidas</p><p className="text-2xl font-bold">{compras.filter(c => c.estado === 'recibida').length}</p><p className="text-xs text-muted-foreground">Listas para cerrar</p></CardContent></Card>
+        <Card><CardContent className="p-4"><p className="text-sm text-muted-foreground">Total Cerradas</p><p className="text-2xl font-bold">${compras.filter(c => c.estado === 'cerrada').reduce((s, c) => s + Number(c.total), 0).toLocaleString('es-MX', { minimumFractionDigits: 2 })}</p></CardContent></Card>
       </div>
 
       <Card>
@@ -326,11 +341,17 @@ const ComprasPage = () => {
                   <TableCell><Badge variant={(cfg.color || 'secondary') as any}>{cfg.label}</Badge></TableCell>
                   <TableCell className="space-x-1">
                     <Button size="sm" variant="ghost" onClick={() => viewDetail(c)}><Eye className="h-4 w-4" /></Button>
-                    {c.estado === 'en_transito' && (
+                    {(c.estado === 'ordenada' || c.estado === 'en_transito') && (
+                      <Button size="sm" onClick={() => openPago(c)}><CreditCard className="h-4 w-4 mr-1" />Pagar</Button>
+                    )}
+                    {c.estado === 'pagada' && (
                       <Button size="sm" onClick={() => openRecepcion(c)}><PackageCheck className="h-4 w-4 mr-1" />Recibir</Button>
                     )}
                     {c.estado === 'recibida' && (
-                      <Button size="sm" onClick={() => openPago(c)}><CreditCard className="h-4 w-4 mr-1" />Marcar Pagada</Button>
+                      <Button size="sm" variant="outline" onClick={() => cerrarCompra(c)}><CheckCircle2 className="h-4 w-4 mr-1" />Cerrar</Button>
+                    )}
+                    {c.estado === 'cerrada' && (
+                      <Badge variant="outline" className="ml-2"><Lock className="h-3 w-3 mr-1" />Cerrada</Badge>
                     )}
                   </TableCell>
                 </TableRow>
