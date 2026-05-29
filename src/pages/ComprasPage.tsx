@@ -341,11 +341,17 @@ const ComprasPage = () => {
                   <TableCell><Badge variant={(cfg.color || 'secondary') as any}>{cfg.label}</Badge></TableCell>
                   <TableCell className="space-x-1">
                     <Button size="sm" variant="ghost" onClick={() => viewDetail(c)}><Eye className="h-4 w-4" /></Button>
-                    {c.estado === 'en_transito' && (
+                    {(c.estado === 'ordenada' || c.estado === 'en_transito') && (
+                      <Button size="sm" onClick={() => openPago(c)}><CreditCard className="h-4 w-4 mr-1" />Pagar</Button>
+                    )}
+                    {c.estado === 'pagada' && (
                       <Button size="sm" onClick={() => openRecepcion(c)}><PackageCheck className="h-4 w-4 mr-1" />Recibir</Button>
                     )}
                     {c.estado === 'recibida' && (
-                      <Button size="sm" onClick={() => openPago(c)}><CreditCard className="h-4 w-4 mr-1" />Marcar Pagada</Button>
+                      <Button size="sm" variant="outline" onClick={() => cerrarCompra(c)}><CheckCircle2 className="h-4 w-4 mr-1" />Cerrar</Button>
+                    )}
+                    {c.estado === 'cerrada' && (
+                      <Badge variant="outline" className="ml-2"><Lock className="h-3 w-3 mr-1" />Cerrada</Badge>
                     )}
                   </TableCell>
                 </TableRow>
