@@ -270,7 +270,19 @@ const ComprasPage = () => {
     setLineasDetail(data || []);
   };
 
-  const flowSteps = ['en_transito', 'recibida', 'pagada'];
+  const flowSteps = ['ordenada', 'pagada', 'recibida', 'cerrada'];
+
+  const cerrarCompra = async (compra: any) => {
+    const user = (await supabase.auth.getUser()).data.user;
+    await supabase.from('compras').update({ estado: 'cerrada' }).eq('id', compra.id);
+    await supabase.from('audit_log').insert({
+      entidad: 'compra', accion: 'Compra cerrada', entidad_id: compra.id,
+      usuario_id: user?.id, usuario_nombre: user?.email,
+      sucursal_id: compra.sucursal_id,
+    });
+    toast.success(`OC ${compra.numero_compra} cerrada`);
+    load();
+  };
 
   return (
     <div className="space-y-6">
