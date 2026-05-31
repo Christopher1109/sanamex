@@ -47,14 +47,55 @@ export default function FiscalPage() {
   }
   async function loadVentas() {
     if (sucursalIds.length === 0) { setVentas([]); return; }
-    const { data } = await supabase
+
+    // Ventas POS completadas
+    const { data: ventasData } = await supabase
       .from('ventas')
       .select('id, numero_venta, total, fecha, estado, sucursal_id, cliente_id, clientes(nombre, rfc)')
       .in('sucursal_id', sucursalIds)
       .eq('estado', 'completada')
       .order('fecha', { ascending: false })
       .limit(50);
-    setVentas(data || []);
+
+    // Pedidos entregados (mayoreo)
+    const { data: pedidosData } = await supabase
+      .from('pedidos')
+      .select('id, numero_pedido, created_at, estado, sucursal_id, cliente_id, clientes(nombre, rfc), pedido_lineas(subtotal)')
+      .in('sucursal_id', sucursalIds)
+      .eq('estado', 'entregado')
+      .order('created_at', { ascending: false })
+      .limit(50);
+
+    // Excluir los que ya están timbrados
+    const { data: cfdiOk } = await supabase
+      .from('cfdi_emitidos')
+      .select('venta_id, pedido_id')
+      .eq('estado', 'timbrado');
+    const ventasTimbradas = new Set((cfdiOk || []).map((c: any) => c.venta_id).filter(Boolean));
+    const pedidosTimbrados = new Set((cfdiOk || []).map((c: any) => c.pedido_id).filter(Boolean));
+
+    const ventasNorm = (ventasData || [])
+      .filter((v: any) => !ventasTimbradas.has(v.id))
+      .map((v: any) => ({ ...v, origen: 'venta' as const, numero: v.numero_venta, fecha_ord: v.fecha }));
+
+    const pedidosNorm = (pedidosData || [])
+      .filter((p: any) => !pedidosTimbrados.has(p.id))
+      .map((p: any) => ({
+        id: p.id,
+        origen: 'pedido' as const,
+        numero: p.numero_pedido,
+        fecha: p.created_at,
+        fecha_ord: p.created_at,
+        sucursal_id: p.sucursal_id,
+        cliente_id: p.cliente_id,
+        clientes: p.clientes,
+        total: (p.pedido_lineas || []).reduce((s: number, l: any) => s + Number(l.subtotal || 0), 0),
+      }));
+
+    const merged = [...ventasNorm, ...pedidosNorm].sort((a, b) =>
+      new Date(b.fecha_ord).getTime() - new Date(a.fecha_ord).getTime()
+    );
+    setVentas(merged);
   }
 
   async function save() {
