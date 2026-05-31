@@ -180,6 +180,7 @@ export default function FiscalPage() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Folio</TableHead>
+                  <TableHead>Sucursal</TableHead>
                   <TableHead>Fecha</TableHead>
                   <TableHead>Cliente</TableHead>
                   <TableHead>RFC</TableHead>
@@ -188,18 +189,17 @@ export default function FiscalPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {ventas.length === 0 && <TableRow><TableCell colSpan={6} className="text-center py-6 text-muted-foreground">No hay ventas recientes.</TableCell></TableRow>}
+                {ventas.length === 0 && <TableRow><TableCell colSpan={7} className="text-center py-6 text-muted-foreground">No hay ventas recientes.</TableCell></TableRow>}
                 {ventas.map(v => (
                   <TableRow key={v.id}>
                     <TableCell className="font-mono text-xs">{v.numero_venta}</TableCell>
+                    <TableCell className="text-xs">{sucursalMap[v.sucursal_id] || '—'}</TableCell>
                     <TableCell>{new Date(v.fecha).toLocaleDateString()}</TableCell>
                     <TableCell>{v.clientes?.nombre || 'Público general'}</TableCell>
                     <TableCell className="font-mono text-xs">{v.clientes?.rfc || '—'}</TableCell>
                     <TableCell className="text-right">${Number(v.total).toFixed(2)}</TableCell>
                     <TableCell>
-                      <Button size="sm" onClick={() => openTimbrar(v)} disabled={!config}>
-                        Timbrar
-                      </Button>
+                      <Button size="sm" onClick={() => openTimbrar(v)} disabled={!config}>Timbrar</Button>
                     </TableCell>
                   </TableRow>
                 ))}
