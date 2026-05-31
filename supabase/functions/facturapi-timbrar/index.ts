@@ -15,7 +15,8 @@ const DEFAULT_UNIT_KEY = 'H87';           // Pieza
 const DEFAULT_TAX_RATE = 0.16;            // IVA 16% si la línea lo lleva
 
 interface TimbrarBody {
-  venta_id: string;
+  venta_id?: string;
+  pedido_id?: string;
   uso_cfdi?: string;          // ej. 'G03', 'P01'
   forma_pago?: string;        // ej. '01' efectivo, '04' tarjeta crédito, '28' tarjeta débito, '03' transferencia
   metodo_pago?: 'PUE' | 'PPD';
