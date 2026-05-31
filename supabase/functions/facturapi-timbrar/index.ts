@@ -52,33 +52,61 @@ Deno.serve(async (req) => {
     const userId = claimsData.claims.sub as string;
 
     const body = (await req.json()) as TimbrarBody;
-    if (!body.venta_id) return json({ error: 'venta_id requerido' }, 400);
+    if (!body.venta_id && !body.pedido_id) return json({ error: 'venta_id o pedido_id requerido' }, 400);
 
-    // Cargar venta + líneas + producto + cliente + config fiscal
     const admin = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
 
-    const { data: venta, error: vErr } = await admin
-      .from('ventas')
-      .select('id, sucursal_id, numero_venta, subtotal, impuestos, total, cliente_id, estado')
-      .eq('id', body.venta_id)
-      .maybeSingle();
-    if (vErr || !venta) return json({ error: 'Venta no encontrada' }, 404);
-    if (venta.estado === 'cancelada') return json({ error: 'Venta cancelada, no se puede timbrar' }, 400);
+    // Unificar carga: venta POS o pedido entregado
+    let venta: any = null;
+    let lineas: any[] = [];
+    let origen: 'venta' | 'pedido' = 'venta';
 
-    // Verificar que no esté ya timbrada
-    const { data: existing } = await admin
-      .from('cfdi_emitidos')
-      .select('id, uuid_sat, estado')
-      .eq('venta_id', body.venta_id)
-      .eq('estado', 'timbrado')
-      .maybeSingle();
-    if (existing) return json({ error: 'Esta venta ya tiene un CFDI timbrado', cfdi: existing }, 409);
+    if (body.venta_id) {
+      origen = 'venta';
+      const { data, error } = await admin
+        .from('ventas')
+        .select('id, sucursal_id, numero_venta, subtotal, impuestos, total, cliente_id, estado')
+        .eq('id', body.venta_id)
+        .maybeSingle();
+      if (error || !data) return json({ error: 'Venta no encontrada' }, 404);
+      if (data.estado === 'cancelada') return json({ error: 'Venta cancelada, no se puede timbrar' }, 400);
+      venta = { ...data, numero: data.numero_venta };
 
-    const { data: lineas, error: lErr } = await admin
-      .from('venta_lineas')
-      .select('cantidad, precio_unitario, subtotal, productos(sku, nombre, descripcion, iva_incluido)')
-      .eq('venta_id', body.venta_id);
-    if (lErr || !lineas || lineas.length === 0) return json({ error: 'Venta sin líneas' }, 400);
+      const { data: ls, error: lErr } = await admin
+        .from('venta_lineas')
+        .select('cantidad, precio_unitario, subtotal, productos(sku, nombre, descripcion, iva_incluido)')
+        .eq('venta_id', body.venta_id);
+      if (lErr || !ls || ls.length === 0) return json({ error: 'Venta sin líneas' }, 400);
+      lineas = ls;
+
+      const { data: existing } = await admin
+        .from('cfdi_emitidos').select('id, uuid_sat, estado')
+        .eq('venta_id', body.venta_id).eq('estado', 'timbrado').maybeSingle();
+      if (existing) return json({ error: 'Esta venta ya tiene un CFDI timbrado', cfdi: existing }, 409);
+    } else {
+      origen = 'pedido';
+      const { data, error } = await admin
+        .from('pedidos')
+        .select('id, sucursal_id, numero_pedido, cliente_id, estado')
+        .eq('id', body.pedido_id!)
+        .maybeSingle();
+      if (error || !data) return json({ error: 'Pedido no encontrado' }, 404);
+      if (data.estado !== 'entregado') return json({ error: 'Solo se pueden timbrar pedidos en estado entregado' }, 400);
+
+      const { data: ls, error: lErr } = await admin
+        .from('pedido_lineas')
+        .select('cantidad, precio_unitario, subtotal, productos(sku, nombre, descripcion, iva_incluido)')
+        .eq('pedido_id', body.pedido_id!);
+      if (lErr || !ls || ls.length === 0) return json({ error: 'Pedido sin líneas' }, 400);
+      lineas = ls;
+      const totalCalc = ls.reduce((s: number, l: any) => s + Number(l.subtotal || 0), 0);
+      venta = { ...data, numero: data.numero_pedido, total: totalCalc, subtotal: totalCalc, impuestos: 0 };
+
+      const { data: existing } = await admin
+        .from('cfdi_emitidos').select('id, uuid_sat, estado')
+        .eq('pedido_id', body.pedido_id!).eq('estado', 'timbrado').maybeSingle();
+      if (existing) return json({ error: 'Este pedido ya tiene un CFDI timbrado', cfdi: existing }, 409);
+    }
 
     // Config fiscal: una sola global (sucursal_id IS NULL). Compatibilidad: si no hay global, intentar por sucursal.
     let { data: cfg } = await admin
