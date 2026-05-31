@@ -217,11 +217,12 @@ export default function FiscalPage() {
 
         <TabsContent value="ventas">
           <Card>
-            <div className="p-4 border-b"><h2 className="font-semibold">Últimas ventas completadas</h2></div>
+            <div className="p-4 border-b"><h2 className="font-semibold">Ventas y pedidos por timbrar</h2></div>
             <Table>
               <TableHeader>
                 <TableRow>
                   <TableHead>Folio</TableHead>
+                  <TableHead>Origen</TableHead>
                   <TableHead>Sucursal</TableHead>
                   <TableHead>Fecha</TableHead>
                   <TableHead>Cliente</TableHead>
@@ -231,10 +232,11 @@ export default function FiscalPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {ventas.length === 0 && <TableRow><TableCell colSpan={7} className="text-center py-6 text-muted-foreground">No hay ventas recientes.</TableCell></TableRow>}
+                {ventas.length === 0 && <TableRow><TableCell colSpan={8} className="text-center py-6 text-muted-foreground">No hay ventas ni pedidos pendientes de timbrar.</TableCell></TableRow>}
                 {ventas.map(v => (
-                  <TableRow key={v.id}>
-                    <TableCell className="font-mono text-xs">{v.numero_venta}</TableCell>
+                  <TableRow key={`${v.origen}-${v.id}`}>
+                    <TableCell className="font-mono text-xs">{v.numero}</TableCell>
+                    <TableCell><Badge variant={v.origen === 'pedido' ? 'secondary' : 'outline'}>{v.origen === 'pedido' ? 'Pedido' : 'POS'}</Badge></TableCell>
                     <TableCell className="text-xs">{sucursalMap[v.sucursal_id] || '—'}</TableCell>
                     <TableCell>{new Date(v.fecha).toLocaleDateString()}</TableCell>
                     <TableCell>{v.clientes?.nombre || 'Público general'}</TableCell>
