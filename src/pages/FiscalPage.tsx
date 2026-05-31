@@ -131,7 +131,8 @@ export default function FiscalPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session?.access_token}` },
         body: JSON.stringify({
-          venta_id: dialogVenta.id,
+          venta_id: dialogVenta.origen === 'venta' ? dialogVenta.id : undefined,
+          pedido_id: dialogVenta.origen === 'pedido' ? dialogVenta.id : undefined,
           uso_cfdi: receptor.uso_cfdi,
           forma_pago: receptor.forma_pago,
           metodo_pago: receptor.metodo_pago,
