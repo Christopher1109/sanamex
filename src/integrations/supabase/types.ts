@@ -207,6 +207,7 @@ export type Database = {
           id: string
           pac_response: Json | null
           pdf_url: string | null
+          pedido_id: string | null
           rfc_receptor: string | null
           serie: string | null
           sucursal_id: string
@@ -224,6 +225,7 @@ export type Database = {
           id?: string
           pac_response?: Json | null
           pdf_url?: string | null
+          pedido_id?: string | null
           rfc_receptor?: string | null
           serie?: string | null
           sucursal_id: string
@@ -241,6 +243,7 @@ export type Database = {
           id?: string
           pac_response?: Json | null
           pdf_url?: string | null
+          pedido_id?: string | null
           rfc_receptor?: string | null
           serie?: string | null
           sucursal_id?: string
