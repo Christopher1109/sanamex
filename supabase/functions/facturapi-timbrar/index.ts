@@ -204,7 +204,8 @@ Deno.serve(async (req) => {
       // Guardar intento fallido
       await admin.from('cfdi_emitidos').insert({
         sucursal_id: venta.sucursal_id,
-        venta_id: venta.id,
+        venta_id: origen === 'venta' ? venta.id : null,
+        pedido_id: origen === 'pedido' ? venta.id : null,
         serie: cfg.serie_default || 'A',
         folio: cfg.folio_actual || 1,
         rfc_receptor: receptor.rfc,
