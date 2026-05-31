@@ -1104,33 +1104,66 @@ export type Database = {
       proveedores: {
         Row: {
           activo: boolean | null
+          aviso_funcionamiento_url: string | null
+          banco: string | null
+          comprobante_domicilio_url: string | null
+          condiciones: string | null
+          constancia_situacion_fiscal_url: string | null
           contacto: string | null
+          correo_aux: string | null
           created_at: string | null
+          cuenta_banco: string | null
+          direccion_fiscal: string | null
           email: string | null
           id: string
+          identificacion_oficial_url: string | null
           nombre: string
+          notas: string | null
+          plazo_pago_dias: number | null
           rfc: string | null
           telefono: string | null
           updated_at: string | null
         }
         Insert: {
           activo?: boolean | null
+          aviso_funcionamiento_url?: string | null
+          banco?: string | null
+          comprobante_domicilio_url?: string | null
+          condiciones?: string | null
+          constancia_situacion_fiscal_url?: string | null
           contacto?: string | null
+          correo_aux?: string | null
           created_at?: string | null
+          cuenta_banco?: string | null
+          direccion_fiscal?: string | null
           email?: string | null
           id?: string
+          identificacion_oficial_url?: string | null
           nombre: string
+          notas?: string | null
+          plazo_pago_dias?: number | null
           rfc?: string | null
           telefono?: string | null
           updated_at?: string | null
         }
         Update: {
           activo?: boolean | null
+          aviso_funcionamiento_url?: string | null
+          banco?: string | null
+          comprobante_domicilio_url?: string | null
+          condiciones?: string | null
+          constancia_situacion_fiscal_url?: string | null
           contacto?: string | null
+          correo_aux?: string | null
           created_at?: string | null
+          cuenta_banco?: string | null
+          direccion_fiscal?: string | null
           email?: string | null
           id?: string
+          identificacion_oficial_url?: string | null
           nombre?: string
+          notas?: string | null
+          plazo_pago_dias?: number | null
           rfc?: string | null
           telefono?: string | null
           updated_at?: string | null
