@@ -220,7 +220,8 @@ Deno.serve(async (req) => {
     // Éxito → guardar y avanzar folio
     const insertRow = {
       sucursal_id: venta.sucursal_id,
-      venta_id: venta.id,
+      venta_id: origen === 'venta' ? venta.id : null,
+      pedido_id: origen === 'pedido' ? venta.id : null,
       uuid_sat: respJson.uuid,
       serie: respJson.series || cfg.serie_default,
       folio: respJson.folio_number,
