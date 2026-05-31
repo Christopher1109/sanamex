@@ -18,7 +18,7 @@ const PROJECT_ID = import.meta.env.VITE_SUPABASE_PROJECT_ID;
 const FN_BASE = `https://${PROJECT_ID}.supabase.co/functions/v1`;
 
 export default function FiscalPage() {
-  const { selectedSucursal } = useSucursal();
+  const { availableSucursales } = useSucursal();
   const [config, setConfig] = useState<any>(null);
   const [cfdis, setCfdis] = useState<any[]>([]);
   const [ventas, setVentas] = useState<any[]>([]);
@@ -30,36 +30,39 @@ export default function FiscalPage() {
     forma_pago: '01', metodo_pago: 'PUE' as 'PUE' | 'PPD', uso_cfdi: 'S01', lineas_con_iva: false,
   });
 
-  useEffect(() => {
-    if (selectedSucursal) { loadConfig(); loadCfdis(); loadVentas(); }
-  }, [selectedSucursal]);
+  const sucursalIds = availableSucursales.map(s => s.id);
+  const sucursalMap = Object.fromEntries(availableSucursales.map(s => [s.id, s.codigo || s.nombre]));
+
+  useEffect(() => { loadConfig(); loadCfdis(); loadVentas(); /* eslint-disable-next-line */ }, [availableSucursales.length]);
 
   async function loadConfig() {
-    const { data } = await supabase.from('configuracion_fiscal').select('*').eq('sucursal_id', selectedSucursal!.id).maybeSingle();
-    if (data) { setConfig(data); setForm({ ...form, ...data }); } else setConfig(null);
+    // Configuración fiscal GLOBAL (compartida por todas las distribuidoras)
+    const { data } = await supabase.from('configuracion_fiscal').select('*').is('sucursal_id', null).maybeSingle();
+    if (data) { setConfig(data); setForm({ rfc: data.rfc || '', razon_social: data.razon_social || '', regimen_fiscal: data.regimen_fiscal || '601', cp_emisor: data.cp_emisor || '', pac_proveedor: data.pac_proveedor || 'Facturapi', serie_default: data.serie_default || 'A' }); } else setConfig(null);
   }
   async function loadCfdis() {
-    const { data } = await supabase.from('cfdi_emitidos').select('*').eq('sucursal_id', selectedSucursal!.id).order('created_at', { ascending: false }).limit(50);
+    if (sucursalIds.length === 0) { setCfdis([]); return; }
+    const { data } = await supabase.from('cfdi_emitidos').select('*').in('sucursal_id', sucursalIds).order('created_at', { ascending: false }).limit(50);
     setCfdis(data || []);
   }
   async function loadVentas() {
+    if (sucursalIds.length === 0) { setVentas([]); return; }
     const { data } = await supabase
       .from('ventas')
-      .select('id, numero_venta, total, fecha, estado, cliente_id, clientes(nombre, rfc)')
-      .eq('sucursal_id', selectedSucursal!.id)
+      .select('id, numero_venta, total, fecha, estado, sucursal_id, cliente_id, clientes(nombre, rfc)')
+      .in('sucursal_id', sucursalIds)
       .eq('estado', 'completada')
       .order('fecha', { ascending: false })
-      .limit(30);
+      .limit(50);
     setVentas(data || []);
   }
 
   async function save() {
-    if (!selectedSucursal) return;
-    const payload = { ...form, sucursal_id: selectedSucursal.id, updated_at: new Date().toISOString() };
+    const payload = { ...form, sucursal_id: null, updated_at: new Date().toISOString() };
     const { error } = config
       ? await supabase.from('configuracion_fiscal').update(payload).eq('id', config.id)
       : await supabase.from('configuracion_fiscal').insert(payload);
-    if (error) toast.error(error.message); else { toast.success('Configuración guardada'); loadConfig(); }
+    if (error) toast.error(error.message); else { toast.success('Configuración fiscal global guardada'); loadConfig(); }
   }
 
   function openTimbrar(v: any) {
