@@ -86,19 +86,20 @@ const Sidebar = ({ userRole, onLogout }: SidebarProps) => {
 
   return (
     <div className="flex h-screen w-64 flex-col bg-sidebar text-sidebar-foreground">
-      <div className="flex h-16 items-center border-b border-sidebar-border px-6">
-        <h1 className="text-lg font-bold text-sidebar-primary">MedDistributor</h1>
+      <div className="sticky top-0 z-10 border-b border-sidebar-border bg-sidebar">
+        <div className="flex h-16 items-center px-6">
+          <h1 className="text-lg font-bold text-sidebar-primary">Sanamex</h1>
+        </div>
+        <div className="px-3 pb-3 space-y-2">
+          <div className="rounded-lg bg-sidebar-accent p-3">
+            <p className="text-xs text-sidebar-accent-foreground/70">Rol</p>
+            <p className="font-semibold text-sidebar-accent-foreground">{roleLabels[userRole]}</p>
+          </div>
+          <SucursalSelector />
+        </div>
       </div>
 
       <div className="flex-1 overflow-y-auto px-3 py-4">
-        <div className="mb-3 rounded-lg bg-sidebar-accent p-3">
-          <p className="text-xs text-sidebar-accent-foreground/70">Rol</p>
-          <p className="font-semibold text-sidebar-accent-foreground">{roleLabels[userRole]}</p>
-        </div>
-
-        <div className="mb-3">
-          <SucursalSelector />
-        </div>
 
         <nav className="space-y-1">
           {Object.entries(grouped).map(([category, items]) => (

@@ -79,12 +79,17 @@ Deno.serve(async (req) => {
       .eq('venta_id', body.venta_id);
     if (lErr || !lineas || lineas.length === 0) return json({ error: 'Venta sin líneas' }, 400);
 
-    const { data: cfg } = await admin
+    // Config fiscal: una sola global (sucursal_id IS NULL). Compatibilidad: si no hay global, intentar por sucursal.
+    let { data: cfg } = await admin
       .from('configuracion_fiscal')
       .select('*')
-      .eq('sucursal_id', venta.sucursal_id)
+      .is('sucursal_id', null)
       .maybeSingle();
-    if (!cfg) return json({ error: 'No hay configuración fiscal para esta sucursal' }, 400);
+    if (!cfg) {
+      const r = await admin.from('configuracion_fiscal').select('*').eq('sucursal_id', venta.sucursal_id).maybeSingle();
+      cfg = r.data;
+    }
+    if (!cfg) return json({ error: 'No hay configuración fiscal global capturada' }, 400);
 
     // Receptor
     let receptor = body.receptor;

@@ -481,7 +481,7 @@ export type Database = {
           regimen_fiscal: string | null
           rfc: string
           serie_default: string | null
-          sucursal_id: string
+          sucursal_id: string | null
           updated_at: string
         }
         Insert: {
@@ -499,7 +499,7 @@ export type Database = {
           regimen_fiscal?: string | null
           rfc: string
           serie_default?: string | null
-          sucursal_id: string
+          sucursal_id?: string | null
           updated_at?: string
         }
         Update: {
@@ -517,7 +517,7 @@ export type Database = {
           regimen_fiscal?: string | null
           rfc?: string
           serie_default?: string | null
-          sucursal_id?: string
+          sucursal_id?: string | null
           updated_at?: string
         }
         Relationships: []
