@@ -92,6 +92,19 @@ export default function ProveedoresPage() {
     load();
   }
 
+  async function deleteProveedor() {
+    if (!selected) return;
+    const { error } = await supabase.from('proveedores').delete().eq('id', selected.id);
+    if (error) {
+      toast.error('No se puede eliminar: ' + (error.message.includes('foreign key') ? 'tiene movimientos asociados (compras/lotes). Considera desactivarlo.' : error.message));
+      return;
+    }
+    toast.success('Proveedor eliminado');
+    setSelected(null);
+    setEditing(false);
+    load();
+  }
+
   const filtered = proveedores.filter(p =>
     p.nombre.toLowerCase().includes(search.toLowerCase()) ||
     (p.contacto || '').toLowerCase().includes(search.toLowerCase()) ||
