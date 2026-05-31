@@ -253,7 +253,8 @@ export default function FiscalPage() {
 
         <TabsContent value="config">
           <Card className="p-5">
-            <h2 className="font-semibold mb-4">Configuración fiscal de la sucursal</h2>
+            <h2 className="font-semibold mb-1">Configuración fiscal global</h2>
+            <p className="text-xs text-muted-foreground mb-4">Este RFC y razón social se usan para todas las distribuidoras Sanamex.</p>
             <div className="grid grid-cols-2 gap-3">
               <div><Label>RFC emisor</Label><Input value={form.rfc} onChange={e => setForm({ ...form, rfc: e.target.value.toUpperCase() })} /></div>
               <div><Label>Razón social</Label><Input value={form.razon_social} onChange={e => setForm({ ...form, razon_social: e.target.value })} /></div>
@@ -262,7 +263,7 @@ export default function FiscalPage() {
               <div><Label>PAC</Label><Input value={form.pac_proveedor} onChange={e => setForm({ ...form, pac_proveedor: e.target.value })} /></div>
               <div><Label>Serie default</Label><Input value={form.serie_default} onChange={e => setForm({ ...form, serie_default: e.target.value })} /></div>
             </div>
-            <Button className="mt-4" onClick={save} disabled={!selectedSucursal}>Guardar configuración</Button>
+            <Button className="mt-4" onClick={save}>Guardar configuración</Button>
             <p className="text-xs text-muted-foreground mt-3">La API key de Facturapi se guarda como secreto del backend, no aquí.</p>
           </Card>
         </TabsContent>
