@@ -47,14 +47,55 @@ export default function FiscalPage() {
   }
   async function loadVentas() {
     if (sucursalIds.length === 0) { setVentas([]); return; }
-    const { data } = await supabase
+
+    // Ventas POS completadas
+    const { data: ventasData } = await supabase
       .from('ventas')
       .select('id, numero_venta, total, fecha, estado, sucursal_id, cliente_id, clientes(nombre, rfc)')
       .in('sucursal_id', sucursalIds)
       .eq('estado', 'completada')
       .order('fecha', { ascending: false })
       .limit(50);
-    setVentas(data || []);
+
+    // Pedidos entregados (mayoreo)
+    const { data: pedidosData } = await supabase
+      .from('pedidos')
+      .select('id, numero_pedido, created_at, estado, sucursal_id, cliente_id, clientes(nombre, rfc), pedido_lineas(subtotal)')
+      .in('sucursal_id', sucursalIds)
+      .eq('estado', 'entregado')
+      .order('created_at', { ascending: false })
+      .limit(50);
+
+    // Excluir los que ya están timbrados
+    const { data: cfdiOk } = await supabase
+      .from('cfdi_emitidos')
+      .select('venta_id, pedido_id')
+      .eq('estado', 'timbrado');
+    const ventasTimbradas = new Set((cfdiOk || []).map((c: any) => c.venta_id).filter(Boolean));
+    const pedidosTimbrados = new Set((cfdiOk || []).map((c: any) => c.pedido_id).filter(Boolean));
+
+    const ventasNorm = (ventasData || [])
+      .filter((v: any) => !ventasTimbradas.has(v.id))
+      .map((v: any) => ({ ...v, origen: 'venta' as const, numero: v.numero_venta, fecha_ord: v.fecha }));
+
+    const pedidosNorm = (pedidosData || [])
+      .filter((p: any) => !pedidosTimbrados.has(p.id))
+      .map((p: any) => ({
+        id: p.id,
+        origen: 'pedido' as const,
+        numero: p.numero_pedido,
+        fecha: p.created_at,
+        fecha_ord: p.created_at,
+        sucursal_id: p.sucursal_id,
+        cliente_id: p.cliente_id,
+        clientes: p.clientes,
+        total: (p.pedido_lineas || []).reduce((s: number, l: any) => s + Number(l.subtotal || 0), 0),
+      }));
+
+    const merged = [...ventasNorm, ...pedidosNorm].sort((a, b) =>
+      new Date(b.fecha_ord).getTime() - new Date(a.fecha_ord).getTime()
+    );
+    setVentas(merged);
   }
 
   async function save() {
@@ -90,7 +131,8 @@ export default function FiscalPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session?.access_token}` },
         body: JSON.stringify({
-          venta_id: dialogVenta.id,
+          venta_id: dialogVenta.origen === 'venta' ? dialogVenta.id : undefined,
+          pedido_id: dialogVenta.origen === 'pedido' ? dialogVenta.id : undefined,
           uso_cfdi: receptor.uso_cfdi,
           forma_pago: receptor.forma_pago,
           metodo_pago: receptor.metodo_pago,
@@ -175,11 +217,12 @@ export default function FiscalPage() {
 
         <TabsContent value="ventas">
           <Card>
-            <div className="p-4 border-b"><h2 className="font-semibold">Últimas ventas completadas</h2></div>
+            <div className="p-4 border-b"><h2 className="font-semibold">Ventas y pedidos por timbrar</h2></div>
             <Table>
               <TableHeader>
                 <TableRow>
                   <TableHead>Folio</TableHead>
+                  <TableHead>Origen</TableHead>
                   <TableHead>Sucursal</TableHead>
                   <TableHead>Fecha</TableHead>
                   <TableHead>Cliente</TableHead>
@@ -189,10 +232,11 @@ export default function FiscalPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {ventas.length === 0 && <TableRow><TableCell colSpan={7} className="text-center py-6 text-muted-foreground">No hay ventas recientes.</TableCell></TableRow>}
+                {ventas.length === 0 && <TableRow><TableCell colSpan={8} className="text-center py-6 text-muted-foreground">No hay ventas ni pedidos pendientes de timbrar.</TableCell></TableRow>}
                 {ventas.map(v => (
-                  <TableRow key={v.id}>
-                    <TableCell className="font-mono text-xs">{v.numero_venta}</TableCell>
+                  <TableRow key={`${v.origen}-${v.id}`}>
+                    <TableCell className="font-mono text-xs">{v.numero}</TableCell>
+                    <TableCell><Badge variant={v.origen === 'pedido' ? 'secondary' : 'outline'}>{v.origen === 'pedido' ? 'Pedido' : 'POS'}</Badge></TableCell>
                     <TableCell className="text-xs">{sucursalMap[v.sucursal_id] || '—'}</TableCell>
                     <TableCell>{new Date(v.fecha).toLocaleDateString()}</TableCell>
                     <TableCell>{v.clientes?.nombre || 'Público general'}</TableCell>
