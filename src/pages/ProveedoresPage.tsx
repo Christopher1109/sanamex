@@ -8,8 +8,9 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetFooter } from '@/components/ui/sheet';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Label } from '@/components/ui/label';
-import { Plus, Search, ChevronRight } from 'lucide-react';
+import { Plus, Search, ChevronRight, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 
 type Proveedor = {
@@ -88,6 +89,19 @@ export default function ProveedoresPage() {
     toast.success('Proveedor creado');
     setCreateOpen(false);
     setForm(empty);
+    load();
+  }
+
+  async function deleteProveedor() {
+    if (!selected) return;
+    const { error } = await supabase.from('proveedores').delete().eq('id', selected.id);
+    if (error) {
+      toast.error('No se puede eliminar: ' + (error.message.includes('foreign key') ? 'tiene movimientos asociados (compras/lotes). Considera desactivarlo.' : error.message));
+      return;
+    }
+    toast.success('Proveedor eliminado');
+    setSelected(null);
+    setEditing(false);
     load();
   }
 
@@ -226,29 +240,75 @@ export default function ProveedoresPage() {
             </div>
           )}
 
-          {editing && (
-            <SheetFooter className="mt-6">
-              <Button variant="outline" onClick={() => { setForm(selected!); setEditing(false); }}>Cancelar</Button>
-              <Button onClick={saveDetail}>Guardar cambios</Button>
-            </SheetFooter>
-          )}
+          <SheetFooter className="mt-6 flex-row justify-between sm:justify-between gap-2">
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button variant="destructive" size="sm"><Trash2 className="h-4 w-4 mr-2" />Eliminar</Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>¿Eliminar proveedor?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Esta acción eliminará permanentemente a <strong>{selected?.nombre}</strong>. Si tiene compras o lotes asociados, no se podrá borrar.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                  <AlertDialogAction onClick={deleteProveedor} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Eliminar</AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+            {editing && (
+              <div className="flex gap-2">
+                <Button variant="outline" onClick={() => { setForm(selected!); setEditing(false); }}>Cancelar</Button>
+                <Button onClick={saveDetail}>Guardar cambios</Button>
+              </div>
+            )}
+          </SheetFooter>
         </SheetContent>
       </Sheet>
 
       {/* Create dialog */}
       <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-        <DialogContent>
+        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
           <DialogHeader><DialogTitle>Nuevo Proveedor</DialogTitle></DialogHeader>
-          <div className="space-y-3">
-            <div><Label>Nombre *</Label><Input value={form.nombre || ''} onChange={e => setForm({ ...form, nombre: e.target.value })} /></div>
-            <div><Label>Persona responsable</Label><Input value={form.contacto || ''} onChange={e => setForm({ ...form, contacto: e.target.value })} /></div>
-            <div className="grid grid-cols-2 gap-3">
-              <div><Label>Teléfono</Label><Input value={form.telefono || ''} onChange={e => setForm({ ...form, telefono: e.target.value })} /></div>
-              <div><Label>Correo</Label><Input value={form.email || ''} onChange={e => setForm({ ...form, email: e.target.value })} /></div>
-            </div>
-            <p className="text-xs text-muted-foreground">El resto de los datos los puedes completar después dando clic al proveedor.</p>
+          <div className="space-y-5">
+            <section>
+              <h3 className="font-semibold text-sm mb-2 text-primary">Contacto</h3>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="col-span-2"><Label>Nombre *</Label><Input value={form.nombre || ''} onChange={e => setForm({ ...form, nombre: e.target.value })} /></div>
+                <div><Label>Persona responsable</Label><Input value={form.contacto || ''} onChange={e => setForm({ ...form, contacto: e.target.value })} /></div>
+                <div><Label>Teléfono</Label><Input value={form.telefono || ''} onChange={e => setForm({ ...form, telefono: e.target.value })} /></div>
+                <div><Label>Correo principal</Label><Input value={form.email || ''} onChange={e => setForm({ ...form, email: e.target.value })} /></div>
+                <div><Label>Correo auxiliar</Label><Input value={form.correo_aux || ''} onChange={e => setForm({ ...form, correo_aux: e.target.value })} /></div>
+              </div>
+            </section>
+            <section>
+              <h3 className="font-semibold text-sm mb-2 text-primary">Condiciones comerciales</h3>
+              <div className="grid grid-cols-2 gap-3">
+                <div><Label>Plazo de pago (días)</Label><Input type="number" value={form.plazo_pago_dias ?? ''} onChange={e => setForm({ ...form, plazo_pago_dias: e.target.value === '' ? null : Number(e.target.value) })} /></div>
+                <div><Label>Condiciones</Label><Input placeholder="Ej. CONTADO, 30 DÍAS..." value={form.condiciones || ''} onChange={e => setForm({ ...form, condiciones: e.target.value })} /></div>
+              </div>
+            </section>
+            <section>
+              <h3 className="font-semibold text-sm mb-2 text-primary">Datos fiscales y bancarios</h3>
+              <div className="grid grid-cols-2 gap-3">
+                <div><Label>RFC</Label><Input value={form.rfc || ''} onChange={e => setForm({ ...form, rfc: e.target.value })} /></div>
+                <div><Label>Banco</Label><Input value={form.banco || ''} onChange={e => setForm({ ...form, banco: e.target.value })} /></div>
+                <div className="col-span-2"><Label>Cuenta bancaria</Label><Input value={form.cuenta_banco || ''} onChange={e => setForm({ ...form, cuenta_banco: e.target.value })} /></div>
+                <div className="col-span-2"><Label>Dirección fiscal</Label><Textarea rows={2} value={form.direccion_fiscal || ''} onChange={e => setForm({ ...form, direccion_fiscal: e.target.value })} /></div>
+              </div>
+            </section>
+            <section>
+              <h3 className="font-semibold text-sm mb-2 text-primary">Notas</h3>
+              <Textarea rows={2} value={form.notas || ''} onChange={e => setForm({ ...form, notas: e.target.value })} />
+            </section>
+            <p className="text-xs text-muted-foreground">Los documentos (constancia fiscal, aviso sanitario, etc.) se pueden adjuntar después desde la ficha del proveedor.</p>
           </div>
-          <DialogFooter><Button onClick={createProveedor}>Crear</Button></DialogFooter>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCreateOpen(false)}>Cancelar</Button>
+            <Button onClick={createProveedor}>Crear proveedor</Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
