@@ -10,9 +10,10 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
-import { Plus, Eye, Truck, Package, CheckCircle } from 'lucide-react';
+import { Plus, Eye, Truck, Package, CheckCircle, Receipt } from 'lucide-react';
 import { toast } from 'sonner';
 import ProductSearchInput from '@/components/ProductSearchInput';
+import FacturarRapidoDialog from '@/components/FacturarRapidoDialog';
 
 const estadoColor: Record<string, string> = {
   pendiente: 'secondary', en_ruta: 'default', entregado: 'outline', cancelado: 'destructive'
