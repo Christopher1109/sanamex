@@ -7,7 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Textarea } from '@/components/ui/textarea';
-import { Trash2, Barcode, Plus, Minus, ShoppingCart, Search, Printer, RotateCcw, WifiOff } from 'lucide-react';
+import { Trash2, Barcode, Plus, Minus, ShoppingCart, Search, Printer, RotateCcw, WifiOff, Receipt } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { useSucursal } from '@/contexts/SucursalContext';
@@ -16,6 +16,7 @@ import { useOnlineStatus } from '@/hooks/useOnlineStatus';
 import { offlineDB } from '@/lib/offline/db';
 import { deductInventoryLocalFEFO, getLocalStock } from '@/lib/offline/sync';
 import { Badge } from '@/components/ui/badge';
+import FacturarRapidoDialog from '@/components/FacturarRapidoDialog';
 
 // ── Types ──
 
@@ -133,6 +134,7 @@ const POSPage = () => {
   const [clearConfirmOpen, setClearConfirmOpen] = useState(false);
   const [saleResult, setSaleResult] = useState<SaleResult | null>(null);
   const [successOpen, setSuccessOpen] = useState(false);
+  const [facturarOpen, setFacturarOpen] = useState(false);
   const [changeSucursalPending, setChangeSucursalPending] = useState<string | null>(null);
 
   const scanRef = useRef<HTMLInputElement>(null);
@@ -793,12 +795,28 @@ const POSPage = () => {
             <Button variant="outline" onClick={() => window.print()}>
               <Printer className="h-4 w-4 mr-2" /> Imprimir
             </Button>
+            {saleResult && !saleResult.numero_venta.startsWith('OFFLINE-') && (
+              <Button variant="secondary" onClick={() => setFacturarOpen(true)}>
+                <Receipt className="h-4 w-4 mr-2" /> Facturar ahora
+              </Button>
+            )}
             <Button onClick={handleNewSale}>
               <RotateCcw className="h-4 w-4 mr-2" /> Nueva Venta
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Facturación rápida */}
+      {saleResult && (
+        <FacturarRapidoDialog
+          open={facturarOpen}
+          onOpenChange={setFacturarOpen}
+          venta_id={saleResult.sale_id}
+          referencia={saleResult.numero_venta}
+          onSuccess={() => setFacturarOpen(false)}
+        />
+      )}
 
       {/* Search results */}
       <Dialog open={searchOpen} onOpenChange={setSearchOpen}>

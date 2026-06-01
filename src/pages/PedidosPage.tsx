@@ -10,9 +10,10 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
-import { Plus, Eye, Truck, Package, CheckCircle } from 'lucide-react';
+import { Plus, Eye, Truck, Package, CheckCircle, Receipt } from 'lucide-react';
 import { toast } from 'sonner';
 import ProductSearchInput from '@/components/ProductSearchInput';
+import FacturarRapidoDialog from '@/components/FacturarRapidoDialog';
 
 const estadoColor: Record<string, string> = {
   pendiente: 'secondary', en_ruta: 'default', entregado: 'outline', cancelado: 'destructive'
@@ -32,6 +33,7 @@ const PedidosPage = () => {
   // Confirm delivery dialog
   const [showConfirmEntrega, setShowConfirmEntrega] = useState<any>(null);
   const [entregaLineas, setEntregaLineas] = useState<any[]>([]);
+  const [facturarPedido, setFacturarPedido] = useState<any>(null);
 
   const [clientes, setClientes] = useState<any[]>([]);
   const [productos, setProductos] = useState<any[]>([]);
@@ -265,6 +267,7 @@ const PedidosPage = () => {
                     <Button size="sm" variant="ghost" onClick={() => viewDetail(p)}><Eye className="h-4 w-4" /></Button>
                     {p.estado === 'pendiente' && <Button size="sm" onClick={() => enviarARuta(p)}><Truck className="h-4 w-4 mr-1" />Enviar a Ruta</Button>}
                     {p.estado === 'en_ruta' && <Button size="sm" onClick={() => openConfirmEntrega(p)}><CheckCircle className="h-4 w-4 mr-1" />Confirmar Entrega</Button>}
+                    {p.estado === 'entregado' && <Button size="sm" variant="secondary" onClick={() => setFacturarPedido(p)}><Receipt className="h-4 w-4 mr-1" />Facturar</Button>}
                   </TableCell>
                 </TableRow>
                ))}
@@ -424,6 +427,17 @@ const PedidosPage = () => {
           </Table>
         </DialogContent>
       </Dialog>
+
+      {facturarPedido && (
+        <FacturarRapidoDialog
+          open={!!facturarPedido}
+          onOpenChange={(o) => !o && setFacturarPedido(null)}
+          pedido_id={facturarPedido.id}
+          cliente_id={facturarPedido.cliente_id}
+          referencia={facturarPedido.numero_pedido}
+          onSuccess={() => { setFacturarPedido(null); load(); }}
+        />
+      )}
     </div>
   );
 };
