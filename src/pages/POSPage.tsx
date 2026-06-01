@@ -798,9 +798,11 @@ const POSPage = () => {
               <Printer className="h-4 w-4 mr-2" /> Imprimir
             </Button>
             {saleResult && !saleResult.numero_venta.startsWith('OFFLINE-') && (
-              <Button variant="secondary" onClick={() => setFacturarOpen(true)}>
-                <Receipt className="h-4 w-4 mr-2" /> Facturar ahora
-              </Button>
+              saleFacturada
+                ? <Badge variant="default" className="h-10 px-3 text-sm"><Receipt className="h-4 w-4 mr-2" /> Facturado</Badge>
+                : <Button variant="secondary" onClick={() => setFacturarOpen(true)}>
+                    <Receipt className="h-4 w-4 mr-2" /> Facturar ahora
+                  </Button>
             )}
             <Button onClick={handleNewSale}>
               <RotateCcw className="h-4 w-4 mr-2" /> Nueva Venta
