@@ -818,7 +818,7 @@ const POSPage = () => {
           onOpenChange={setFacturarOpen}
           venta_id={saleResult.sale_id}
           referencia={saleResult.numero_venta}
-          onSuccess={() => setFacturarOpen(false)}
+          onSuccess={() => { setFacturarOpen(false); setSaleFacturada(true); }}
         />
       )}
 
