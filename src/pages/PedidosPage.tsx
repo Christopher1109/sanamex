@@ -33,6 +33,7 @@ const PedidosPage = () => {
   // Confirm delivery dialog
   const [showConfirmEntrega, setShowConfirmEntrega] = useState<any>(null);
   const [entregaLineas, setEntregaLineas] = useState<any[]>([]);
+  const [facturarPedido, setFacturarPedido] = useState<any>(null);
 
   const [clientes, setClientes] = useState<any[]>([]);
   const [productos, setProductos] = useState<any[]>([]);
