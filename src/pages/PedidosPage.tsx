@@ -25,6 +25,7 @@ const estadoLabel: Record<string, string> = {
 const PedidosPage = () => {
   const { selectedSucursal } = useSucursal();
   const [pedidos, setPedidos] = useState<any[]>([]);
+  const [pedidosFacturados, setPedidosFacturados] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [showCreate, setShowCreate] = useState(false);
   const [showDetail, setShowDetail] = useState<any>(null);
@@ -51,6 +52,14 @@ const PedidosPage = () => {
     const { data } = await supabase.from('pedidos').select('*, clientes(nombre), rutas(notas, estado, fecha)')
       .eq('sucursal_id', selectedSucursal.id).order('created_at', { ascending: false });
     setPedidos(data || []);
+
+    const { data: cfdis } = await supabase
+      .from('cfdi_emitidos')
+      .select('pedido_id')
+      .eq('estado', 'timbrado')
+      .not('pedido_id', 'is', null);
+    setPedidosFacturados(new Set((cfdis || []).map((c: any) => c.pedido_id).filter(Boolean)));
+
     setLoading(false);
   };
 
