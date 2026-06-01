@@ -427,6 +427,17 @@ const PedidosPage = () => {
           </Table>
         </DialogContent>
       </Dialog>
+
+      {facturarPedido && (
+        <FacturarRapidoDialog
+          open={!!facturarPedido}
+          onOpenChange={(o) => !o && setFacturarPedido(null)}
+          pedido_id={facturarPedido.id}
+          cliente_id={facturarPedido.cliente_id}
+          referencia={facturarPedido.numero_pedido}
+          onSuccess={() => { setFacturarPedido(null); load(); }}
+        />
+      )}
     </div>
   );
 };
