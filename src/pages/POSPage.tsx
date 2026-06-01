@@ -135,6 +135,7 @@ const POSPage = () => {
   const [saleResult, setSaleResult] = useState<SaleResult | null>(null);
   const [successOpen, setSuccessOpen] = useState(false);
   const [facturarOpen, setFacturarOpen] = useState(false);
+  const [saleFacturada, setSaleFacturada] = useState(false);
   const [changeSucursalPending, setChangeSucursalPending] = useState<string | null>(null);
 
   const scanRef = useRef<HTMLInputElement>(null);
