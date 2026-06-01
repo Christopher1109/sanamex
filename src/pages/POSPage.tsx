@@ -795,12 +795,28 @@ const POSPage = () => {
             <Button variant="outline" onClick={() => window.print()}>
               <Printer className="h-4 w-4 mr-2" /> Imprimir
             </Button>
+            {saleResult && !saleResult.numero_venta.startsWith('OFFLINE-') && (
+              <Button variant="secondary" onClick={() => setFacturarOpen(true)}>
+                <Receipt className="h-4 w-4 mr-2" /> Facturar ahora
+              </Button>
+            )}
             <Button onClick={handleNewSale}>
               <RotateCcw className="h-4 w-4 mr-2" /> Nueva Venta
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Facturación rápida */}
+      {saleResult && (
+        <FacturarRapidoDialog
+          open={facturarOpen}
+          onOpenChange={setFacturarOpen}
+          venta_id={saleResult.sale_id}
+          referencia={saleResult.numero_venta}
+          onSuccess={() => setFacturarOpen(false)}
+        />
+      )}
 
       {/* Search results */}
       <Dialog open={searchOpen} onOpenChange={setSearchOpen}>
