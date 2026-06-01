@@ -25,6 +25,7 @@ const estadoLabel: Record<string, string> = {
 const PedidosPage = () => {
   const { selectedSucursal } = useSucursal();
   const [pedidos, setPedidos] = useState<any[]>([]);
+  const [pedidosFacturados, setPedidosFacturados] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [showCreate, setShowCreate] = useState(false);
   const [showDetail, setShowDetail] = useState<any>(null);
@@ -51,6 +52,14 @@ const PedidosPage = () => {
     const { data } = await supabase.from('pedidos').select('*, clientes(nombre), rutas(notas, estado, fecha)')
       .eq('sucursal_id', selectedSucursal.id).order('created_at', { ascending: false });
     setPedidos(data || []);
+
+    const { data: cfdis } = await supabase
+      .from('cfdi_emitidos')
+      .select('pedido_id')
+      .eq('estado', 'timbrado')
+      .not('pedido_id', 'is', null);
+    setPedidosFacturados(new Set((cfdis || []).map((c: any) => c.pedido_id).filter(Boolean)));
+
     setLoading(false);
   };
 
@@ -267,7 +276,11 @@ const PedidosPage = () => {
                     <Button size="sm" variant="ghost" onClick={() => viewDetail(p)}><Eye className="h-4 w-4" /></Button>
                     {p.estado === 'pendiente' && <Button size="sm" onClick={() => enviarARuta(p)}><Truck className="h-4 w-4 mr-1" />Enviar a Ruta</Button>}
                     {p.estado === 'en_ruta' && <Button size="sm" onClick={() => openConfirmEntrega(p)}><CheckCircle className="h-4 w-4 mr-1" />Confirmar Entrega</Button>}
-                    {p.estado === 'entregado' && <Button size="sm" variant="secondary" onClick={() => setFacturarPedido(p)}><Receipt className="h-4 w-4 mr-1" />Facturar</Button>}
+                    {p.estado === 'entregado' && (
+                      pedidosFacturados.has(p.id)
+                        ? <Badge variant="default" className="h-8 px-2"><Receipt className="h-3 w-3 mr-1" />Facturado</Badge>
+                        : <Button size="sm" variant="secondary" onClick={() => setFacturarPedido(p)}><Receipt className="h-4 w-4 mr-1" />Facturar</Button>
+                    )}
                   </TableCell>
                 </TableRow>
                ))}

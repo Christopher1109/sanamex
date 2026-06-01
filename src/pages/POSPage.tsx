@@ -135,6 +135,7 @@ const POSPage = () => {
   const [saleResult, setSaleResult] = useState<SaleResult | null>(null);
   const [successOpen, setSuccessOpen] = useState(false);
   const [facturarOpen, setFacturarOpen] = useState(false);
+  const [saleFacturada, setSaleFacturada] = useState(false);
   const [changeSucursalPending, setChangeSucursalPending] = useState<string | null>(null);
 
   const scanRef = useRef<HTMLInputElement>(null);
@@ -459,6 +460,7 @@ const POSPage = () => {
   const handleNewSale = () => {
     setSuccessOpen(false);
     setSaleResult(null);
+    setSaleFacturada(false);
     refocusScan();
   };
 
@@ -796,9 +798,11 @@ const POSPage = () => {
               <Printer className="h-4 w-4 mr-2" /> Imprimir
             </Button>
             {saleResult && !saleResult.numero_venta.startsWith('OFFLINE-') && (
-              <Button variant="secondary" onClick={() => setFacturarOpen(true)}>
-                <Receipt className="h-4 w-4 mr-2" /> Facturar ahora
-              </Button>
+              saleFacturada
+                ? <Badge variant="default" className="h-10 px-3 text-sm"><Receipt className="h-4 w-4 mr-2" /> Facturado</Badge>
+                : <Button variant="secondary" onClick={() => setFacturarOpen(true)}>
+                    <Receipt className="h-4 w-4 mr-2" /> Facturar ahora
+                  </Button>
             )}
             <Button onClick={handleNewSale}>
               <RotateCcw className="h-4 w-4 mr-2" /> Nueva Venta
@@ -814,7 +818,7 @@ const POSPage = () => {
           onOpenChange={setFacturarOpen}
           venta_id={saleResult.sale_id}
           referencia={saleResult.numero_venta}
-          onSuccess={() => setFacturarOpen(false)}
+          onSuccess={() => { setFacturarOpen(false); setSaleFacturada(true); }}
         />
       )}
 
