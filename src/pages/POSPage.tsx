@@ -460,6 +460,7 @@ const POSPage = () => {
   const handleNewSale = () => {
     setSuccessOpen(false);
     setSaleResult(null);
+    setSaleFacturada(false);
     refocusScan();
   };
 
