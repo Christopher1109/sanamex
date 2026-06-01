@@ -267,6 +267,7 @@ const PedidosPage = () => {
                     <Button size="sm" variant="ghost" onClick={() => viewDetail(p)}><Eye className="h-4 w-4" /></Button>
                     {p.estado === 'pendiente' && <Button size="sm" onClick={() => enviarARuta(p)}><Truck className="h-4 w-4 mr-1" />Enviar a Ruta</Button>}
                     {p.estado === 'en_ruta' && <Button size="sm" onClick={() => openConfirmEntrega(p)}><CheckCircle className="h-4 w-4 mr-1" />Confirmar Entrega</Button>}
+                    {p.estado === 'entregado' && <Button size="sm" variant="secondary" onClick={() => setFacturarPedido(p)}><Receipt className="h-4 w-4 mr-1" />Facturar</Button>}
                   </TableCell>
                 </TableRow>
                ))}
