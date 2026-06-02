@@ -64,7 +64,8 @@ const TraspasosPage = () => {
       .select('*, lotes(id, numero_lote, fecha_caducidad, producto_id, costo_unitario, productos(nombre, sku))')
       .eq('almacen_id', almacenId)
       .gt('cantidad', 0)
-      .order('cantidad', { ascending: false });
+      .order('cantidad', { ascending: false })
+      .limit(5000);
     setInventarioOrigen(data || []);
   };
 
