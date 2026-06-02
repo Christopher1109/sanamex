@@ -400,6 +400,7 @@ const POSPage = () => {
       producto_id: i.producto_id,
       cantidad: i.cantidad,
       precio_unitario: i.precio_unitario,
+      lote_id: i.lote_id_seleccionado || undefined,
     }));
 
     try {
