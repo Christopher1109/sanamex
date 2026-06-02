@@ -443,7 +443,32 @@ const ComprasPage = () => {
         <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>Recepción — {showRecepcion?.numero_compra}</DialogTitle></DialogHeader>
           <p className="text-sm text-muted-foreground mb-4">Capture lote, caducidad y costo real por cada producto. Las mermas en recepción se registran automáticamente.</p>
+
+          {/* Fecha de factura del proveedor */}
+          <Card className="mb-4 border-primary/30 bg-primary/5">
+            <CardContent className="p-4">
+              <Label className="text-sm font-semibold">Fecha de factura del proveedor *</Label>
+              <div className="flex items-center gap-3 mt-2">
+                <Input type="date" value={recFechaFactura} onChange={e => setRecFechaFactura(e.target.value)} className="max-w-[200px]" />
+                <div className="text-sm">
+                  <span className="text-muted-foreground">Plazo proveedor: </span>
+                  <strong>{recPlazoProveedor} días</strong>
+                  {recFechaFactura && (
+                    <span className="ml-3 text-muted-foreground">→ Pago al proveedor: </span>
+                  )}
+                  {recFechaFactura && (
+                    <strong className="text-primary">
+                      {new Date(new Date(recFechaFactura + 'T00:00:00').getTime() + recPlazoProveedor * 86400000).toISOString().slice(0,10)}
+                    </strong>
+                  )}
+                </div>
+              </div>
+              <p className="text-xs text-muted-foreground mt-2">Esta fecha se asigna a cada lote recibido para calcular recuperación antes del vencimiento y alertas de riesgo.</p>
+            </CardContent>
+          </Card>
+
           <div className="space-y-4">
+
             {recLineas.map((l, i) => (
               <Card key={l.id}>
                 <CardContent className="p-4 space-y-2">
