@@ -222,9 +222,10 @@ export default function ProveedoresPage() {
               <section>
                 <h3 className="font-semibold text-sm mb-3 text-primary">Condiciones comerciales</h3>
                 <div className="grid grid-cols-2 gap-3">
-                  <Field label="Plazo de pago (días)" type="number" value={form.plazo_pago_dias} onChange={(v: any) => setForm({ ...form, plazo_pago_dias: v })} />
+                  <Field label="Plazo de pago (días) *" type="number" value={form.plazo_pago_dias} onChange={(v: any) => setForm({ ...form, plazo_pago_dias: v })} />
                   <Field label="Condiciones" value={form.condiciones} onChange={(v: string) => setForm({ ...form, condiciones: v })} />
                 </div>
+                <p className="text-xs text-muted-foreground mt-2">Use 0 si el proveedor es de contado. Este dato alimenta Cuentas por Pagar y las alertas de riesgo.</p>
               </section>
 
               <section>
