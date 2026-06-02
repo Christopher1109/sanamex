@@ -43,6 +43,9 @@ const ComprasPage = () => {
   const [addItem, setAddItem] = useState({ producto_id: '', cantidad: '1', precio: '' });
 
   const [recLineas, setRecLineas] = useState<any[]>([]);
+  const [recFechaFactura, setRecFechaFactura] = useState<string>('');
+  const [recPlazoProveedor, setRecPlazoProveedor] = useState<number>(0);
+
 
   useEffect(() => { if (selectedSucursal) load(); }, [selectedSucursal]);
 
