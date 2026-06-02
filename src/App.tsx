@@ -26,6 +26,8 @@ import SuperAdminPage from './pages/SuperAdminPage';
 import RecomendacionesPage from './pages/RecomendacionesPage';
 import FiscalPage from './pages/FiscalPage';
 import CargasMasivasPage from './pages/CargasMasivasPage';
+import CuentasPorPagarPage from './pages/CuentasPorPagarPage';
+import RotacionPage from './pages/RotacionPage';
 import Sidebar from './components/layout/Sidebar';
 import Header from './components/layout/Header';
 

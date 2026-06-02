@@ -67,9 +67,17 @@ export default function ProveedoresPage() {
 
   async function saveDetail() {
     if (!selected) return;
+    if (form.plazo_pago_dias === null || form.plazo_pago_dias === undefined || (form.plazo_pago_dias as any) === '') {
+      toast.error('El plazo de pago es obligatorio (use 0 si es de contado)');
+      return;
+    }
+    if (Number(form.plazo_pago_dias) < 0) {
+      toast.error('El plazo de pago no puede ser negativo');
+      return;
+    }
     const payload: any = { ...form };
     delete payload.id;
-    if (payload.plazo_pago_dias === '' || payload.plazo_pago_dias === undefined) payload.plazo_pago_dias = null;
+    payload.plazo_pago_dias = Number(form.plazo_pago_dias);
     const { error } = await supabase.from('proveedores').update(payload).eq('id', selected.id);
     if (error) { toast.error('Error al guardar: ' + error.message); return; }
     toast.success('Proveedor actualizado');
@@ -82,8 +90,16 @@ export default function ProveedoresPage() {
 
   async function createProveedor() {
     if (!form.nombre?.trim()) { toast.error('Nombre requerido'); return; }
+    if (form.plazo_pago_dias === null || form.plazo_pago_dias === undefined || (form.plazo_pago_dias as any) === '') {
+      toast.error('El plazo de pago es obligatorio (use 0 si es de contado)');
+      return;
+    }
+    if (Number(form.plazo_pago_dias) < 0) {
+      toast.error('El plazo de pago no puede ser negativo');
+      return;
+    }
     const payload: any = { ...form };
-    if (payload.plazo_pago_dias === '' || payload.plazo_pago_dias === undefined) payload.plazo_pago_dias = null;
+    payload.plazo_pago_dias = Number(form.plazo_pago_dias);
     const { error } = await supabase.from('proveedores').insert(payload);
     if (error) { toast.error('Error: ' + error.message); return; }
     toast.success('Proveedor creado');
@@ -206,9 +222,10 @@ export default function ProveedoresPage() {
               <section>
                 <h3 className="font-semibold text-sm mb-3 text-primary">Condiciones comerciales</h3>
                 <div className="grid grid-cols-2 gap-3">
-                  <Field label="Plazo de pago (días)" type="number" value={form.plazo_pago_dias} onChange={(v: any) => setForm({ ...form, plazo_pago_dias: v })} />
+                  <Field label="Plazo de pago (días) *" type="number" value={form.plazo_pago_dias} onChange={(v: any) => setForm({ ...form, plazo_pago_dias: v })} />
                   <Field label="Condiciones" value={form.condiciones} onChange={(v: string) => setForm({ ...form, condiciones: v })} />
                 </div>
+                <p className="text-xs text-muted-foreground mt-2">Use 0 si el proveedor es de contado. Este dato alimenta Cuentas por Pagar y las alertas de riesgo.</p>
               </section>
 
               <section>
@@ -286,9 +303,10 @@ export default function ProveedoresPage() {
             <section>
               <h3 className="font-semibold text-sm mb-2 text-primary">Condiciones comerciales</h3>
               <div className="grid grid-cols-2 gap-3">
-                <div><Label>Plazo de pago (días)</Label><Input type="number" value={form.plazo_pago_dias ?? ''} onChange={e => setForm({ ...form, plazo_pago_dias: e.target.value === '' ? null : Number(e.target.value) })} /></div>
+                <div><Label>Plazo de pago (días) *</Label><Input type="number" min={0} value={form.plazo_pago_dias ?? ''} onChange={e => setForm({ ...form, plazo_pago_dias: e.target.value === '' ? null : Number(e.target.value) })} /></div>
                 <div><Label>Condiciones</Label><Input placeholder="Ej. CONTADO, 30 DÍAS..." value={form.condiciones || ''} onChange={e => setForm({ ...form, condiciones: e.target.value })} /></div>
               </div>
+              <p className="text-xs text-muted-foreground mt-2">Use 0 si es de contado. Obligatorio para Cuentas por Pagar.</p>
             </section>
             <section>
               <h3 className="font-semibold text-sm mb-2 text-primary">Datos fiscales y bancarios</h3>

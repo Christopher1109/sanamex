@@ -43,6 +43,9 @@ const ComprasPage = () => {
   const [addItem, setAddItem] = useState({ producto_id: '', cantidad: '1', precio: '' });
 
   const [recLineas, setRecLineas] = useState<any[]>([]);
+  const [recFechaFactura, setRecFechaFactura] = useState<string>('');
+  const [recPlazoProveedor, setRecPlazoProveedor] = useState<number>(0);
+
 
   useEffect(() => { if (selectedSucursal) load(); }, [selectedSucursal]);
 
@@ -119,6 +122,10 @@ const ComprasPage = () => {
 
   const openRecepcion = async (compra: any) => {
     setShowRecepcion(compra);
+    setRecFechaFactura(compra.fecha_factura || new Date().toISOString().slice(0, 10));
+    // Cargar plazo del proveedor
+    const { data: prov } = await supabase.from('proveedores').select('plazo_pago_dias').eq('id', compra.proveedor_id).single();
+    setRecPlazoProveedor(prov?.plazo_pago_dias ?? 0);
     const { data } = await supabase.from('compra_lineas')
       .select('*, productos(nombre, sku)').eq('compra_id', compra.id);
     setRecLineas((data || []).map(l => ({
@@ -129,11 +136,20 @@ const ComprasPage = () => {
     })));
   };
 
+
   const processRecepcion = async () => {
     if (!showRecepcion) return;
+    if (!recFechaFactura) { toast.error('Captura la fecha de factura del proveedor'); return; }
     const user = (await supabase.auth.getUser()).data.user;
     const { data: alm } = await supabase.from('almacenes').select('id').eq('sucursal_id', showRecepcion.sucursal_id).limit(1);
     if (!alm?.length) { toast.error('Sin almacén configurado'); return; }
+
+    // Calcular fecha de pago al proveedor
+    const fechaFacturaDate = new Date(recFechaFactura + 'T00:00:00');
+    const fechaPagoLimite = new Date(fechaFacturaDate);
+    fechaPagoLimite.setDate(fechaPagoLimite.getDate() + (recPlazoProveedor || 0));
+    const fechaPagoLimiteStr = fechaPagoLimite.toISOString().slice(0, 10);
+    const fechaRecepcionStr = new Date().toISOString().slice(0, 10);
 
     for (const linea of recLineas) {
       const cantRecibida = parseInt(linea.cantidad_recibida_input) || 0;
@@ -145,7 +161,10 @@ const ComprasPage = () => {
         producto_id: linea.producto_id, numero_lote: loteNum,
         fecha_caducidad: linea.caducidad_input || null,
         costo_unitario: costoReal, proveedor_id: showRecepcion.proveedor_id,
-      }).select().single();
+        compra_id: showRecepcion.id,
+        fecha_recepcion: fechaRecepcionStr,
+        fecha_pago_proveedor: fechaPagoLimiteStr,
+      } as any).select().single();
 
       if (!lote) continue;
 
@@ -178,16 +197,21 @@ const ComprasPage = () => {
       }).eq('id', linea.id);
     }
 
-    await supabase.from('compras').update({ estado: 'recibida' }).eq('id', showRecepcion.id);
+    await supabase.from('compras').update({
+      estado: 'recibida',
+      fecha_factura: recFechaFactura,
+      fecha_pago_limite: fechaPagoLimiteStr,
+    } as any).eq('id', showRecepcion.id);
 
     // Log activity
     await supabase.from('audit_log').insert({
       entidad: 'compra', accion: 'Recepción completada', entidad_id: showRecepcion.id,
       usuario_id: user?.id, usuario_nombre: user?.email,
       sucursal_id: showRecepcion.sucursal_id,
+      datos_despues: { fecha_factura: recFechaFactura, fecha_pago_limite: fechaPagoLimiteStr },
     });
 
-    toast.success('Recepción completada — inventario actualizado');
+    toast.success(`Recepción completada — pago al proveedor: ${fechaPagoLimiteStr}`);
     setShowRecepcion(null);
     load();
   };
@@ -221,7 +245,9 @@ const ComprasPage = () => {
     await supabase.from('compras').update({
       estado: 'pagada',
       comprobante_pago_url: comprobanteUrl,
-    }).eq('id', showPago.id);
+      pagada: true,
+      fecha_pago_real: new Date().toISOString().slice(0, 10),
+    } as any).eq('id', showPago.id);
 
     const user = (await supabase.auth.getUser()).data.user;
     await supabase.from('audit_log').insert({
@@ -419,7 +445,32 @@ const ComprasPage = () => {
         <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>Recepción — {showRecepcion?.numero_compra}</DialogTitle></DialogHeader>
           <p className="text-sm text-muted-foreground mb-4">Capture lote, caducidad y costo real por cada producto. Las mermas en recepción se registran automáticamente.</p>
+
+          {/* Fecha de factura del proveedor */}
+          <Card className="mb-4 border-primary/30 bg-primary/5">
+            <CardContent className="p-4">
+              <Label className="text-sm font-semibold">Fecha de factura del proveedor *</Label>
+              <div className="flex items-center gap-3 mt-2">
+                <Input type="date" value={recFechaFactura} onChange={e => setRecFechaFactura(e.target.value)} className="max-w-[200px]" />
+                <div className="text-sm">
+                  <span className="text-muted-foreground">Plazo proveedor: </span>
+                  <strong>{recPlazoProveedor} días</strong>
+                  {recFechaFactura && (
+                    <span className="ml-3 text-muted-foreground">→ Pago al proveedor: </span>
+                  )}
+                  {recFechaFactura && (
+                    <strong className="text-primary">
+                      {new Date(new Date(recFechaFactura + 'T00:00:00').getTime() + recPlazoProveedor * 86400000).toISOString().slice(0,10)}
+                    </strong>
+                  )}
+                </div>
+              </div>
+              <p className="text-xs text-muted-foreground mt-2">Esta fecha se asigna a cada lote recibido para calcular recuperación antes del vencimiento y alertas de riesgo.</p>
+            </CardContent>
+          </Card>
+
           <div className="space-y-4">
+
             {recLineas.map((l, i) => (
               <Card key={l.id}>
                 <CardContent className="p-4 space-y-2">
