@@ -185,41 +185,56 @@ const POSPage = () => {
     return () => window.removeEventListener('keydown', handler);
   }, [cart.length, refocusScan]);
 
-  // ── Get stock for a product in the selected sucursal (online or offline) ──
-  const getStockForProduct = async (productoId: string): Promise<number> => {
-    if (!selectedSucursal) return 0;
+  // ── Get stock + lotes vigentes (no vencidos) para un producto en la sucursal ──
+  const getStockForProduct = async (productoId: string): Promise<{ total: number; lotes: LoteOption[] }> => {
+    if (!selectedSucursal) return { total: 0, lotes: [] };
 
     if (isOffline) {
-      // Use cached almacen + inventory
-      const almacenes = await offlineDB.almacenes
-        .where({ sucursal_id: selectedSucursal.id })
-        .toArray();
-      if (!almacenes.length) return 0;
+      const almacenes = await offlineDB.almacenes.where({ sucursal_id: selectedSucursal.id }).toArray();
+      if (!almacenes.length) return { total: 0, lotes: [] };
       let total = 0;
-      for (const a of almacenes) {
-        total += await getLocalStock(a.id, productoId);
-      }
-      return total;
+      for (const a of almacenes) total += await getLocalStock(a.id, productoId);
+      // Sin detalle de lotes en cache: backend hará FEFO automático
+      return { total, lotes: [] };
     }
 
     const { data: almacenes } = await supabase
-      .from('almacenes')
-      .select('id')
-      .eq('sucursal_id', selectedSucursal.id)
-      .eq('activo', true);
-    if (!almacenes?.length) return 0;
+      .from('almacenes').select('id')
+      .eq('sucursal_id', selectedSucursal.id).eq('activo', true);
+    if (!almacenes?.length) return { total: 0, lotes: [] };
 
     const almacenIds = almacenes.map(a => a.id);
     const { data: inv } = await supabase
       .from('inventario')
-      .select('cantidad, lote_id, lotes!inner(producto_id)')
+      .select('cantidad, lote_id, lotes!inner(producto_id, numero_lote, fecha_caducidad)')
       .in('almacen_id', almacenIds)
       .gt('cantidad', 0);
 
-    if (!inv) return 0;
-    return inv
-      .filter((row: any) => row.lotes?.producto_id === productoId)
-      .reduce((sum: number, row: any) => sum + (row.cantidad || 0), 0);
+    if (!inv) return { total: 0, lotes: [] };
+    const hoy = new Date().toISOString().split('T')[0];
+    const filtered = inv.filter((row: any) =>
+      row.lotes?.producto_id === productoId &&
+      (!row.lotes?.fecha_caducidad || row.lotes.fecha_caducidad >= hoy)
+    );
+    const total = filtered.reduce((s: number, r: any) => s + (r.cantidad || 0), 0);
+    // Agrupar por lote_id (puede repetirse entre almacenes)
+    const map = new Map<string, LoteOption>();
+    for (const r of filtered as any[]) {
+      const ex = map.get(r.lote_id);
+      if (ex) ex.cantidad += r.cantidad;
+      else map.set(r.lote_id, {
+        lote_id: r.lote_id,
+        numero_lote: r.lotes.numero_lote,
+        fecha_caducidad: r.lotes.fecha_caducidad,
+        cantidad: r.cantidad,
+      });
+    }
+    const lotes = Array.from(map.values()).sort((a, b) => {
+      if (!a.fecha_caducidad) return 1;
+      if (!b.fecha_caducidad) return -1;
+      return a.fecha_caducidad.localeCompare(b.fecha_caducidad);
+    });
+    return { total, lotes };
   };
 
   // ── Get sucursal-specific price (with cache fallback) ──
