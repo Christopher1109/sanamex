@@ -99,6 +99,8 @@ function cartReducer(state: CartItem[], action: CartAction): CartItem[] {
         return { ...i, cantidad: qty, subtotal: qty * i.precio_unitario };
       });
     }
+    case 'SET_LOTE':
+      return state.map(i => i.producto_id === action.producto_id ? { ...i, lote_id_seleccionado: action.lote_id } : i);
     case 'INCREMENT':
       return state.map(i => {
         if (i.producto_id !== action.producto_id) return i;
