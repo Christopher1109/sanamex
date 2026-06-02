@@ -15,13 +15,15 @@ import { toast } from 'sonner';
 
 const estadoBadge: Record<string, string> = { pendiente: 'secondary', aprobado: 'default', completado: 'outline', rechazado: 'destructive' };
 
+interface SucursalRow { id: string; nombre: string; codigo: string; almacen_id: string | null; }
+
 const TraspasosPage = () => {
   const { selectedSucursal } = useSucursal();
   const [traspasos, setTraspasos] = useState<any[]>([]);
-  const [almacenes, setAlmacenes] = useState<any[]>([]);
+  const [sucursalesConAlmacen, setSucursalesConAlmacen] = useState<SucursalRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [form, setForm] = useState({ almacen_origen_id: '', almacen_destino_id: '', notas: '' });
+  const [form, setForm] = useState({ sucursal_origen_id: '', sucursal_destino_id: '', notas: '' });
 
   const [inventarioOrigen, setInventarioOrigen] = useState<any[]>([]);
   const [lineas, setLineas] = useState<{ lote_id: string; cantidad: number; nombre: string; lote_nombre: string; disponible: number }[]>([]);
@@ -30,7 +32,7 @@ const TraspasosPage = () => {
   const [showDetail, setShowDetail] = useState<any>(null);
   const [lineasDetail, setLineasDetail] = useState<any[]>([]);
 
-  useEffect(() => { if (selectedSucursal) { load(); loadAlmacenes(); } }, [selectedSucursal]);
+  useEffect(() => { if (selectedSucursal) { load(); loadSucursales(); } }, [selectedSucursal]);
 
   const load = async () => {
     if (!selectedSucursal) return;
@@ -51,18 +53,41 @@ const TraspasosPage = () => {
     setLoading(false);
   };
 
-  const loadAlmacenes = async () => {
-    const { data } = await supabase.from('almacenes').select('*, sucursales(nombre)').eq('activo', true);
-    setAlmacenes(data || []);
+  const loadSucursales = async () => {
+    // Trae sucursales activas y resuelve su almacén principal (el más antiguo activo)
+    const { data: sucs } = await supabase
+      .from('sucursales')
+      .select('id, nombre, codigo')
+      .eq('activo', true)
+      .order('nombre');
+    const { data: alms } = await supabase
+      .from('almacenes')
+      .select('id, sucursal_id, created_at')
+      .eq('activo', true)
+      .order('created_at', { ascending: true });
+
+    const firstAlm = new Map<string, string>();
+    for (const a of (alms || [])) {
+      if (!firstAlm.has(a.sucursal_id)) firstAlm.set(a.sucursal_id, a.id);
+    }
+    setSucursalesConAlmacen(
+      (sucs || []).map(s => ({ id: s.id, nombre: s.nombre, codigo: s.codigo, almacen_id: firstAlm.get(s.id) || null }))
+    );
   };
 
-  const onSelectOrigen = async (almacenId: string) => {
-    setForm({ ...form, almacen_origen_id: almacenId });
+  const onSelectOrigen = async (sucursalId: string) => {
+    setForm({ ...form, sucursal_origen_id: sucursalId });
     setLineas([]);
     setSearchProd('');
+    const suc = sucursalesConAlmacen.find(s => s.id === sucursalId);
+    if (!suc?.almacen_id) {
+      setInventarioOrigen([]);
+      toast.error('La sucursal origen no tiene almacén activo');
+      return;
+    }
     const { data } = await supabase.from('inventario')
       .select('*, lotes(id, numero_lote, fecha_caducidad, producto_id, costo_unitario, productos(nombre, sku))')
-      .eq('almacen_id', almacenId)
+      .eq('almacen_id', suc.almacen_id)
       .gt('cantidad', 0)
       .order('cantidad', { ascending: false })
       .limit(5000);
@@ -88,14 +113,21 @@ const TraspasosPage = () => {
   };
 
   const save = async () => {
-    if (!form.almacen_origen_id || !form.almacen_destino_id) { toast.error('Seleccione origen y destino'); return; }
-    if (form.almacen_origen_id === form.almacen_destino_id) { toast.error('Origen y destino deben ser diferentes'); return; }
+    if (!form.sucursal_origen_id || !form.sucursal_destino_id) { toast.error('Seleccione sucursal origen y destino'); return; }
+    if (form.sucursal_origen_id === form.sucursal_destino_id) { toast.error('Origen y destino deben ser diferentes'); return; }
     if (lineas.length === 0) { toast.error('Agregue al menos un producto'); return; }
+
+    const sucOrigen = sucursalesConAlmacen.find(s => s.id === form.sucursal_origen_id);
+    const sucDestino = sucursalesConAlmacen.find(s => s.id === form.sucursal_destino_id);
+    if (!sucOrigen?.almacen_id || !sucDestino?.almacen_id) {
+      toast.error('Alguna sucursal no tiene almacén activo');
+      return;
+    }
 
     const user = (await supabase.auth.getUser()).data.user;
     const { data: traspaso, error } = await supabase.from('traspasos').insert({
-      almacen_origen_id: form.almacen_origen_id,
-      almacen_destino_id: form.almacen_destino_id,
+      almacen_origen_id: sucOrigen.almacen_id,
+      almacen_destino_id: sucDestino.almacen_id,
       notas: form.notas || null,
       solicitado_por: user?.id,
     }).select().single();
@@ -113,10 +145,10 @@ const TraspasosPage = () => {
       entidad: 'traspaso', accion: 'Traspaso creado', entidad_id: traspaso.id,
       usuario_id: user?.id, usuario_nombre: user?.email,
       sucursal_id: selectedSucursal?.id,
-      datos_despues: { productos: lineas.length, origen: form.almacen_origen_id, destino: form.almacen_destino_id },
+      datos_despues: { productos: lineas.length, sucursal_origen: sucOrigen.nombre, sucursal_destino: sucDestino.nombre },
     });
 
-    toast.success('Traspaso creado con productos');
+    toast.success('Traspaso creado');
     load();
     setDialogOpen(false);
   };
@@ -132,7 +164,6 @@ const TraspasosPage = () => {
         .select('*, lotes(costo_unitario, producto_id)').eq('traspaso_id', id);
 
       for (const linea of (tLineas || [])) {
-        // Decrease from origin
         const { data: invOrigen } = await supabase.from('inventario')
           .select('id, cantidad').eq('almacen_id', traspaso.almacen_origen_id).eq('lote_id', linea.lote_id).limit(1);
 
@@ -141,7 +172,6 @@ const TraspasosPage = () => {
           await supabase.from('inventario').update({ cantidad: newCant }).eq('id', invOrigen[0].id);
         }
 
-        // Increase in destination (upsert)
         const { data: invDest } = await supabase.from('inventario')
           .select('id, cantidad').eq('almacen_id', traspaso.almacen_destino_id).eq('lote_id', linea.lote_id).limit(1);
 
@@ -151,7 +181,6 @@ const TraspasosPage = () => {
           await supabase.from('inventario').insert({ almacen_id: traspaso.almacen_destino_id, lote_id: linea.lote_id, cantidad: linea.cantidad });
         }
 
-        // Kardex movements
         const origenSuc = (traspaso.origen as any)?.sucursal_id;
         const destSuc = (traspaso.destino as any)?.sucursal_id;
 
@@ -193,7 +222,6 @@ const TraspasosPage = () => {
     setLineasDetail(data || []);
   };
 
-  // Filter inventory by search
   const filteredInventario = inventarioOrigen.filter(inv => {
     if (!searchProd) return true;
     const s = searchProd.toLowerCase();
@@ -205,8 +233,8 @@ const TraspasosPage = () => {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <div><h1 className="text-2xl font-bold">Traspasos entre Almacenes</h1><p className="text-muted-foreground">{selectedSucursal?.nombre} — Movimiento de inventario entre sucursales</p></div>
-        <Button onClick={() => { setForm({ almacen_origen_id: '', almacen_destino_id: '', notas: '' }); setLineas([]); setInventarioOrigen([]); setSearchProd(''); setDialogOpen(true); }}><Plus className="h-4 w-4 mr-2" /> Nuevo Traspaso</Button>
+        <div><h1 className="text-2xl font-bold">Traspasos entre Sucursales</h1><p className="text-muted-foreground">{selectedSucursal?.nombre} — Movimiento de inventario entre sucursales</p></div>
+        <Button onClick={() => { setForm({ sucursal_origen_id: '', sucursal_destino_id: '', notas: '' }); setLineas([]); setInventarioOrigen([]); setSearchProd(''); setDialogOpen(true); }}><Plus className="h-4 w-4 mr-2" /> Nuevo Traspaso</Button>
       </div>
       <Card>
         <CardContent className="p-0">
@@ -218,8 +246,8 @@ const TraspasosPage = () => {
                traspasos.map(t => (
                 <TableRow key={t.id}>
                   <TableCell className="text-xs">{new Date(t.created_at).toLocaleDateString('es-MX')}</TableCell>
-                  <TableCell>{(t.origen as any)?.sucursales?.nombre} — {(t.origen as any)?.nombre}</TableCell>
-                  <TableCell>{(t.destino as any)?.sucursales?.nombre} — {(t.destino as any)?.nombre}</TableCell>
+                  <TableCell>{(t.origen as any)?.sucursales?.nombre}</TableCell>
+                  <TableCell>{(t.destino as any)?.sucursales?.nombre}</TableCell>
                   <TableCell>
                     <Button size="sm" variant="ghost" onClick={() => viewDetail(t)}><Eye className="h-4 w-4 mr-1" />Ver</Button>
                   </TableCell>
@@ -238,26 +266,24 @@ const TraspasosPage = () => {
         </CardContent>
       </Card>
 
-      {/* Create Traspaso Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>Nuevo Traspaso</DialogTitle></DialogHeader>
           <div className="space-y-4">
-            <div><Label>Almacén Origen</Label>
-              <Select value={form.almacen_origen_id} onValueChange={onSelectOrigen}>
-                <SelectTrigger><SelectValue placeholder="Seleccionar origen..." /></SelectTrigger>
-                <SelectContent>{almacenes.map(a => <SelectItem key={a.id} value={a.id}>{(a.sucursales as any)?.nombre} — {a.nombre}</SelectItem>)}</SelectContent>
+            <div><Label>Sucursal Origen</Label>
+              <Select value={form.sucursal_origen_id} onValueChange={onSelectOrigen}>
+                <SelectTrigger><SelectValue placeholder="Seleccionar sucursal origen..." /></SelectTrigger>
+                <SelectContent>{sucursalesConAlmacen.map(s => <SelectItem key={s.id} value={s.id} disabled={!s.almacen_id}>{s.codigo} — {s.nombre}{!s.almacen_id && ' (sin almacén)'}</SelectItem>)}</SelectContent>
               </Select>
             </div>
-            <div><Label>Almacén Destino</Label>
-              <Select value={form.almacen_destino_id} onValueChange={v => setForm({...form, almacen_destino_id: v})}>
-                <SelectTrigger><SelectValue placeholder="Seleccionar destino..." /></SelectTrigger>
-                <SelectContent>{almacenes.filter(a => a.id !== form.almacen_origen_id).map(a => <SelectItem key={a.id} value={a.id}>{(a.sucursales as any)?.nombre} — {a.nombre}</SelectItem>)}</SelectContent>
+            <div><Label>Sucursal Destino</Label>
+              <Select value={form.sucursal_destino_id} onValueChange={v => setForm({...form, sucursal_destino_id: v})}>
+                <SelectTrigger><SelectValue placeholder="Seleccionar sucursal destino..." /></SelectTrigger>
+                <SelectContent>{sucursalesConAlmacen.filter(s => s.id !== form.sucursal_origen_id).map(s => <SelectItem key={s.id} value={s.id} disabled={!s.almacen_id}>{s.codigo} — {s.nombre}{!s.almacen_id && ' (sin almacén)'}</SelectItem>)}</SelectContent>
               </Select>
             </div>
 
-            {/* Product search and selection */}
-            {form.almacen_origen_id && (
+            {form.sucursal_origen_id && (
               <div className="border rounded-lg p-3 space-y-3">
                 <Label>Agregar Productos al Traspaso</Label>
                 <div className="relative">
@@ -271,7 +297,7 @@ const TraspasosPage = () => {
                 </div>
                 <div className="max-h-[200px] overflow-y-auto border rounded-md">
                   {filteredInventario.length === 0 ? (
-                    <p className="text-center text-sm text-muted-foreground py-4">Sin productos disponibles</p>
+                    <p className="text-center text-sm text-muted-foreground py-4">Sin productos disponibles en esta sucursal</p>
                   ) : (
                     filteredInventario.slice(0, 100).map(inv => {
                       const loteId = (inv.lotes as any)?.id;
@@ -325,13 +351,12 @@ const TraspasosPage = () => {
         </DialogContent>
       </Dialog>
 
-      {/* Detail Dialog */}
       <Dialog open={!!showDetail} onOpenChange={() => setShowDetail(null)}>
         <DialogContent className="max-w-lg">
           <DialogHeader><DialogTitle>Detalle del Traspaso</DialogTitle></DialogHeader>
           <div className="text-sm space-y-1 mb-4">
-            <p><strong>Origen:</strong> {(showDetail?.origen as any)?.sucursales?.nombre} — {(showDetail?.origen as any)?.nombre}</p>
-            <p><strong>Destino:</strong> {(showDetail?.destino as any)?.sucursales?.nombre} — {(showDetail?.destino as any)?.nombre}</p>
+            <p><strong>Origen:</strong> {(showDetail?.origen as any)?.sucursales?.nombre}</p>
+            <p><strong>Destino:</strong> {(showDetail?.destino as any)?.sucursales?.nombre}</p>
             <p><strong>Estado:</strong> <Badge variant={(estadoBadge[showDetail?.estado] || 'secondary') as any}>{showDetail?.estado}</Badge></p>
             {showDetail?.notas && <p><strong>Notas:</strong> {showDetail.notas}</p>}
           </div>
