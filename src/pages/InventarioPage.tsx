@@ -59,7 +59,9 @@ const InventarioPage = () => {
       .from('inventario')
       .select('*, lotes(*, productos(nombre, sku, stock_minimo, categoria)), almacenes(nombre)')
       .in('almacen_id', almacenIds)
-      .order('created_at', { ascending: false });
+      .gt('cantidad', 0)
+      .order('created_at', { ascending: false })
+      .limit(5000);
 
     if (error) { toast.error('Error cargando inventario'); console.error(error); }
     else setInventario(data || []);
