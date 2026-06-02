@@ -139,9 +139,17 @@ const ComprasPage = () => {
 
   const processRecepcion = async () => {
     if (!showRecepcion) return;
+    if (!recFechaFactura) { toast.error('Captura la fecha de factura del proveedor'); return; }
     const user = (await supabase.auth.getUser()).data.user;
     const { data: alm } = await supabase.from('almacenes').select('id').eq('sucursal_id', showRecepcion.sucursal_id).limit(1);
     if (!alm?.length) { toast.error('Sin almacén configurado'); return; }
+
+    // Calcular fecha de pago al proveedor
+    const fechaFacturaDate = new Date(recFechaFactura + 'T00:00:00');
+    const fechaPagoLimite = new Date(fechaFacturaDate);
+    fechaPagoLimite.setDate(fechaPagoLimite.getDate() + (recPlazoProveedor || 0));
+    const fechaPagoLimiteStr = fechaPagoLimite.toISOString().slice(0, 10);
+    const fechaRecepcionStr = new Date().toISOString().slice(0, 10);
 
     for (const linea of recLineas) {
       const cantRecibida = parseInt(linea.cantidad_recibida_input) || 0;
@@ -153,7 +161,10 @@ const ComprasPage = () => {
         producto_id: linea.producto_id, numero_lote: loteNum,
         fecha_caducidad: linea.caducidad_input || null,
         costo_unitario: costoReal, proveedor_id: showRecepcion.proveedor_id,
-      }).select().single();
+        compra_id: showRecepcion.id,
+        fecha_recepcion: fechaRecepcionStr,
+        fecha_pago_proveedor: fechaPagoLimiteStr,
+      } as any).select().single();
 
       if (!lote) continue;
 
@@ -186,16 +197,21 @@ const ComprasPage = () => {
       }).eq('id', linea.id);
     }
 
-    await supabase.from('compras').update({ estado: 'recibida' }).eq('id', showRecepcion.id);
+    await supabase.from('compras').update({
+      estado: 'recibida',
+      fecha_factura: recFechaFactura,
+      fecha_pago_limite: fechaPagoLimiteStr,
+    } as any).eq('id', showRecepcion.id);
 
     // Log activity
     await supabase.from('audit_log').insert({
       entidad: 'compra', accion: 'Recepción completada', entidad_id: showRecepcion.id,
       usuario_id: user?.id, usuario_nombre: user?.email,
       sucursal_id: showRecepcion.sucursal_id,
+      datos_despues: { fecha_factura: recFechaFactura, fecha_pago_limite: fechaPagoLimiteStr },
     });
 
-    toast.success('Recepción completada — inventario actualizado');
+    toast.success(`Recepción completada — pago al proveedor: ${fechaPagoLimiteStr}`);
     setShowRecepcion(null);
     load();
   };
