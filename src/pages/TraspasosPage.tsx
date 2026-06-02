@@ -273,7 +273,7 @@ const TraspasosPage = () => {
                   {filteredInventario.length === 0 ? (
                     <p className="text-center text-sm text-muted-foreground py-4">Sin productos disponibles</p>
                   ) : (
-                    filteredInventario.slice(0, 20).map(inv => {
+                    filteredInventario.slice(0, 100).map(inv => {
                       const loteId = (inv.lotes as any)?.id;
                       const alreadyAdded = lineas.some(l => l.lote_id === loteId);
                       return (
