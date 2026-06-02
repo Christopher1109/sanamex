@@ -6,7 +6,7 @@ import {
   Warehouse, ArrowLeftRight, ClipboardList,
   Store, ShoppingCart,
   PackageCheck, AlertTriangle, AlertCircle, History, FileSpreadsheet,
-  Monitor, CloudOff, Shield, Sparkles, Upload, Receipt, Bell
+  Monitor, CloudOff, Shield, Sparkles, Upload, Receipt, Bell, Wallet, TrendingUp
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { SucursalSelector } from '@/components/SucursalSelector';
@@ -65,9 +65,10 @@ const Sidebar = ({ userRole, onLogout }: SidebarProps) => {
     { path: '/mermas', icon: AlertTriangle, label: 'Mermas', roles: [...OPS,'auditor','auditoria'], category: 'Inventario' },
     { path: '/caducidades', icon: AlertCircle, label: 'Caducidades', roles: [...OPS,'auditor','auditoria'], category: 'Inventario' },
     // Análisis
-    { path: '/recomendaciones', icon: Sparkles, label: 'Recomendaciones IA', roles: MGMT, category: 'Análisis' },
+    { path: '/rotacion', icon: TrendingUp, label: 'Inteligencia de Rotación', roles: MGMT, category: 'Análisis' },
     { path: '/reportes', icon: FileSpreadsheet, label: 'Reportes', roles: AUDIT, category: 'Análisis' },
-    // Fiscal
+    // Finanzas
+    { path: '/cuentas-por-pagar', icon: Wallet, label: 'Cuentas por Pagar', roles: MGMT, category: 'Finanzas' },
     { path: '/fiscal', icon: Receipt, label: 'Facturación (CFDI)', roles: MGMT, category: 'Fiscal' },
     // Sistema
     { path: '/cargas-masivas', icon: Upload, label: 'Cargas Masivas', roles: MGMT, category: 'Sistema' },
