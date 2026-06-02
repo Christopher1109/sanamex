@@ -176,6 +176,71 @@ const CaducidadesPage = () => {
     return { label: 'OK', variant: 'outline' as const, color: 'text-muted-foreground' };
   };
 
+  const limpiarCaducados = async () => {
+    if (!selectedSucursal) return;
+    setCleaning(true);
+    try {
+      const almacenIds = await getAlmacenIds();
+      if (almacenIds.length === 0) { toast.error('Sin almacenes'); return; }
+
+      // Lotes vencidos con stock > 0
+      const { data: invVencidos, error } = await supabase
+        .from('inventario')
+        .select('id, cantidad, almacen_id, lote_id, lotes!inner(id, numero_lote, fecha_caducidad, costo_unitario, producto_id, productos(nombre))')
+        .in('almacen_id', almacenIds)
+        .gt('cantidad', 0);
+
+      if (error) { toast.error('Error consultando inventario'); console.error(error); return; }
+
+      const hoy = new Date().toISOString().split('T')[0];
+      const vencidosConStock = (invVencidos || []).filter((r: any) => r.lotes?.fecha_caducidad && r.lotes.fecha_caducidad < hoy);
+
+      if (vencidosConStock.length === 0) {
+        toast.info('No hay lotes caducados con stock para limpiar');
+        return;
+      }
+
+      // Buscar motivo "Caducidad"
+      const { data: motivo } = await supabase.from('motivos_ajuste').select('id').eq('nombre', 'Caducidad').limit(1).maybeSingle();
+
+      let okCount = 0;
+      let errCount = 0;
+      for (const inv of vencidosConStock) {
+        const lote: any = inv.lotes;
+        // Movimiento de merma (Kardex)
+        const { error: movErr } = await supabase.from('movimientos_inventario').insert({
+          almacen_id: inv.almacen_id,
+          lote_id: inv.lote_id,
+          tipo: 'merma',
+          cantidad: inv.cantidad,
+          costo_unitario: lote?.costo_unitario || 0,
+          motivo_id: motivo?.id || null,
+          referencia_tipo: 'caducidad',
+          sucursal_id: selectedSucursal.id,
+          usuario_id: user?.id,
+          notas: `Limpieza automática por caducidad. Lote ${lote?.numero_lote} (cad: ${lote?.fecha_caducidad}) — ${lote?.productos?.nombre}`,
+        });
+        if (movErr) { errCount++; continue; }
+        // Poner inventario en 0
+        const { error: updErr } = await supabase.from('inventario').update({ cantidad: 0 }).eq('id', inv.id);
+        if (updErr) errCount++; else okCount++;
+      }
+
+      // Auditoría
+      await supabase.from('audit_log').insert({
+        entidad: 'inventario', accion: 'Limpieza de caducados',
+        usuario_id: user?.id, usuario_nombre: user?.email,
+        sucursal_id: selectedSucursal.id,
+        datos_despues: { lotes_limpiados: okCount, errores: errCount },
+      });
+
+      toast.success(`Limpieza completa: ${okCount} lote(s) movidos a merma${errCount ? `, ${errCount} con error` : ''}`);
+      await loadData();
+    } finally {
+      setCleaning(false);
+    }
+  };
+
   const filteredLotes = lotes.filter(l => {
     if (filtro === 'vencidos') return l.dias_restantes < 0;
     if (filtro === '7dias') return l.dias_restantes >= 0 && l.dias_restantes <= 7;
