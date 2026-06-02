@@ -373,6 +373,28 @@ const CaducidadesPage = () => {
                     <SelectItem value="30dias">≤ 30 días</SelectItem>
                   </SelectContent>
                 </Select>
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button variant="destructive" size="sm" disabled={cleaning || vencidos === 0}>
+                      <Trash2 className="h-4 w-4 mr-1" />
+                      {cleaning ? 'Limpiando…' : `Limpiar caducados (${vencidos})`}
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>¿Limpiar lotes caducados?</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        Esta acción generará un movimiento de <strong>merma por caducidad</strong> en el Kardex y dejará en 0 el inventario de todos los lotes ya vencidos con stock en {selectedSucursal?.nombre}. La operación queda registrada en auditoría y no se puede deshacer.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                      <AlertDialogAction onClick={limpiarCaducados} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                        Sí, registrar mermas y limpiar
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
               </div>
             </div>
           </CardHeader>
