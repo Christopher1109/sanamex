@@ -972,6 +972,44 @@ export type Database = {
           },
         ]
       }
+      producto_precios_escalonados: {
+        Row: {
+          cantidad_minima: number
+          created_at: string
+          id: string
+          nivel: number
+          precio: number
+          producto_id: string
+          updated_at: string
+        }
+        Insert: {
+          cantidad_minima?: number
+          created_at?: string
+          id?: string
+          nivel: number
+          precio?: number
+          producto_id: string
+          updated_at?: string
+        }
+        Update: {
+          cantidad_minima?: number
+          created_at?: string
+          id?: string
+          nivel?: number
+          precio?: number
+          producto_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "producto_precios_escalonados_producto_id_fkey"
+            columns: ["producto_id"]
+            isOneToOne: false
+            referencedRelation: "productos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       producto_precios_sucursal: {
         Row: {
           activo: boolean | null
@@ -1021,51 +1059,105 @@ export type Database = {
         Row: {
           activo: boolean | null
           categoria: string | null
+          clasificacion_80_20: string | null
+          clave_sat: string | null
           codigo_barras: string | null
+          codigo_interno: string | null
+          costo: number | null
           costo_promedio: number
           created_at: string | null
+          departamento: string | null
           descripcion: string | null
+          estatus: string | null
+          fecha_carga_erp: string | null
+          forma_farmaceutica: string | null
+          formula: string | null
+          fraccion_arancelaria: string | null
           id: string
+          ieps: number | null
+          indice_terapeutico: string | null
           iva_incluido: boolean | null
+          iva_tasa: number | null
+          laboratorio: string | null
           nombre: string
           precio_base: number
+          presentacion: string | null
+          receta_medica: boolean | null
+          registro_sanitario: string | null
           requiere_lote: boolean | null
           sku: string
           stock_minimo: number | null
+          sustancia_activa: string | null
           unidad: string | null
           updated_at: string | null
         }
         Insert: {
           activo?: boolean | null
           categoria?: string | null
+          clasificacion_80_20?: string | null
+          clave_sat?: string | null
           codigo_barras?: string | null
+          codigo_interno?: string | null
+          costo?: number | null
           costo_promedio?: number
           created_at?: string | null
+          departamento?: string | null
           descripcion?: string | null
+          estatus?: string | null
+          fecha_carga_erp?: string | null
+          forma_farmaceutica?: string | null
+          formula?: string | null
+          fraccion_arancelaria?: string | null
           id?: string
+          ieps?: number | null
+          indice_terapeutico?: string | null
           iva_incluido?: boolean | null
+          iva_tasa?: number | null
+          laboratorio?: string | null
           nombre: string
           precio_base?: number
+          presentacion?: string | null
+          receta_medica?: boolean | null
+          registro_sanitario?: string | null
           requiere_lote?: boolean | null
           sku: string
           stock_minimo?: number | null
+          sustancia_activa?: string | null
           unidad?: string | null
           updated_at?: string | null
         }
         Update: {
           activo?: boolean | null
           categoria?: string | null
+          clasificacion_80_20?: string | null
+          clave_sat?: string | null
           codigo_barras?: string | null
+          codigo_interno?: string | null
+          costo?: number | null
           costo_promedio?: number
           created_at?: string | null
+          departamento?: string | null
           descripcion?: string | null
+          estatus?: string | null
+          fecha_carga_erp?: string | null
+          forma_farmaceutica?: string | null
+          formula?: string | null
+          fraccion_arancelaria?: string | null
           id?: string
+          ieps?: number | null
+          indice_terapeutico?: string | null
           iva_incluido?: boolean | null
+          iva_tasa?: number | null
+          laboratorio?: string | null
           nombre?: string
           precio_base?: number
+          presentacion?: string | null
+          receta_medica?: boolean | null
+          registro_sanitario?: string | null
           requiere_lote?: boolean | null
           sku?: string
           stock_minimo?: number | null
+          sustancia_activa?: string | null
           unidad?: string | null
           updated_at?: string | null
         }
