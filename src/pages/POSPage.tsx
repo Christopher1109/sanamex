@@ -20,6 +20,13 @@ import FacturarRapidoDialog from '@/components/FacturarRapidoDialog';
 
 // ── Types ──
 
+interface LoteOption {
+  lote_id: string;
+  numero_lote: string;
+  fecha_caducidad: string | null;
+  cantidad: number;
+}
+
 interface CartItem {
   producto_id: string;
   nombre: string;
@@ -29,12 +36,15 @@ interface CartItem {
   cantidad: number;
   stock_disponible: number;
   subtotal: number;
+  lotes_disponibles: LoteOption[];
+  lote_id_seleccionado: string | null;
 }
 
 type CartAction =
   | { type: 'ADD_ITEM'; payload: Omit<CartItem, 'subtotal'> }
   | { type: 'REMOVE_ITEM'; producto_id: string }
   | { type: 'SET_QTY'; producto_id: string; cantidad: number }
+  | { type: 'SET_LOTE'; producto_id: string; lote_id: string }
   | { type: 'INCREMENT'; producto_id: string }
   | { type: 'DECREMENT'; producto_id: string }
   | { type: 'CLEAR' };
