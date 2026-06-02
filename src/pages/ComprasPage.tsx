@@ -122,6 +122,10 @@ const ComprasPage = () => {
 
   const openRecepcion = async (compra: any) => {
     setShowRecepcion(compra);
+    setRecFechaFactura(compra.fecha_factura || new Date().toISOString().slice(0, 10));
+    // Cargar plazo del proveedor
+    const { data: prov } = await supabase.from('proveedores').select('plazo_pago_dias').eq('id', compra.proveedor_id).single();
+    setRecPlazoProveedor(prov?.plazo_pago_dias ?? 0);
     const { data } = await supabase.from('compra_lineas')
       .select('*, productos(nombre, sku)').eq('compra_id', compra.id);
     setRecLineas((data || []).map(l => ({
@@ -131,6 +135,7 @@ const ComprasPage = () => {
       merma_input: '0',
     })));
   };
+
 
   const processRecepcion = async () => {
     if (!showRecepcion) return;
