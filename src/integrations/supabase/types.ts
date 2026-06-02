@@ -1740,6 +1740,7 @@ export type Database = {
           fecha: string | null
           id: string
           impuestos: number
+          lista_precio_aplicada: string | null
           motivo_revision: string | null
           notas: string | null
           numero_venta: string
@@ -1759,6 +1760,7 @@ export type Database = {
           fecha?: string | null
           id?: string
           impuestos?: number
+          lista_precio_aplicada?: string | null
           motivo_revision?: string | null
           notas?: string | null
           numero_venta: string
@@ -1778,6 +1780,7 @@ export type Database = {
           fecha?: string | null
           id?: string
           impuestos?: number
+          lista_precio_aplicada?: string | null
           motivo_revision?: string | null
           notas?: string | null
           numero_venta?: string
