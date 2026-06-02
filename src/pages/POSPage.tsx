@@ -275,10 +275,10 @@ const POSPage = () => {
       return;
     }
 
-    const stock = await getStockForProduct(prod.id);
+    const { total: stock, lotes } = await getStockForProduct(prod.id);
 
     if (stock <= 0) {
-      toast.error(`Sin stock en ${selectedSucursal.nombre}`);
+      toast.error(`Sin stock vigente en ${selectedSucursal.nombre}`);
       setScanInput('');
       refocusScan();
       return;
@@ -303,6 +303,8 @@ const POSPage = () => {
         precio_unitario: precio,
         cantidad: 1,
         stock_disponible: stock,
+        lotes_disponibles: lotes,
+        lote_id_seleccionado: lotes[0]?.lote_id ?? null,
       },
     });
 
