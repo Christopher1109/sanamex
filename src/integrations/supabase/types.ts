@@ -361,10 +361,15 @@ export type Database = {
           creado_por: string | null
           created_at: string | null
           estado: string
+          fecha_factura: string | null
+          fecha_pago_limite: string | null
+          fecha_pago_real: string | null
           id: string
           impuestos: number
           notas: string | null
+          notas_pago: string | null
           numero_compra: string
+          pagada: boolean
           proveedor_id: string
           subtotal: number
           sucursal_id: string
@@ -377,10 +382,15 @@ export type Database = {
           creado_por?: string | null
           created_at?: string | null
           estado?: string
+          fecha_factura?: string | null
+          fecha_pago_limite?: string | null
+          fecha_pago_real?: string | null
           id?: string
           impuestos?: number
           notas?: string | null
+          notas_pago?: string | null
           numero_compra: string
+          pagada?: boolean
           proveedor_id: string
           subtotal?: number
           sucursal_id: string
@@ -393,10 +403,15 @@ export type Database = {
           creado_por?: string | null
           created_at?: string | null
           estado?: string
+          fecha_factura?: string | null
+          fecha_pago_limite?: string | null
+          fecha_pago_real?: string | null
           id?: string
           impuestos?: number
           notas?: string | null
+          notas_pago?: string | null
           numero_compra?: string
+          pagada?: boolean
           proveedor_id?: string
           subtotal?: number
           sucursal_id?: string
@@ -622,27 +637,36 @@ export type Database = {
       }
       lotes: {
         Row: {
+          compra_id: string | null
           costo_unitario: number
           created_at: string | null
           fecha_caducidad: string | null
+          fecha_pago_proveedor: string | null
+          fecha_recepcion: string | null
           id: string
           numero_lote: string
           producto_id: string
           proveedor_id: string | null
         }
         Insert: {
+          compra_id?: string | null
           costo_unitario?: number
           created_at?: string | null
           fecha_caducidad?: string | null
+          fecha_pago_proveedor?: string | null
+          fecha_recepcion?: string | null
           id?: string
           numero_lote: string
           producto_id: string
           proveedor_id?: string | null
         }
         Update: {
+          compra_id?: string | null
           costo_unitario?: number
           created_at?: string | null
           fecha_caducidad?: string | null
+          fecha_pago_proveedor?: string | null
+          fecha_recepcion?: string | null
           id?: string
           numero_lote?: string
           producto_id?: string
@@ -1214,7 +1238,7 @@ export type Database = {
           identificacion_oficial_url: string | null
           nombre: string
           notas: string | null
-          plazo_pago_dias: number | null
+          plazo_pago_dias: number
           rfc: string | null
           telefono: string | null
           updated_at: string | null
@@ -1236,7 +1260,7 @@ export type Database = {
           identificacion_oficial_url?: string | null
           nombre: string
           notas?: string | null
-          plazo_pago_dias?: number | null
+          plazo_pago_dias?: number
           rfc?: string | null
           telefono?: string | null
           updated_at?: string | null
@@ -1258,7 +1282,7 @@ export type Database = {
           identificacion_oficial_url?: string | null
           nombre?: string
           notas?: string | null
-          plazo_pago_dias?: number | null
+          plazo_pago_dias?: number
           rfc?: string | null
           telefono?: string | null
           updated_at?: string | null
