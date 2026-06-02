@@ -37,9 +37,11 @@ interface ProductoLento {
 
 const CaducidadesPage = () => {
   const { selectedSucursal } = useSucursal();
+  const { user } = useAuth();
   const [lotes, setLotes] = useState<LoteCaducidad[]>([]);
   const [productosLentos, setProductosLentos] = useState<ProductoLento[]>([]);
   const [loading, setLoading] = useState(true);
+  const [cleaning, setCleaning] = useState(false);
   const [filtro, setFiltro] = useState('todos');
   const [search, setSearch] = useState('');
   const [tab, setTab] = useState<'caducidades' | 'lento_movimiento'>('caducidades');
