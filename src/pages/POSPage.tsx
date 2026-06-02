@@ -20,6 +20,13 @@ import FacturarRapidoDialog from '@/components/FacturarRapidoDialog';
 
 // ── Types ──
 
+interface LoteOption {
+  lote_id: string;
+  numero_lote: string;
+  fecha_caducidad: string | null;
+  cantidad: number;
+}
+
 interface CartItem {
   producto_id: string;
   nombre: string;
@@ -29,12 +36,15 @@ interface CartItem {
   cantidad: number;
   stock_disponible: number;
   subtotal: number;
+  lotes_disponibles: LoteOption[];
+  lote_id_seleccionado: string | null;
 }
 
 type CartAction =
   | { type: 'ADD_ITEM'; payload: Omit<CartItem, 'subtotal'> }
   | { type: 'REMOVE_ITEM'; producto_id: string }
   | { type: 'SET_QTY'; producto_id: string; cantidad: number }
+  | { type: 'SET_LOTE'; producto_id: string; lote_id: string }
   | { type: 'INCREMENT'; producto_id: string }
   | { type: 'DECREMENT'; producto_id: string }
   | { type: 'CLEAR' };
@@ -89,6 +99,8 @@ function cartReducer(state: CartItem[], action: CartAction): CartItem[] {
         return { ...i, cantidad: qty, subtotal: qty * i.precio_unitario };
       });
     }
+    case 'SET_LOTE':
+      return state.map(i => i.producto_id === action.producto_id ? { ...i, lote_id_seleccionado: action.lote_id } : i);
     case 'INCREMENT':
       return state.map(i => {
         if (i.producto_id !== action.producto_id) return i;
@@ -173,41 +185,56 @@ const POSPage = () => {
     return () => window.removeEventListener('keydown', handler);
   }, [cart.length, refocusScan]);
 
-  // ── Get stock for a product in the selected sucursal (online or offline) ──
-  const getStockForProduct = async (productoId: string): Promise<number> => {
-    if (!selectedSucursal) return 0;
+  // ── Get stock + lotes vigentes (no vencidos) para un producto en la sucursal ──
+  const getStockForProduct = async (productoId: string): Promise<{ total: number; lotes: LoteOption[] }> => {
+    if (!selectedSucursal) return { total: 0, lotes: [] };
 
     if (isOffline) {
-      // Use cached almacen + inventory
-      const almacenes = await offlineDB.almacenes
-        .where({ sucursal_id: selectedSucursal.id })
-        .toArray();
-      if (!almacenes.length) return 0;
+      const almacenes = await offlineDB.almacenes.where({ sucursal_id: selectedSucursal.id }).toArray();
+      if (!almacenes.length) return { total: 0, lotes: [] };
       let total = 0;
-      for (const a of almacenes) {
-        total += await getLocalStock(a.id, productoId);
-      }
-      return total;
+      for (const a of almacenes) total += await getLocalStock(a.id, productoId);
+      // Sin detalle de lotes en cache: backend hará FEFO automático
+      return { total, lotes: [] };
     }
 
     const { data: almacenes } = await supabase
-      .from('almacenes')
-      .select('id')
-      .eq('sucursal_id', selectedSucursal.id)
-      .eq('activo', true);
-    if (!almacenes?.length) return 0;
+      .from('almacenes').select('id')
+      .eq('sucursal_id', selectedSucursal.id).eq('activo', true);
+    if (!almacenes?.length) return { total: 0, lotes: [] };
 
     const almacenIds = almacenes.map(a => a.id);
     const { data: inv } = await supabase
       .from('inventario')
-      .select('cantidad, lote_id, lotes!inner(producto_id)')
+      .select('cantidad, lote_id, lotes!inner(producto_id, numero_lote, fecha_caducidad)')
       .in('almacen_id', almacenIds)
       .gt('cantidad', 0);
 
-    if (!inv) return 0;
-    return inv
-      .filter((row: any) => row.lotes?.producto_id === productoId)
-      .reduce((sum: number, row: any) => sum + (row.cantidad || 0), 0);
+    if (!inv) return { total: 0, lotes: [] };
+    const hoy = new Date().toISOString().split('T')[0];
+    const filtered = inv.filter((row: any) =>
+      row.lotes?.producto_id === productoId &&
+      (!row.lotes?.fecha_caducidad || row.lotes.fecha_caducidad >= hoy)
+    );
+    const total = filtered.reduce((s: number, r: any) => s + (r.cantidad || 0), 0);
+    // Agrupar por lote_id (puede repetirse entre almacenes)
+    const map = new Map<string, LoteOption>();
+    for (const r of filtered as any[]) {
+      const ex = map.get(r.lote_id);
+      if (ex) ex.cantidad += r.cantidad;
+      else map.set(r.lote_id, {
+        lote_id: r.lote_id,
+        numero_lote: r.lotes.numero_lote,
+        fecha_caducidad: r.lotes.fecha_caducidad,
+        cantidad: r.cantidad,
+      });
+    }
+    const lotes = Array.from(map.values()).sort((a, b) => {
+      if (!a.fecha_caducidad) return 1;
+      if (!b.fecha_caducidad) return -1;
+      return a.fecha_caducidad.localeCompare(b.fecha_caducidad);
+    });
+    return { total, lotes };
   };
 
   // ── Get sucursal-specific price (with cache fallback) ──
@@ -248,10 +275,10 @@ const POSPage = () => {
       return;
     }
 
-    const stock = await getStockForProduct(prod.id);
+    const { total: stock, lotes } = await getStockForProduct(prod.id);
 
     if (stock <= 0) {
-      toast.error(`Sin stock en ${selectedSucursal.nombre}`);
+      toast.error(`Sin stock vigente en ${selectedSucursal.nombre}`);
       setScanInput('');
       refocusScan();
       return;
@@ -276,6 +303,8 @@ const POSPage = () => {
         precio_unitario: precio,
         cantidad: 1,
         stock_disponible: stock,
+        lotes_disponibles: lotes,
+        lote_id_seleccionado: lotes[0]?.lote_id ?? null,
       },
     });
 
@@ -316,9 +345,9 @@ const POSPage = () => {
   };
 
   const addFromSearch = async (prod: any) => {
-    const stock = await getStockForProduct(prod.id);
+    const { total: stock, lotes } = await getStockForProduct(prod.id);
     if (stock <= 0) {
-      toast.error(`Sin stock en ${selectedSucursal?.nombre}`);
+      toast.error(`Sin stock vigente en ${selectedSucursal?.nombre}`);
       return;
     }
     const precio = await getPrecioForProduct(prod);
@@ -332,6 +361,8 @@ const POSPage = () => {
         precio_unitario: precio,
         cantidad: 1,
         stock_disponible: stock,
+        lotes_disponibles: lotes,
+        lote_id_seleccionado: lotes[0]?.lote_id ?? null,
       },
     });
     toast.success(`${prod.nombre} agregado${isOffline ? ' (offline)' : ''}`);
@@ -369,6 +400,7 @@ const POSPage = () => {
       producto_id: i.producto_id,
       cantidad: i.cantidad,
       precio_unitario: i.precio_unitario,
+      lote_id: i.lote_id_seleccionado || undefined,
     }));
 
     try {
@@ -564,6 +596,25 @@ const POSPage = () => {
                       <TableCell>
                         <p className="font-medium">{item.nombre}</p>
                         {item.sku && <p className="text-xs text-muted-foreground">{item.sku}</p>}
+                        {item.lotes_disponibles.length > 0 && (
+                          <div className="mt-1">
+                            <Select
+                              value={item.lote_id_seleccionado || ''}
+                              onValueChange={v => dispatch({ type: 'SET_LOTE', producto_id: item.producto_id, lote_id: v })}
+                            >
+                              <SelectTrigger className="h-7 text-xs w-full max-w-[260px]">
+                                <SelectValue placeholder="Lote (FEFO)" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {item.lotes_disponibles.map((l, idx) => (
+                                  <SelectItem key={l.lote_id} value={l.lote_id} className="text-xs">
+                                    {idx === 0 && '⭐ '}Lote {l.numero_lote} · cad {l.fecha_caducidad || 's/f'} · {l.cantidad}u
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        )}
                       </TableCell>
                       <TableCell className="text-center text-muted-foreground text-sm">
                         {item.stock_disponible}
