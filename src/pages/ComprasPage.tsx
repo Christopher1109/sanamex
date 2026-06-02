@@ -245,7 +245,9 @@ const ComprasPage = () => {
     await supabase.from('compras').update({
       estado: 'pagada',
       comprobante_pago_url: comprobanteUrl,
-    }).eq('id', showPago.id);
+      pagada: true,
+      fecha_pago_real: new Date().toISOString().slice(0, 10),
+    } as any).eq('id', showPago.id);
 
     const user = (await supabase.auth.getUser()).data.user;
     await supabase.from('audit_log').insert({
