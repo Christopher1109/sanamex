@@ -303,9 +303,10 @@ export default function ProveedoresPage() {
             <section>
               <h3 className="font-semibold text-sm mb-2 text-primary">Condiciones comerciales</h3>
               <div className="grid grid-cols-2 gap-3">
-                <div><Label>Plazo de pago (días)</Label><Input type="number" value={form.plazo_pago_dias ?? ''} onChange={e => setForm({ ...form, plazo_pago_dias: e.target.value === '' ? null : Number(e.target.value) })} /></div>
+                <div><Label>Plazo de pago (días) *</Label><Input type="number" min={0} value={form.plazo_pago_dias ?? ''} onChange={e => setForm({ ...form, plazo_pago_dias: e.target.value === '' ? null : Number(e.target.value) })} /></div>
                 <div><Label>Condiciones</Label><Input placeholder="Ej. CONTADO, 30 DÍAS..." value={form.condiciones || ''} onChange={e => setForm({ ...form, condiciones: e.target.value })} /></div>
               </div>
+              <p className="text-xs text-muted-foreground mt-2">Use 0 si es de contado. Obligatorio para Cuentas por Pagar.</p>
             </section>
             <section>
               <h3 className="font-semibold text-sm mb-2 text-primary">Datos fiscales y bancarios</h3>
