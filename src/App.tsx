@@ -84,6 +84,8 @@ const AppContent = () => {
               <Route path="/conflictos" element={<ConflictosPage />} />
               <Route path="/super-admin" element={<SuperAdminPage />} />
               <Route path="/recomendaciones" element={<RecomendacionesPage />} />
+              <Route path="/rotacion" element={<RotacionPage />} />
+              <Route path="/cuentas-por-pagar" element={<CuentasPorPagarPage />} />
               <Route path="/fiscal" element={<FiscalPage />} />
               <Route path="/cargas-masivas" element={<CargasMasivasPage />} />
               <Route path="/auth" element={<Navigate to="/dashboard" replace />} />
