@@ -596,6 +596,25 @@ const POSPage = () => {
                       <TableCell>
                         <p className="font-medium">{item.nombre}</p>
                         {item.sku && <p className="text-xs text-muted-foreground">{item.sku}</p>}
+                        {item.lotes_disponibles.length > 0 && (
+                          <div className="mt-1">
+                            <Select
+                              value={item.lote_id_seleccionado || ''}
+                              onValueChange={v => dispatch({ type: 'SET_LOTE', producto_id: item.producto_id, lote_id: v })}
+                            >
+                              <SelectTrigger className="h-7 text-xs w-full max-w-[260px]">
+                                <SelectValue placeholder="Lote (FEFO)" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {item.lotes_disponibles.map((l, idx) => (
+                                  <SelectItem key={l.lote_id} value={l.lote_id} className="text-xs">
+                                    {idx === 0 && '⭐ '}Lote {l.numero_lote} · cad {l.fecha_caducidad || 's/f'} · {l.cantidad}u
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        )}
                       </TableCell>
                       <TableCell className="text-center text-muted-foreground text-sm">
                         {item.stock_disponible}
