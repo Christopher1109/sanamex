@@ -273,7 +273,7 @@ const ReportesPage = () => {
       fecha: new Date(v.fecha).toLocaleString('es-MX'),
       numero_venta: v.numero_venta,
       sucursal: (v.sucursales as any)?.nombre || '—',
-      cajero: (v.profiles as any)?.nombre || '—',
+      cajero: cajeroMap.get(v.cajero_id) || '—',
       cliente: (v.clientes as any)?.nombre || 'Público general',
       tipo_cliente: (v.clientes as any)?.tipo || 'publico',
       lista_precio: v.lista_precio_aplicada || 'LP1',
