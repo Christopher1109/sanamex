@@ -53,10 +53,12 @@ const CuentasPorPagarPage = () => {
   const load = async () => {
     if (!selectedSucursal) return;
     setLoading(true);
+    // Solo compras ya recibidas (con factura cargada) o pagadas — las "ordenadas" no entran a CxP hasta tener factura
     const { data } = await supabase.from('compras')
       .select('*, proveedores(nombre, plazo_pago_dias)')
       .eq('sucursal_id', selectedSucursal.id)
       .neq('estado', 'cancelada')
+      .not('fecha_factura', 'is', null)
       .order('fecha_pago_limite', { ascending: true, nullsFirst: false });
     setCompras((data as any) || []);
     setLoading(false);

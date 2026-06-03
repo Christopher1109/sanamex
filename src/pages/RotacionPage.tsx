@@ -7,7 +7,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { TrendingUp, TrendingDown, AlertTriangle, Package, DollarSign } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { TrendingUp, TrendingDown, AlertTriangle, Package, DollarSign, Eye } from 'lucide-react';
 
 const RotacionPage = () => {
   const { selectedSucursal } = useSucursal();
@@ -19,6 +20,7 @@ const RotacionPage = () => {
   const [bajaRotacion, setBajaRotacion] = useState<any[]>([]);
   const [alertas, setAlertas] = useState<any[]>([]);
   const [kpis, setKpis] = useState({ valorInventario: 0, diasInventario: 0, rotacionAnual: 0, productosActivos: 0 });
+  const [detalle, setDetalle] = useState<{ producto: any; ventas: any[]; loading: boolean } | null>(null);
 
   useEffect(() => { if (selectedSucursal) load(); }, [selectedSucursal, diasPeriodo, umbralRotacion]);
 
@@ -78,6 +80,15 @@ const RotacionPage = () => {
       cur.qty += Number(i.cantidad); cur.valor += Number(i.cantidad) * Number(i.lotes.costo_unitario || 0);
       stockPorProducto.set(pid, cur);
     });
+
+    // Backfill nombres para productos vendidos pero sin stock actual
+    const missingIds = Array.from(ventasPorProducto.keys()).filter(pid => !stockPorProducto.has(pid));
+    if (missingIds.length > 0) {
+      const { data: prods } = await supabase.from('productos').select('id, nombre, sku').in('id', missingIds);
+      (prods || []).forEach((p: any) => {
+        stockPorProducto.set(p.id, { qty: 0, valor: 0, nombre: p.nombre, sku: p.sku });
+      });
+    }
 
     const desp = Array.from(ventasPorProducto.entries()).map(([pid, v]) => {
       const stock = stockPorProducto.get(pid);
@@ -203,6 +214,18 @@ const RotacionPage = () => {
     setLoading(false);
   };
 
+  const verDetalle = async (producto: { producto_id: string; nombre: string; sku: string; stock_actual?: number }) => {
+    setDetalle({ producto, ventas: [], loading: true });
+    const { data } = await supabase
+      .from('venta_lineas')
+      .select('cantidad, precio_unitario, subtotal, lote_id, lotes(numero_lote, fecha_caducidad), ventas!inner(numero_venta, fecha, lista_precio_aplicada, sucursales:sucursal_id(nombre), clientes:cliente_id(nombre))')
+      .eq('producto_id', producto.producto_id)
+      .order('created_at', { ascending: false })
+      .limit(200);
+    setDetalle({ producto, ventas: (data || []) as any[], loading: false });
+  };
+
+
   return (
     <div className="space-y-6">
       <div className="flex items-end justify-between gap-4 flex-wrap">
@@ -263,12 +286,13 @@ const RotacionPage = () => {
                 <TableHead className="text-right">Monto</TableHead>
                 <TableHead className="text-right">Stock</TableHead>
                 <TableHead className="text-right">Rotación/mes</TableHead>
+                <TableHead className="text-right">Detalle</TableHead>
               </TableRow></TableHeader>
               <TableBody>
-                {loading ? <TableRow><TableCell colSpan={6} className="text-center py-8">Calculando...</TableCell></TableRow>
-                : desplazamiento.length === 0 ? <TableRow><TableCell colSpan={6} className="text-center py-8 text-muted-foreground">Sin ventas en el periodo</TableCell></TableRow>
+                {loading ? <TableRow><TableCell colSpan={7} className="text-center py-8">Calculando...</TableCell></TableRow>
+                : desplazamiento.length === 0 ? <TableRow><TableCell colSpan={7} className="text-center py-8 text-muted-foreground">Sin ventas en el periodo</TableCell></TableRow>
                 : desplazamiento.slice(0, 100).map(d => (
-                  <TableRow key={d.producto_id}>
+                  <TableRow key={d.producto_id} className="cursor-pointer" onClick={() => verDetalle(d)}>
                     <TableCell className="font-medium">{d.nombre}</TableCell>
                     <TableCell className="text-xs font-mono">{d.sku}</TableCell>
                     <TableCell className="text-right">{d.qty_vendida}</TableCell>
@@ -279,6 +303,7 @@ const RotacionPage = () => {
                         {d.rotacion_mes.toFixed(2)}x
                       </Badge>
                     </TableCell>
+                    <TableCell className="text-right"><Eye className="h-4 w-4 text-muted-foreground inline" /></TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -337,7 +362,7 @@ const RotacionPage = () => {
               <TableBody>
                 {bajaRotacion.length === 0 ? <TableRow><TableCell colSpan={6} className="text-center py-8 text-muted-foreground">Sin productos por debajo del umbral</TableCell></TableRow>
                 : bajaRotacion.slice(0, 100).map(b => (
-                  <TableRow key={b.producto_id}>
+                  <TableRow key={b.producto_id} className="cursor-pointer" onClick={() => verDetalle(b)}>
                     <TableCell className="font-medium">{b.nombre}</TableCell>
                     <TableCell className="text-xs font-mono">{b.sku}</TableCell>
                     <TableCell className="text-right">{b.stock_actual}</TableCell>
@@ -366,6 +391,67 @@ const RotacionPage = () => {
           </CardContent></Card>
         </TabsContent>
       </Tabs>
+
+      <Dialog open={!!detalle} onOpenChange={o => { if (!o) setDetalle(null); }}>
+        <DialogContent className="max-w-4xl max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>
+              {detalle?.producto.nombre}
+              <span className="ml-2 text-xs font-mono text-muted-foreground">{detalle?.producto.sku}</span>
+            </DialogTitle>
+          </DialogHeader>
+          {detalle?.loading ? (
+            <p className="text-center py-6 text-muted-foreground">Cargando historial...</p>
+          ) : detalle && detalle.ventas.length === 0 ? (
+            <p className="text-center py-6 text-muted-foreground">Sin ventas registradas para este producto</p>
+          ) : detalle ? (
+            <>
+              <div className="grid grid-cols-3 gap-3 mb-3">
+                <Card><CardContent className="p-3">
+                  <p className="text-xs text-muted-foreground">Unidades vendidas</p>
+                  <p className="text-xl font-bold">{detalle.ventas.reduce((s, v) => s + Number(v.cantidad), 0)}</p>
+                </CardContent></Card>
+                <Card><CardContent className="p-3">
+                  <p className="text-xs text-muted-foreground">Monto total</p>
+                  <p className="text-xl font-bold">${detalle.ventas.reduce((s, v) => s + Number(v.subtotal || 0), 0).toFixed(2)}</p>
+                </CardContent></Card>
+                <Card><CardContent className="p-3">
+                  <p className="text-xs text-muted-foreground">Precio promedio</p>
+                  <p className="text-xl font-bold">
+                    ${(detalle.ventas.reduce((s, v) => s + Number(v.subtotal || 0), 0) /
+                      Math.max(1, detalle.ventas.reduce((s, v) => s + Number(v.cantidad), 0))).toFixed(2)}
+                  </p>
+                </CardContent></Card>
+              </div>
+              <Table>
+                <TableHeader><TableRow>
+                  <TableHead>Fecha</TableHead><TableHead># Venta</TableHead>
+                  <TableHead>Sucursal</TableHead><TableHead>Cliente</TableHead>
+                  <TableHead>Lista</TableHead><TableHead>Lote</TableHead>
+                  <TableHead className="text-right">Cant.</TableHead>
+                  <TableHead className="text-right">P.Unit</TableHead>
+                  <TableHead className="text-right">Subtotal</TableHead>
+                </TableRow></TableHeader>
+                <TableBody>
+                  {detalle.ventas.map((v, i) => (
+                    <TableRow key={i}>
+                      <TableCell className="text-xs">{new Date(v.ventas.fecha).toLocaleDateString('es-MX')}</TableCell>
+                      <TableCell className="font-mono text-xs">{v.ventas.numero_venta}</TableCell>
+                      <TableCell className="text-sm">{v.ventas.sucursales?.nombre || '—'}</TableCell>
+                      <TableCell className="text-sm">{v.ventas.clientes?.nombre || 'Público'}</TableCell>
+                      <TableCell><Badge variant="outline" className="text-xs">{v.ventas.lista_precio_aplicada || 'LP1'}</Badge></TableCell>
+                      <TableCell className="text-xs font-mono">{v.lotes?.numero_lote || '—'}</TableCell>
+                      <TableCell className="text-right">{v.cantidad}</TableCell>
+                      <TableCell className="text-right">${Number(v.precio_unitario).toFixed(2)}</TableCell>
+                      <TableCell className="text-right font-semibold">${Number(v.subtotal).toFixed(2)}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </>
+          ) : null}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
