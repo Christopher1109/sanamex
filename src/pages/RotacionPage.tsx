@@ -391,6 +391,67 @@ const RotacionPage = () => {
           </CardContent></Card>
         </TabsContent>
       </Tabs>
+
+      <Dialog open={!!detalle} onOpenChange={o => { if (!o) setDetalle(null); }}>
+        <DialogContent className="max-w-4xl max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>
+              {detalle?.producto.nombre}
+              <span className="ml-2 text-xs font-mono text-muted-foreground">{detalle?.producto.sku}</span>
+            </DialogTitle>
+          </DialogHeader>
+          {detalle?.loading ? (
+            <p className="text-center py-6 text-muted-foreground">Cargando historial...</p>
+          ) : detalle && detalle.ventas.length === 0 ? (
+            <p className="text-center py-6 text-muted-foreground">Sin ventas registradas para este producto</p>
+          ) : detalle ? (
+            <>
+              <div className="grid grid-cols-3 gap-3 mb-3">
+                <Card><CardContent className="p-3">
+                  <p className="text-xs text-muted-foreground">Unidades vendidas</p>
+                  <p className="text-xl font-bold">{detalle.ventas.reduce((s, v) => s + Number(v.cantidad), 0)}</p>
+                </CardContent></Card>
+                <Card><CardContent className="p-3">
+                  <p className="text-xs text-muted-foreground">Monto total</p>
+                  <p className="text-xl font-bold">${detalle.ventas.reduce((s, v) => s + Number(v.subtotal || 0), 0).toFixed(2)}</p>
+                </CardContent></Card>
+                <Card><CardContent className="p-3">
+                  <p className="text-xs text-muted-foreground">Precio promedio</p>
+                  <p className="text-xl font-bold">
+                    ${(detalle.ventas.reduce((s, v) => s + Number(v.subtotal || 0), 0) /
+                      Math.max(1, detalle.ventas.reduce((s, v) => s + Number(v.cantidad), 0))).toFixed(2)}
+                  </p>
+                </CardContent></Card>
+              </div>
+              <Table>
+                <TableHeader><TableRow>
+                  <TableHead>Fecha</TableHead><TableHead># Venta</TableHead>
+                  <TableHead>Sucursal</TableHead><TableHead>Cliente</TableHead>
+                  <TableHead>Lista</TableHead><TableHead>Lote</TableHead>
+                  <TableHead className="text-right">Cant.</TableHead>
+                  <TableHead className="text-right">P.Unit</TableHead>
+                  <TableHead className="text-right">Subtotal</TableHead>
+                </TableRow></TableHeader>
+                <TableBody>
+                  {detalle.ventas.map((v, i) => (
+                    <TableRow key={i}>
+                      <TableCell className="text-xs">{new Date(v.ventas.fecha).toLocaleDateString('es-MX')}</TableCell>
+                      <TableCell className="font-mono text-xs">{v.ventas.numero_venta}</TableCell>
+                      <TableCell className="text-sm">{v.ventas.sucursales?.nombre || '—'}</TableCell>
+                      <TableCell className="text-sm">{v.ventas.clientes?.nombre || 'Público'}</TableCell>
+                      <TableCell><Badge variant="outline" className="text-xs">{v.ventas.lista_precio_aplicada || 'LP1'}</Badge></TableCell>
+                      <TableCell className="text-xs font-mono">{v.lotes?.numero_lote || '—'}</TableCell>
+                      <TableCell className="text-right">{v.cantidad}</TableCell>
+                      <TableCell className="text-right">${Number(v.precio_unitario).toFixed(2)}</TableCell>
+                      <TableCell className="text-right font-semibold">${Number(v.subtotal).toFixed(2)}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </>
+          ) : null}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
