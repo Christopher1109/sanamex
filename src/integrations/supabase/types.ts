@@ -1900,6 +1900,45 @@ export type Database = {
         Args: { _producto_id: string }
         Returns: undefined
       }
+      rentabilidad_por_lote: {
+        Args: {
+          p_fecha_desde?: string
+          p_fecha_hasta?: string
+          p_sucursal_id?: string
+        }
+        Returns: {
+          costo_total: number
+          costo_unitario: number
+          fecha_caducidad: string
+          fecha_recepcion: string
+          ganancia: number
+          ingreso_total: number
+          lote_id: string
+          margen_pct: number
+          numero_lote: string
+          precio_promedio: number
+          producto_id: string
+          producto_nombre: string
+          producto_sku: string
+          stock_actual: number
+          unidades_recibidas: number
+          unidades_vendidas: number
+        }[]
+      }
+      ventas_por_lote: {
+        Args: { p_lote_id: string }
+        Returns: {
+          cantidad: number
+          cliente_nombre: string
+          fecha: string
+          lista_precio: string
+          numero_venta: string
+          precio_unitario: number
+          subtotal: number
+          sucursal_nombre: string
+          venta_id: string
+        }[]
+      }
     }
     Enums: {
       app_role:
