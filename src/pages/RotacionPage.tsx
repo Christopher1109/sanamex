@@ -362,7 +362,7 @@ const RotacionPage = () => {
               <TableBody>
                 {bajaRotacion.length === 0 ? <TableRow><TableCell colSpan={6} className="text-center py-8 text-muted-foreground">Sin productos por debajo del umbral</TableCell></TableRow>
                 : bajaRotacion.slice(0, 100).map(b => (
-                  <TableRow key={b.producto_id}>
+                  <TableRow key={b.producto_id} className="cursor-pointer" onClick={() => verDetalle(b)}>
                     <TableCell className="font-medium">{b.nombre}</TableCell>
                     <TableCell className="text-xs font-mono">{b.sku}</TableCell>
                     <TableCell className="text-right">{b.stock_actual}</TableCell>
