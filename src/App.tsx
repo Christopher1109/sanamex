@@ -28,6 +28,7 @@ import FiscalPage from './pages/FiscalPage';
 import CargasMasivasPage from './pages/CargasMasivasPage';
 import CuentasPorPagarPage from './pages/CuentasPorPagarPage';
 import RotacionPage from './pages/RotacionPage';
+import RentabilidadLotesPage from './pages/RentabilidadLotesPage';
 import Sidebar from './components/layout/Sidebar';
 import Header from './components/layout/Header';
 
