@@ -81,6 +81,15 @@ const RotacionPage = () => {
       stockPorProducto.set(pid, cur);
     });
 
+    // Backfill nombres para productos vendidos pero sin stock actual
+    const missingIds = Array.from(ventasPorProducto.keys()).filter(pid => !stockPorProducto.has(pid));
+    if (missingIds.length > 0) {
+      const { data: prods } = await supabase.from('productos').select('id, nombre, sku').in('id', missingIds);
+      (prods || []).forEach((p: any) => {
+        stockPorProducto.set(p.id, { qty: 0, valor: 0, nombre: p.nombre, sku: p.sku });
+      });
+    }
+
     const desp = Array.from(ventasPorProducto.entries()).map(([pid, v]) => {
       const stock = stockPorProducto.get(pid);
       const rotMes = stock && stock.qty > 0 ? (v.qty / stock.qty) * (30 / diasPeriodo) : 0;
