@@ -291,7 +291,7 @@ const RotacionPage = () => {
                 {loading ? <TableRow><TableCell colSpan={6} className="text-center py-8">Calculando...</TableCell></TableRow>
                 : desplazamiento.length === 0 ? <TableRow><TableCell colSpan={6} className="text-center py-8 text-muted-foreground">Sin ventas en el periodo</TableCell></TableRow>
                 : desplazamiento.slice(0, 100).map(d => (
-                  <TableRow key={d.producto_id}>
+                  <TableRow key={d.producto_id} className="cursor-pointer" onClick={() => verDetalle(d)}>
                     <TableCell className="font-medium">{d.nombre}</TableCell>
                     <TableCell className="text-xs font-mono">{d.sku}</TableCell>
                     <TableCell className="text-right">{d.qty_vendida}</TableCell>
@@ -302,6 +302,7 @@ const RotacionPage = () => {
                         {d.rotacion_mes.toFixed(2)}x
                       </Badge>
                     </TableCell>
+                    <TableCell className="text-right"><Eye className="h-4 w-4 text-muted-foreground inline" /></TableCell>
                   </TableRow>
                 ))}
               </TableBody>
