@@ -286,10 +286,11 @@ const RotacionPage = () => {
                 <TableHead className="text-right">Monto</TableHead>
                 <TableHead className="text-right">Stock</TableHead>
                 <TableHead className="text-right">Rotación/mes</TableHead>
+                <TableHead className="text-right">Detalle</TableHead>
               </TableRow></TableHeader>
               <TableBody>
-                {loading ? <TableRow><TableCell colSpan={6} className="text-center py-8">Calculando...</TableCell></TableRow>
-                : desplazamiento.length === 0 ? <TableRow><TableCell colSpan={6} className="text-center py-8 text-muted-foreground">Sin ventas en el periodo</TableCell></TableRow>
+                {loading ? <TableRow><TableCell colSpan={7} className="text-center py-8">Calculando...</TableCell></TableRow>
+                : desplazamiento.length === 0 ? <TableRow><TableCell colSpan={7} className="text-center py-8 text-muted-foreground">Sin ventas en el periodo</TableCell></TableRow>
                 : desplazamiento.slice(0, 100).map(d => (
                   <TableRow key={d.producto_id} className="cursor-pointer" onClick={() => verDetalle(d)}>
                     <TableCell className="font-medium">{d.nombre}</TableCell>
