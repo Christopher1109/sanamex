@@ -20,6 +20,7 @@ const RotacionPage = () => {
   const [bajaRotacion, setBajaRotacion] = useState<any[]>([]);
   const [alertas, setAlertas] = useState<any[]>([]);
   const [kpis, setKpis] = useState({ valorInventario: 0, diasInventario: 0, rotacionAnual: 0, productosActivos: 0 });
+  const [detalle, setDetalle] = useState<{ producto: any; ventas: any[]; loading: boolean } | null>(null);
 
   useEffect(() => { if (selectedSucursal) load(); }, [selectedSucursal, diasPeriodo, umbralRotacion]);
 
