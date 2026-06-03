@@ -432,7 +432,7 @@ const ReportesPage = () => {
                           <TableCell className="text-xs">{new Date(v.fecha).toLocaleString('es-MX')}</TableCell>
                           <TableCell className="font-mono text-xs">{v.numero_venta}</TableCell>
                           <TableCell>{(v.sucursales as any)?.nombre || '—'}</TableCell>
-                          <TableCell>{(v.profiles as any)?.nombre || '—'}</TableCell>
+                          <TableCell>{cajeroMap.get(v.cajero_id) || '—'}</TableCell>
                           <TableCell>{(v.clientes as any)?.nombre || 'Público general'}</TableCell>
                           <TableCell><Badge variant="outline">{v.lista_precio_aplicada || 'LP1'}</Badge></TableCell>
                           <TableCell className="text-right font-semibold">${fmt(Number(v.total))}</TableCell>
