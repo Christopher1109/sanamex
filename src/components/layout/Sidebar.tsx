@@ -6,7 +6,7 @@ import {
   Warehouse, ArrowLeftRight, ClipboardList,
   Store, ShoppingCart,
   PackageCheck, AlertTriangle, AlertCircle, History, FileSpreadsheet,
-  Monitor, CloudOff, Shield, Sparkles, Upload, Receipt, Bell, Wallet, TrendingUp
+  Monitor, CloudOff, Shield, Sparkles, Upload, Receipt, Bell, Wallet, TrendingUp, DollarSign
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { SucursalSelector } from '@/components/SucursalSelector';
@@ -66,6 +66,7 @@ const Sidebar = ({ userRole, onLogout }: SidebarProps) => {
     { path: '/caducidades', icon: AlertCircle, label: 'Caducidades', roles: [...OPS,'auditor','auditoria'], category: 'Inventario' },
     // Análisis
     { path: '/rotacion', icon: TrendingUp, label: 'Inteligencia de Rotación', roles: MGMT, category: 'Análisis' },
+    { path: '/rentabilidad-lotes', icon: DollarSign, label: 'Rentabilidad por Lote', roles: MGMT, category: 'Análisis' },
     { path: '/reportes', icon: FileSpreadsheet, label: 'Reportes', roles: AUDIT, category: 'Análisis' },
     // Finanzas
     { path: '/cuentas-por-pagar', icon: Wallet, label: 'Cuentas por Pagar', roles: MGMT, category: 'Finanzas' },
