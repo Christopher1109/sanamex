@@ -214,6 +214,18 @@ const RotacionPage = () => {
     setLoading(false);
   };
 
+  const verDetalle = async (producto: { producto_id: string; nombre: string; sku: string; stock_actual?: number }) => {
+    setDetalle({ producto, ventas: [], loading: true });
+    const { data } = await supabase
+      .from('venta_lineas')
+      .select('cantidad, precio_unitario, subtotal, lote_id, lotes(numero_lote, fecha_caducidad), ventas!inner(numero_venta, fecha, lista_precio_aplicada, sucursales:sucursal_id(nombre), clientes:cliente_id(nombre))')
+      .eq('producto_id', producto.producto_id)
+      .order('created_at', { ascending: false })
+      .limit(200);
+    setDetalle({ producto, ventas: (data || []) as any[], loading: false });
+  };
+
+
   return (
     <div className="space-y-6">
       <div className="flex items-end justify-between gap-4 flex-wrap">
