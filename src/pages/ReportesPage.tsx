@@ -96,7 +96,7 @@ const ReportesPage = () => {
   const loadVentas = async () => {
     setVentasLoading(true);
     let q = supabase.from('ventas')
-      .select('id, numero_venta, fecha, sucursal_id, cajero_id, cliente_id, subtotal, impuestos, total, estado, lista_precio_aplicada, sucursales:sucursal_id(nombre, codigo), profiles:cajero_id(nombre), clientes:cliente_id(nombre, tipo)')
+      .select('id, numero_venta, fecha, sucursal_id, cajero_id, cliente_id, subtotal, impuestos, total, estado, lista_precio_aplicada, sucursales:sucursal_id(nombre, codigo), clientes:cliente_id(nombre, tipo)')
       .gte('fecha', `${filtros.desde}T00:00:00`)
       .lte('fecha', `${filtros.hasta}T23:59:59`)
       .order('fecha', { ascending: false })
@@ -109,10 +109,21 @@ const ReportesPage = () => {
     if (filtros.estado !== 'todos') q = q.eq('estado', filtros.estado);
 
     const { data, error } = await q;
-    if (error) toast.error('Error al cargar ventas');
-    setVentas(data || []);
+    if (error) {
+      console.error('Error cargando ventas:', error);
+      toast.error(`Error al cargar ventas: ${error.message}`);
+      setVentas([]);
+    } else {
+      setVentas(data || []);
+    }
     setVentasLoading(false);
   };
+
+  const cajeroMap = useMemo(() => {
+    const m = new Map<string, string>();
+    cajeros.forEach(c => m.set(c.id, c.nombre || c.email || '—'));
+    return m;
+  }, [cajeros]);
 
   const kpisVentas = useMemo(() => {
     const totalVentas = ventas.reduce((s, v) => s + Number(v.total || 0), 0);
