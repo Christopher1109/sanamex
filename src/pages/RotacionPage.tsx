@@ -7,7 +7,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { TrendingUp, TrendingDown, AlertTriangle, Package, DollarSign } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { TrendingUp, TrendingDown, AlertTriangle, Package, DollarSign, Eye } from 'lucide-react';
 
 const RotacionPage = () => {
   const { selectedSucursal } = useSucursal();
