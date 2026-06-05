@@ -56,12 +56,12 @@ export const useAuth = () => {
 
       if (error) {
         console.error('Error fetching user role:', error);
-        setUserRole('cajero');
+        setUserRole('ventas');
       } else if (data && data.length > 0) {
         const roleHierarchy: UserRole[] = [
           'super_admin', 'admin', 'gerente', 'subgerente', 'supervisor',
-          'auditor', 'auditoria', 'almacen', 'almacen_ventas',
-          'cajero', 'ventas', 'repartidor',
+          'auditoria', 'almacen_ventas', 'almacen',
+          'ventas', 'repartidor',
         ];
         const highestRole = roleHierarchy.find(role => data.some(r => r.role === role));
         setUserRole(highestRole || 'ventas');
@@ -70,7 +70,7 @@ export const useAuth = () => {
       }
     } catch (error) {
       console.error('Error fetching user role:', error);
-      setUserRole('cajero');
+      setUserRole('ventas');
     } finally {
       setLoading(false);
     }
