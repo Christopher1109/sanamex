@@ -103,6 +103,26 @@ export default function CargasMasivasPage() {
       })).filter(r => r.producto_sku && r.fecha);
       const { error, count } = await supabase.from('ventas_historicas').insert(batch, { count: 'exact' });
       if (error) { err = batch.length; errores.push({ error: error.message }); } else ok = count || batch.length;
+    } else if (tipo === 'atributos_maestros') {
+      for (const r of rows) {
+        const clave = r.clave ? String(r.clave).trim() : '';
+        if (!clave) { err++; errores.push({ fila: r, error: 'Falta clave' }); continue; }
+        // Buscar producto por codigo_barras o sku
+        const { data: prod } = await supabase.from('productos')
+          .select('id').or(`codigo_barras.eq.${clave},sku.eq.${clave}`).maybeSingle();
+        if (!prod) { err++; errores.push({ fila: r, error: `Clave no encontrada: ${clave}` }); continue; }
+        const patch: any = {};
+        if (r.categoria != null && String(r.categoria).trim() !== '') patch.categoria = String(r.categoria).trim();
+        if (r.departamento != null && String(r.departamento).trim() !== '') patch.departamento = String(r.departamento).trim();
+        if (r.agrupador != null && String(r.agrupador).trim() !== '') patch.agrupador = String(r.agrupador).trim();
+        if (r.iva != null && String(r.iva).trim() !== '') {
+          const ivaNum = Number(r.iva);
+          if (!isNaN(ivaNum)) patch.iva_tasa = ivaNum > 1 ? ivaNum : ivaNum * 100;
+        }
+        if (Object.keys(patch).length === 0) { ok++; continue; }
+        const { error } = await supabase.from('productos').update(patch).eq('id', prod.id);
+        if (error) { err++; errores.push({ fila: r, error: error.message }); } else ok++;
+      }
     }
 
     await supabase.from('cargas_masivas_historico').insert({
