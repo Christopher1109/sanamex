@@ -140,7 +140,11 @@ export default function ReporteInventarioGeneral() {
     return true;
   }), [bd, search, filterDepto, filterLab]);
 
-  const byClasif = bdFiltered.filter((r: any) => (r.clasif || 'D') === filterClasif);
+  const byClasif = bdFiltered.filter((r: any) => filterClasif === 'all' || (r.clasif || '') === filterClasif);
+  const clasifValuesBd = useMemo(
+    () => Array.from(new Set(bd.map((r: any) => r.clasif).filter(Boolean))).sort() as string[],
+    [bd],
+  );
   const byStatus = bdFiltered.filter((r: any) => (r.status || 'A') === filterStatus);
 
   const filtroRows = useMemo(() => productosFiltro
