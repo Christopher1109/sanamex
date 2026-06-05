@@ -105,8 +105,9 @@ const Productos = () => {
       laboratorio: p.laboratorio || '', indice_terapeutico: p.indice_terapeutico || '',
       registro_sanitario: p.registro_sanitario || '', fraccion_arancelaria: p.fraccion_arancelaria || '',
       receta_medica: !!p.receta_medica, departamento: p.departamento || '', categoria: p.categoria || '',
+      agrupador: p.agrupador || '',
       estatus: p.estatus || 'A', clasificacion_80_20: p.clasificacion_80_20 || '',
-      iva_tasa: String(p.iva_tasa ?? 0), ieps: String(p.ieps ?? 0), clave_sat: p.clave_sat || '',
+      iva_tasa: p.iva_tasa == null ? '' : String(p.iva_tasa), ieps: String(p.ieps ?? 0), clave_sat: p.clave_sat || '',
       unidad: p.unidad || 'pieza', precio_base: String(p.precio_base ?? 0), costo: String(p.costo ?? 0),
       stock_minimo: String(p.stock_minimo ?? 10), requiere_lote: !!p.requiere_lote,
     });
