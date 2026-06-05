@@ -60,20 +60,19 @@ export default function ReporteInventarioGeneral() {
   const [tab, setTab] = useState('resumen');
   const fileInput = useRef<HTMLInputElement>(null);
 
-  const load = async () => {
+  const [bdLoaded, setBdLoaded] = useState(false);
+  const [margenesLoaded, setMargenesLoaded] = useState(false);
+
+  // Carga ligera (rápida): resumen, ABC, status, sucursales
+  const loadLight = async () => {
     setLoading(true);
     try {
-      const [s1, s2, s3, s4, s5, s6] = await Promise.all([
-        (supabase as any).rpc('reporte_ventas_inventario_sanamex', { p_sucursal_id: null, p_fecha_corte: fechaCorte }),
-        (supabase as any).rpc('reporte_margenes', { p_fecha: fechaCorte }),
+      const [s3, s4, s5, s6] = await Promise.all([
         (supabase as any).rpc('inventario_resumen_por_sucursal', { p_fecha: fechaCorte }),
         (supabase as any).rpc('inventario_abc_por_sucursal', { p_fecha: fechaCorte }),
         (supabase as any).rpc('inventario_status_por_sucursal', { p_fecha: fechaCorte }),
         supabase.from('sucursales').select('id,codigo,nombre').eq('activo', true).order('codigo'),
       ]);
-      if (s1.error) throw s1.error;
-      setBd((s1.data as SanamexRow[]) || []);
-      setMargenes((s2.data as MargenRow[]) || []);
       setResumen((s3.data as ResumenRow[]) || []);
       setAbc((s4.data as AbcRow[]) || []);
       setStatusMat((s5.data as StatusRow[]) || []);
@@ -85,7 +84,48 @@ export default function ReporteInventarioGeneral() {
     }
   };
 
+  // Carga pesada bajo demanda
+  const loadBd = async () => {
+    if (bdLoaded) return;
+    setLoading(true);
+    try {
+      const { data, error } = await (supabase as any).rpc('reporte_ventas_inventario_sanamex', { p_sucursal_id: null, p_fecha_corte: fechaCorte });
+      if (error) throw error;
+      setBd((data as SanamexRow[]) || []);
+      setBdLoaded(true);
+    } catch (e: any) { toast.error('Error BD: ' + e.message); }
+    finally { setLoading(false); }
+  };
+  const loadMargenes = async () => {
+    if (margenesLoaded) return;
+    setLoading(true);
+    try {
+      const { data, error } = await (supabase as any).rpc('reporte_margenes', { p_fecha: fechaCorte });
+      if (error) throw error;
+      setMargenes((data as MargenRow[]) || []);
+      setMargenesLoaded(true);
+    } catch (e: any) { toast.error('Error margenes: ' + e.message); }
+    finally { setLoading(false); }
+  };
+
+  const load = async () => {
+    // Refresco completo invalida caches
+    setBdLoaded(false); setMargenesLoaded(false);
+    setBd([]); setMargenes([]);
+    await loadLight();
+    // Recargar lo que ya estaba activo
+    if (['bd', 'vig', 'fclasif', 'fstatus', 'fpers'].includes(tab)) await loadBd();
+    if (tab === 'margenes') await loadMargenes();
+  };
+
   useEffect(() => { load(); /* eslint-disable-next-line */ }, [fechaCorte]);
+
+  // Carga datos pesados solo cuando la pestaña los necesita
+  useEffect(() => {
+    if (['bd', 'vig', 'fclasif', 'fstatus', 'fpers'].includes(tab)) loadBd();
+    if (tab === 'margenes') loadMargenes();
+    /* eslint-disable-next-line */
+  }, [tab]);
 
   const totalPzs = resumen.reduce((a, r) => a + (r.existencias_pzs || 0), 0);
   const totalPesos = resumen.reduce((a, r) => a + (r.existencias_pesos || 0), 0);
