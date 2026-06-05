@@ -183,28 +183,24 @@ export default function ReporteVentasInventarioSanamex() {
     return t;
   }, [availableSucursales, iztaSucs]);
 
-  const loadData = async () => {
+  // Lazy load: solo la pestaña activa. Cache por fechaCorte.
+  const loadKey = async (key: string, currentCache: Record<string, Row[]> = allData) => {
+    if (currentCache[key]) return;
     setLoading(true);
     try {
       const sb = supabase as any;
-      const promises: Promise<any>[] = [];
-      promises.push(sb.rpc('reporte_ventas_inventario_sanamex', { p_sucursal_id: null, p_fecha_corte: fechaCorte }));
-      availableSucursales.forEach(s => {
-        promises.push(sb.rpc('reporte_ventas_inventario_sanamex', { p_sucursal_id: s.id, p_fecha_corte: fechaCorte }));
-      });
-      promises.push(sb.rpc('fill_rate_proveedores', { p_desde: null, p_hasta: null }));
-
-      const results = await Promise.all(promises);
-      const data: Record<string, Row[]> = {};
-      data['general'] = (results[0].data as Row[]) || [];
-      availableSucursales.forEach((s, i) => {
-        data[s.id] = (results[i + 1].data as Row[]) || [];
-      });
-      // Build Iztapalapa consolidated client-side
-      if (iztaSucs.length > 1) {
+      if (key === 'general') {
+        const { data, error } = await sb.rpc('reporte_ventas_inventario_sanamex', { p_sucursal_id: null, p_fecha_corte: fechaCorte });
+        if (error) throw error;
+        setAllData(p => ({ ...p, general: (data as Row[]) || [] }));
+      } else if (key === 'iztapalapa') {
+        const faltantes = iztaSucs.filter(s => !currentCache[s.id]);
+        const results = await Promise.all(faltantes.map(s => sb.rpc('reporte_ventas_inventario_sanamex', { p_sucursal_id: s.id, p_fecha_corte: fechaCorte })));
+        const next: Record<string, Row[]> = { ...currentCache };
+        faltantes.forEach((s, i) => { next[s.id] = (results[i].data as Row[]) || []; });
         const byKey = new Map<string, Row>();
         iztaSucs.forEach(s => {
-          (data[s.id] || []).forEach(r => {
+          (next[s.id] || []).forEach(r => {
             const ex = byKey.get(r.clave);
             if (!ex) byKey.set(r.clave, { ...r });
             else {
@@ -217,10 +213,17 @@ export default function ReporteVentasInventarioSanamex() {
             }
           });
         });
-        data['iztapalapa'] = Array.from(byKey.values());
+        next['iztapalapa'] = Array.from(byKey.values());
+        setAllData(next);
+      } else if (key === 'fillrate') {
+        const { data, error } = await sb.rpc('fill_rate_proveedores', { p_desde: null, p_hasta: null });
+        if (error) throw error;
+        setFillRate((data as FillRateRow[]) || []);
+      } else {
+        const { data, error } = await sb.rpc('reporte_ventas_inventario_sanamex', { p_sucursal_id: key, p_fecha_corte: fechaCorte });
+        if (error) throw error;
+        setAllData(p => ({ ...p, [key]: (data as Row[]) || [] }));
       }
-      setAllData(data);
-      setFillRate((results[results.length - 1].data as FillRateRow[]) || []);
     } catch (e: any) {
       toast.error('Error al cargar: ' + e.message);
     } finally {
@@ -228,7 +231,27 @@ export default function ReporteVentasInventarioSanamex() {
     }
   };
 
-  useEffect(() => { if (availableSucursales.length) loadData(); /* eslint-disable-next-line */ }, [availableSucursales.length, fechaCorte]);
+  const loadData = async () => {
+    setAllData({});
+    setFillRate([]);
+    await loadKey(tab === 'filtro' ? 'general' : tab, {});
+  };
+
+  // Recarga al cambiar fecha o cuando se monta con sucursales disponibles
+  useEffect(() => {
+    if (!availableSucursales.length) return;
+    setAllData({});
+    setFillRate([]);
+    loadKey(tab === 'filtro' ? 'general' : tab, {});
+    /* eslint-disable-next-line */
+  }, [fechaCorte, availableSucursales.length]);
+
+  // Carga al cambiar de pestaña (usa cache si ya existe)
+  useEffect(() => {
+    if (!availableSucursales.length) return;
+    loadKey(tab === 'filtro' ? 'general' : tab);
+    /* eslint-disable-next-line */
+  }, [tab]);
 
   const currentRows = useMemo(() => {
     if (tab === 'filtro' || tab === 'fillrate') return [];
