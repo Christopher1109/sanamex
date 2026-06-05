@@ -159,7 +159,7 @@ export default function CargasMasivasPage() {
                   <div className="flex gap-2">
                     <Button variant="outline" onClick={descargarPlantilla}><Download className="h-4 w-4 mr-2" />Descargar plantilla</Button>
                     <Button onClick={() => fileRef.current?.click()}><Upload className="h-4 w-4 mr-2" />Subir Excel</Button>
-                    <input ref={fileRef} type="file" accept=".xlsx,.xls" className="hidden" onChange={e => { const f = e.target.files?.[0]; if (f) procesarArchivo(f); e.target.value = ''; }} />
+                    <input ref={fileRef} type="file" accept=".xlsx,.xls" className="hidden" onChange={e => { const f = e.target.files?.[0]; if (f) { setPickerFile(f); setPickerOpen(true); } e.target.value = ''; }} />
                   </div>
                 </>
               )}
@@ -167,6 +167,14 @@ export default function CargasMasivasPage() {
           </TabsContent>
         ))}
       </Tabs>
+
+      <SheetPickerDialog
+        file={pickerFile}
+        open={pickerOpen}
+        preferred={[tipo, 'BD']}
+        onCancel={() => { setPickerOpen(false); setPickerFile(null); }}
+        onConfirm={(wb, sheetName, name) => { setPickerOpen(false); setPickerFile(null); procesarArchivo(wb, sheetName, name); }}
+      />
 
       <Card>
         <div className="p-4 border-b"><h2 className="font-semibold">Historial de cargas</h2></div>
