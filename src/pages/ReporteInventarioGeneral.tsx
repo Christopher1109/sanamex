@@ -54,7 +54,7 @@ export default function ReporteInventarioGeneral() {
   const [search, setSearch] = useState('');
   const [filterDepto, setFilterDepto] = useState('all');
   const [filterLab, setFilterLab] = useState('all');
-  const [filterClasif, setFilterClasif] = useState('A');
+  const [filterClasif, setFilterClasif] = useState('all');
   const [filterStatus, setFilterStatus] = useState('A');
   const [productosFiltro, setProductosFiltro] = useState<string[]>(['', '', '', '', '']);
   const [tab, setTab] = useState('resumen');
@@ -140,7 +140,11 @@ export default function ReporteInventarioGeneral() {
     return true;
   }), [bd, search, filterDepto, filterLab]);
 
-  const byClasif = bdFiltered.filter((r: any) => (r.clasif || 'D') === filterClasif);
+  const byClasif = bdFiltered.filter((r: any) => filterClasif === 'all' || (r.clasif || '') === filterClasif);
+  const clasifValuesBd = useMemo(
+    () => Array.from(new Set(bd.map((r: any) => r.clasif).filter(Boolean))).sort() as string[],
+    [bd],
+  );
   const byStatus = bdFiltered.filter((r: any) => (r.status || 'A') === filterStatus);
 
   const filtroRows = useMemo(() => productosFiltro
@@ -562,10 +566,13 @@ export default function ReporteInventarioGeneral() {
           <Card><CardContent className="pt-4 flex items-center gap-3">
             <Label className="text-xs">Clasificación:</Label>
             <Select value={filterClasif} onValueChange={setFilterClasif}>
-              <SelectTrigger className="w-32"><SelectValue /></SelectTrigger>
-              <SelectContent>{ABC_CODES.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
+              <SelectTrigger className="w-48"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todas</SelectItem>
+                {clasifValuesBd.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+              </SelectContent>
             </Select>
-            <span className="text-xs text-muted-foreground">{byClasif.length} SKUs</span>
+            <span className="text-xs text-muted-foreground">{byClasif.length} SKUs · clasificación del cliente</span>
           </CardContent></Card>
           <Card><CardContent className="pt-4">{renderBdTable(byClasif)}</CardContent></Card>
         </TabsContent>

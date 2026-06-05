@@ -14,7 +14,10 @@ import * as XLSX from 'xlsx';
 type Row = {
   clave: string; lab: string | null; categoria: string | null; departamento: string | null;
   descripcion: string; agrupador: string | null; sustancia: string | null;
-  iva: number | null; stock_minimo: number; clasif: string | null; status: string | null;
+  iva: number | null; stock_minimo: number;
+  clasif: string | null;       // Clasificación libre del cliente (A-W, DESCLASIFICADO, etc.)
+  clasif_abc: string | null;   // Clasificación ABC Pareto (A/B/C/D/O) calculada por el sistema
+  status: string | null;
   cpi: number; costo_total: number; te: number;
   ddi_7: number | null; ddi_14: number | null; ddi_30: number | null; ddi_60: number | null; ddi_90: number | null;
   un_v_dia: number; cu_compra_dia: number; pu_venta_dia: number; venta_dia: number; utilidad_dia: number; margen_dia: number;
@@ -87,7 +90,8 @@ function ReportTable({ rows, loading }: { rows: Row[]; loading: boolean }) {
               <th className="px-2 py-1 text-left">Sustancia</th>
               <th className="px-2 py-1 text-right">IVA</th>
               <th className="px-2 py-1 text-right">Stock Mín.</th>
-              <th className="px-2 py-1 text-center">Clasif.</th>
+              <th className="px-2 py-1 text-center" title="Clasificación del cliente (Excel original)">Clasif.</th>
+              <th className="px-2 py-1 text-center" title="Clasificación ABC Pareto calculada por el sistema">ABC</th>
               <th className="px-2 py-1 text-center">Status</th>
               <th className="px-2 py-1 text-right">CPI</th>
               <th className="px-2 py-1 text-right">Costo Total</th>
@@ -122,6 +126,7 @@ function ReportTable({ rows, loading }: { rows: Row[]; loading: boolean }) {
                 <td className="px-2 py-1 text-right">{ivaCell(r.iva)}</td>
                 <td className="px-2 py-1 text-right">{num(r.stock_minimo)}</td>
                 <td className="px-2 py-1 text-center">{r.clasif || '—'}</td>
+                <td className="px-2 py-1 text-center text-muted-foreground">{r.clasif_abc || '—'}</td>
                 <td className="px-2 py-1 text-center">{r.status || '—'}</td>
                 <td className="px-2 py-1 text-right">{mxn(r.cpi)}</td>
                 <td className="px-2 py-1 text-right">{mxn(r.costo_total)}</td>
@@ -174,6 +179,7 @@ export default function ReporteVentasInventarioSanamex() {
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState('');
   const [filterClasif, setFilterClasif] = useState<string>('all');
+  const [filterAbc, setFilterAbc] = useState<string>('all');
   const [filterStatus, setFilterStatus] = useState<string>('all');
   const [filterDepto, setFilterDepto] = useState<string>('all');
   const [filterLab, setFilterLab] = useState<string>('all');
@@ -261,16 +267,21 @@ export default function ReporteVentasInventarioSanamex() {
     const base = allData[tab] || [];
     return base.filter(r => {
       if (search && !`${r.clave} ${r.descripcion}`.toLowerCase().includes(search.toLowerCase())) return false;
-      if (filterClasif !== 'all' && r.clasif !== filterClasif) return false;
+      if (filterClasif !== 'all' && (r.clasif || '') !== filterClasif) return false;
+      if (filterAbc !== 'all' && (r.clasif_abc || '') !== filterAbc) return false;
       if (filterStatus !== 'all' && r.status !== filterStatus) return false;
       if (filterDepto !== 'all' && r.departamento !== filterDepto) return false;
       if (filterLab !== 'all' && r.lab !== filterLab) return false;
       return true;
     });
-  }, [allData, tab, search, filterClasif, filterStatus, filterDepto, filterLab]);
+  }, [allData, tab, search, filterClasif, filterAbc, filterStatus, filterDepto, filterLab]);
 
   const depts = useMemo(() => Array.from(new Set((allData['general'] || []).map(r => r.departamento).filter(Boolean))) as string[], [allData]);
   const labs = useMemo(() => Array.from(new Set((allData['general'] || []).map(r => r.lab).filter(Boolean))) as string[], [allData]);
+  const clasifValues = useMemo(
+    () => Array.from(new Set((allData['general'] || []).map(r => r.clasif).filter(Boolean))).sort() as string[],
+    [allData],
+  );
 
   const filtroRows = useMemo(() => {
     return productosFiltro.map(c => (allData['general'] || []).find(r => r.clave === c || r.descripcion?.toLowerCase().includes(c.toLowerCase()))).filter(Boolean) as Row[];
@@ -307,12 +318,12 @@ export default function ReporteVentasInventarioSanamex() {
     const wb = XLSX.utils.book_new();
     const sheetFromRows = (rows: Row[]) => {
       const header = [
-        'Clave', 'Lab', 'Categoria', 'Departamento', 'Descripción', 'Agrupador', 'Sustancia', 'IVA', 'Stock Mínimo', 'Clasif.', 'Status',
+        'Clave', 'Lab', 'Categoria', 'Departamento', 'Descripción', 'Agrupador', 'Sustancia', 'IVA', 'Stock Mínimo', 'Clasif. (Cliente)', 'ABC (Sistema)', 'Status',
         'CPI', 'Costo Total', 'TE', '7 DDI', '14 DDI', '30 DDI', '60 DDI', '90 DDI',
         ...PERIODS.flatMap(p => [`Un V ${p.label}`, 'CU Compra', 'PU Venta', 'Venta', 'Utilidad', 'Margen']),
       ];
       const body = rows.map(r => [
-        r.clave, r.lab, r.categoria, r.departamento, r.descripcion, r.agrupador, r.sustancia, r.iva, r.stock_minimo, r.clasif, r.status,
+        r.clave, r.lab, r.categoria, r.departamento, r.descripcion, r.agrupador, r.sustancia, r.iva, r.stock_minimo, r.clasif, r.clasif_abc, r.status,
         r.cpi, r.costo_total, r.te, r.ddi_7, r.ddi_14, r.ddi_30, r.ddi_60, r.ddi_90,
         ...PERIODS.flatMap(p => [
           (r as any)[`un_v_${p.key}`], (r as any)[`cu_compra_${p.key}`], (r as any)[`pu_venta_${p.key}`],
@@ -370,8 +381,18 @@ export default function ReporteVentasInventarioSanamex() {
             </div>
           </div>
           <div>
-            <Label className="text-xs">Clasif.</Label>
+            <Label className="text-xs">Clasif. (Cliente)</Label>
             <Select value={filterClasif} onValueChange={setFilterClasif}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todas</SelectItem>
+                {clasifValues.map(v => <SelectItem key={v} value={v}>{v}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <Label className="text-xs">ABC (Sistema)</Label>
+            <Select value={filterAbc} onValueChange={setFilterAbc}>
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Todas</SelectItem>

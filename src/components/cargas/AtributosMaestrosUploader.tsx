@@ -13,7 +13,8 @@ const COLUMNAS = [
   'departamento', 'agrupador', 'sustancia', 'iva', 'estatus', 'clasificacion',
 ] as const;
 
-const CLASIF_VALIDAS = new Set(['A', 'B', 'C', 'D', 'O']);
+// Nota: el campo `clasificacion` es texto libre del cliente (A-W, DESCLASIFICADO, etc.).
+// La clasificación ABC (A/B/C/D/O) es calculada por el sistema en `clasificacion_80_20` y NO se carga desde Excel.
 
 type PreviewRow = {
   fila: number;             // row number in Excel (1-based, header excluded)
@@ -56,7 +57,7 @@ export default function AtributosMaestrosUploader({ onDone }: { onDone?: () => v
     const ws = XLSX.utils.json_to_sheet([{
       clave: '7501000000001', descripcion: 'PARACETAMOL 500MG C/10', nombre: 'PARACETAMOL 500MG',
       laboratorio: 'GENOMMA', categoria: 'ANALGÉSICOS', departamento: 'GENERICO',
-      agrupador: 'GENÉRICOS', sustancia: 'PARACETAMOL', iva: '0', estatus: 'A', clasificacion: 'B',
+      agrupador: 'GENÉRICOS', sustancia: 'PARACETAMOL', iva: '0', estatus: 'A', clasificacion: 'W',
     }]);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'atributos_maestros');
@@ -82,7 +83,7 @@ export default function AtributosMaestrosUploader({ onDone }: { onDone?: () => v
     const claves = normalized.map((r) => norm(r.clave)).filter(Boolean);
     const { data: existentes } = await supabase
       .from('productos')
-      .select('id,sku,codigo_barras,nombre,descripcion,laboratorio,categoria,departamento,agrupador,sustancia_activa,iva_tasa,estatus,clasificacion_80_20')
+      .select('id,sku,codigo_barras,nombre,descripcion,laboratorio,categoria,departamento,agrupador,sustancia_activa,iva_tasa,estatus,clasificacion')
       .or(`sku.in.(${claves.map((c) => `"${c}"`).join(',') || '""'}),codigo_barras.in.(${claves.map((c) => `"${c}"`).join(',') || '""'})`);
     const byClave = new Map<string, any>();
     (existentes || []).forEach((p: any) => {
@@ -103,11 +104,8 @@ export default function AtributosMaestrosUploader({ onDone }: { onDone?: () => v
       if (estatus && !estatusCatalog.has(estatus)) {
         return { fila, raw: r, clave, accion: 'OMIT', motivo: `Estatus inválido: "${estatus}" (no existe en catálogo)` };
       }
-      // Validar clasificación
-      const clasif = norm(r.clasificacion).toUpperCase();
-      if (clasif && !CLASIF_VALIDAS.has(clasif)) {
-        return { fila, raw: r, clave, accion: 'OMIT', motivo: `Clasificación inválida: "${clasif}" (A/B/C/D/O)` };
-      }
+      // Clasificación del cliente: TEXTO LIBRE. No se valida (acepta A-W, DESCLASIFICADO, vacío).
+      const clasif = norm(r.clasificacion);
       // Validar IVA
       const iva = parseIva(r.iva);
       if (!iva.ok) return { fila, raw: r, clave, accion: 'OMIT', motivo: iva.err };
@@ -122,7 +120,7 @@ export default function AtributosMaestrosUploader({ onDone }: { onDone?: () => v
       if (notEmpty(r.sustancia)) patch.sustancia_activa = norm(r.sustancia);
       if (notEmpty(r.iva)) patch.iva_tasa = iva.value;
       if (estatus) patch.estatus = estatus;
-      if (clasif) patch.clasificacion_80_20 = clasif;
+      if (clasif) patch.clasificacion = clasif;
 
       const existente = byClave.get(clave);
       if (existente) {
@@ -223,7 +221,8 @@ export default function AtributosMaestrosUploader({ onDone }: { onDone?: () => v
           <li>• UPSERT por clave: solo se actualizan los campos NO vacíos del Excel; celdas en blanco no sobreescriben.</li>
           <li>• <b>iva</b> acepta vacío (queda NULL = "Sin definir"), 0, 0.16, 16, "16%".</li>
           <li>• <b>estatus</b> se valida contra el catálogo <code>productos_status</code>.</li>
-          <li>• <b>clasificacion</b> debe ser una de A, B, C, D, O.</li>
+          <li>• <b>clasificacion</b> es <b>texto libre del cliente</b> (A-W, DESCLASIFICADO, vacío). NO se valida.</li>
+          <li>• La clasificación <b>ABC (A/B/C/D/O) es calculada por el sistema</b> en otra columna; NO se carga desde Excel.</li>
           <li>• Idempotente: una segunda corrida del mismo archivo muestra 0 INSERT y solo UPDATEs con cambio real.</li>
         </ul>
       </div>
