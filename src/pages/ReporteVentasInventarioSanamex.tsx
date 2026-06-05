@@ -186,15 +186,13 @@ export default function ReporteVentasInventarioSanamex() {
   const loadData = async () => {
     setLoading(true);
     try {
+      const sb = supabase as any;
       const promises: Promise<any>[] = [];
-      // general
-      promises.push(supabase.rpc('reporte_ventas_inventario_sanamex', { p_sucursal_id: null, p_fecha_corte: fechaCorte }));
-      // each sucursal
+      promises.push(sb.rpc('reporte_ventas_inventario_sanamex', { p_sucursal_id: null, p_fecha_corte: fechaCorte }));
       availableSucursales.forEach(s => {
-        promises.push(supabase.rpc('reporte_ventas_inventario_sanamex', { p_sucursal_id: s.id, p_fecha_corte: fechaCorte }));
+        promises.push(sb.rpc('reporte_ventas_inventario_sanamex', { p_sucursal_id: s.id, p_fecha_corte: fechaCorte }));
       });
-      // fill rate
-      promises.push(supabase.rpc('fill_rate_proveedores', { p_desde: null, p_hasta: null }));
+      promises.push(sb.rpc('fill_rate_proveedores', { p_desde: null, p_hasta: null }));
 
       const results = await Promise.all(promises);
       const data: Record<string, Row[]> = {};
