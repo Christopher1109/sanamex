@@ -234,7 +234,7 @@ const Productos = () => {
           receta_medica: bool(r['RECETA MEDICA']), departamento: norm(r['DEPARTAMENTO']),
           categoria: norm(r['CATEGORIA']), estatus: norm(r['ESTATUS']) || 'A',
           clasificacion_80_20: norm(r['CLASIFICACIÓN 80/20']),
-          iva_tasa: String(r['IVA'] ?? '').trim().toUpperCase() === 'S' ? 16 : 0,
+          iva_tasa: (() => { const v = String(r['IVA'] ?? '').trim().toUpperCase(); if (v === '') return null; if (v === 'S') return 16; if (v === 'N') return 0; const n = Number(v); return isNaN(n) ? null : n; })(),
           ieps: num(r['IEPS']), clave_sat: norm(r['CLAVE SAT']),
           fecha_carga_erp: fechaErp,
           costo: num(r['COSTO']), precio_base: num(r['PRECIO 1']),
