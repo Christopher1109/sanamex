@@ -1190,6 +1190,65 @@ export type Database = {
         }
         Relationships: []
       }
+      productos_precios_lista: {
+        Row: {
+          created_at: string
+          id: string
+          lista: number
+          precio: number
+          producto_id: string
+          updated_at: string
+          vigente_desde: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          lista: number
+          precio: number
+          producto_id: string
+          updated_at?: string
+          vigente_desde?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          lista?: number
+          precio?: number
+          producto_id?: string
+          updated_at?: string
+          vigente_desde?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "productos_precios_lista_producto_id_fkey"
+            columns: ["producto_id"]
+            isOneToOne: false
+            referencedRelation: "productos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      productos_status: {
+        Row: {
+          codigo: string
+          created_at: string
+          nombre: string
+          orden: number | null
+        }
+        Insert: {
+          codigo: string
+          created_at?: string
+          nombre: string
+          orden?: number | null
+        }
+        Update: {
+          codigo?: string
+          created_at?: string
+          nombre?: string
+          orden?: number | null
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           activo: boolean | null
@@ -1892,6 +1951,41 @@ export type Database = {
         }
         Returns: boolean
       }
+      inventario_abc_por_sucursal: {
+        Args: { p_fecha?: string }
+        Returns: {
+          clasificacion: string
+          items: number
+          pesos: number
+          piezas: number
+          sucursal_codigo: string
+          sucursal_id: string
+        }[]
+      }
+      inventario_resumen_por_sucursal: {
+        Args: { p_fecha?: string }
+        Returns: {
+          ddi_30: number
+          ddi_60: number
+          ddi_90: number
+          existencias_pesos: number
+          existencias_pzs: number
+          items: number
+          sucursal_codigo: string
+          sucursal_id: string
+          sucursal_nombre: string
+        }[]
+      }
+      inventario_status_por_sucursal: {
+        Args: { p_fecha?: string }
+        Returns: {
+          cantidad: number
+          items: number
+          status: string
+          sucursal_codigo: string
+          sucursal_id: string
+        }[]
+      }
       process_pos_sale:
         | {
             Args: {
@@ -1946,6 +2040,32 @@ export type Database = {
           stock_actual: number
           unidades_recibidas: number
           unidades_vendidas: number
+        }[]
+      }
+      reporte_margenes: {
+        Args: { p_fecha?: string }
+        Returns: {
+          clasificacion: string
+          clave: string
+          costo_total: number
+          cp: number
+          departamento: string
+          descripcion: string
+          existencias: number
+          lp1: number
+          lp2: number
+          lp3: number
+          lp4: number
+          margen_lp1: number
+          margen_lp2: number
+          margen_lp3: number
+          margen_lp4: number
+          producto_id: string
+          status: string
+          util_lp1: number
+          util_lp2: number
+          util_lp3: number
+          util_lp4: number
         }[]
       }
       reporte_ventas_inventario_sanamex: {
