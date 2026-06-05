@@ -126,6 +126,7 @@ function ReportTable({ rows, loading }: { rows: Row[]; loading: boolean }) {
                 <td className="px-2 py-1 text-right">{ivaCell(r.iva)}</td>
                 <td className="px-2 py-1 text-right">{num(r.stock_minimo)}</td>
                 <td className="px-2 py-1 text-center">{r.clasif || '—'}</td>
+                <td className="px-2 py-1 text-center text-muted-foreground">{r.clasif_abc || '—'}</td>
                 <td className="px-2 py-1 text-center">{r.status || '—'}</td>
                 <td className="px-2 py-1 text-right">{mxn(r.cpi)}</td>
                 <td className="px-2 py-1 text-right">{mxn(r.costo_total)}</td>
