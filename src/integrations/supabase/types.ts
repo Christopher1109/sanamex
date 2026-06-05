@@ -1084,6 +1084,7 @@ export type Database = {
           activo: boolean | null
           agrupador: string | null
           categoria: string | null
+          clasificacion: string | null
           clasificacion_80_20: string | null
           clave_sat: string | null
           codigo_barras: string | null
@@ -1120,6 +1121,7 @@ export type Database = {
           activo?: boolean | null
           agrupador?: string | null
           categoria?: string | null
+          clasificacion?: string | null
           clasificacion_80_20?: string | null
           clave_sat?: string | null
           codigo_barras?: string | null
@@ -1156,6 +1158,7 @@ export type Database = {
           activo?: boolean | null
           agrupador?: string | null
           categoria?: string | null
+          clasificacion?: string | null
           clasificacion_80_20?: string | null
           clave_sat?: string | null
           codigo_barras?: string | null
@@ -2062,6 +2065,7 @@ export type Database = {
         Args: { p_fecha?: string; p_incluir_cedis?: boolean }
         Returns: {
           clasificacion: string
+          clasificacion_abc: string
           clave: string
           costo_total: number
           cp: number
@@ -2094,6 +2098,7 @@ export type Database = {
           agrupador: string
           categoria: string
           clasif: string
+          clasif_abc: string
           clave: string
           costo_total: number
           cpi: number
