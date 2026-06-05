@@ -153,15 +153,14 @@ export default function HistoricoVentasUploader({ onDone }: { onDone?: () => voi
     XLSX.writeFile(wb, `productos_no_encontrados_${fileName.replace(/\.[^.]+$/, '')}.xlsx`);
   };
 
-  const procesarArchivo = async (file: File) => {
-    setFileName(file.name);
-    setProgress('Leyendo archivo...');
+  const procesarArchivo = async (wb: XLSX.WorkBook, sheetName: string, name: string) => {
+    setFileName(name);
+    setProgress(`Leyendo hoja "${sheetName}"...`);
     try {
-      const buf = await file.arrayBuffer();
-      const wb = XLSX.read(buf, { cellDates: true });
-      const sheet = wb.Sheets[wb.SheetNames[0]];
+      const sheet = wb.Sheets[sheetName];
+      if (!sheet) { toast.error(`Hoja "${sheetName}" no encontrada`); setProgress(''); return; }
       const raw: Row[] = XLSX.utils.sheet_to_json(sheet, { defval: '', raw: true });
-      if (!raw.length) { toast.error('Archivo vacío'); setProgress(''); return; }
+      if (!raw.length) { toast.error('La hoja seleccionada está vacía'); setProgress(''); return; }
       setTotalFilas(raw.length);
 
       // 1) Cargar sucursales -> codigo->id
