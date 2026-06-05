@@ -10,7 +10,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
 
-type TipoCarga = 'productos' | 'proveedores' | 'clientes' | 'historico_ventas';
+type TipoCarga = 'productos' | 'proveedores' | 'clientes' | 'historico_ventas' | 'atributos_maestros';
 
 const PLANTILLAS: Record<TipoCarga, { columnas: string[]; ejemplo: any[] }> = {
   productos: {
@@ -28,6 +28,10 @@ const PLANTILLAS: Record<TipoCarga, { columnas: string[]; ejemplo: any[] }> = {
   historico_ventas: {
     columnas: ['producto_sku', 'producto_nombre', 'cantidad', 'precio_unitario', 'fecha', 'proveedor_sugerido'],
     ejemplo: [{ producto_sku: 'MED-001', producto_nombre: 'Paracetamol 500mg', cantidad: 25, precio_unitario: 45, fecha: '2025-01-15', proveedor_sugerido: 'Laboratorios ABC' }],
+  },
+  atributos_maestros: {
+    columnas: ['clave', 'categoria', 'departamento', 'agrupador', 'iva'],
+    ejemplo: [{ clave: '7501000000001', categoria: 'Analgésicos', departamento: 'Medicamentos', agrupador: 'GENÉRICOS', iva: 0.16 }],
   },
 };
 
