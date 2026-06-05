@@ -45,6 +45,7 @@ export default function AtributosMaestrosUploader({ onDone }: { onDone?: () => v
   const [fileName, setFileName] = useState('');
   const [open, setOpen] = useState(false);
   const [committing, setCommitting] = useState(false);
+  const [progress, setProgress] = useState<string>('');
   const fileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -66,11 +67,12 @@ export default function AtributosMaestrosUploader({ onDone }: { onDone?: () => v
 
   const procesarArchivo = async (file: File) => {
     setFileName(file.name);
+    setProgress('Leyendo archivo...');
     const buf = await file.arrayBuffer();
     const wb = XLSX.read(buf);
     const sheet = wb.Sheets[wb.SheetNames[0]];
     const raw: any[] = XLSX.utils.sheet_to_json(sheet, { defval: '' });
-    if (!raw.length) { toast.error('Archivo vacío'); return; }
+    if (!raw.length) { toast.error('Archivo vacío'); setProgress(''); return; }
 
     // Normaliza headers a lowercase
     const normalized = raw.map((r) => {
@@ -79,17 +81,47 @@ export default function AtributosMaestrosUploader({ onDone }: { onDone?: () => v
       return o;
     });
 
-    // Carga existentes por clave (codigo_barras + sku)
-    const claves = normalized.map((r) => norm(r.clave)).filter(Boolean);
-    const { data: existentes } = await supabase
-      .from('productos')
-      .select('id,sku,codigo_barras,nombre,descripcion,laboratorio,categoria,departamento,agrupador,sustancia_activa,iva_tasa,estatus,clasificacion')
-      .or(`sku.in.(${claves.map((c) => `"${c}"`).join(',') || '""'}),codigo_barras.in.(${claves.map((c) => `"${c}"`).join(',') || '""'})`);
+    // Carga existentes por clave en LOTES (PostgREST falla con URLs > ~16KB
+    // cuando se hace .or(sku.in.(...),codigo_barras.in.(...)) con miles de claves).
+    // Para cada lote: 2 queries en paralelo (sku + codigo_barras), dedupe por id.
+    const claves = Array.from(new Set(normalized.map((r) => norm(r.clave)).filter(Boolean)));
+    const CHUNK = 250;
+    const totalLotes = Math.max(1, Math.ceil(claves.length / CHUNK));
+    const SELECT_COLS = 'id,sku,codigo_barras,nombre,descripcion,laboratorio,categoria,departamento,agrupador,sustancia_activa,iva_tasa,estatus,clasificacion';
+    const existentesById = new Map<string, any>();
+
+    const fetchChunk = async (chunk: string[], loteNum: number): Promise<any[]> => {
+      const run = () => Promise.all([
+        supabase.from('productos').select(SELECT_COLS).in('sku', chunk),
+        supabase.from('productos').select(SELECT_COLS).in('codigo_barras', chunk),
+      ]);
+      for (let attempt = 1; attempt <= 2; attempt++) {
+        const [a, b] = await run();
+        if (!a.error && !b.error) return [...(a.data || []), ...(b.data || [])];
+        if (attempt === 2) throw new Error(`Lote ${loteNum} falló: ${a.error?.message || b.error?.message}`);
+      }
+      return [];
+    };
+
+    try {
+      for (let i = 0; i < claves.length; i += CHUNK) {
+        const loteNum = Math.floor(i / CHUNK) + 1;
+        setProgress(`Validando lote ${loteNum} de ${totalLotes} (${claves.length} claves)...`);
+        const found = await fetchChunk(claves.slice(i, i + CHUNK), loteNum);
+        for (const p of found) existentesById.set(p.id, p);
+      }
+    } catch (e: any) {
+      toast.error(e.message || 'Error validando lotes');
+      setProgress('');
+      return;
+    }
+
     const byClave = new Map<string, any>();
-    (existentes || []).forEach((p: any) => {
+    existentesById.forEach((p) => {
       if (p.codigo_barras) byClave.set(String(p.codigo_barras), p);
       if (p.sku && !byClave.has(String(p.sku))) byClave.set(String(p.sku), p);
     });
+    setProgress('');
 
     const seen = new Set<string>();
     const preview: PreviewRow[] = normalized.map((r, idx) => {
@@ -228,7 +260,10 @@ export default function AtributosMaestrosUploader({ onDone }: { onDone?: () => v
       </div>
       <div className="flex gap-2">
         <Button variant="outline" onClick={descargarPlantilla}><Download className="h-4 w-4 mr-2" />Descargar plantilla</Button>
-        <Button onClick={() => fileRef.current?.click()}><Upload className="h-4 w-4 mr-2" />Subir Excel</Button>
+        <Button onClick={() => fileRef.current?.click()} disabled={!!progress}>
+          {progress ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Upload className="h-4 w-4 mr-2" />}
+          {progress || 'Subir Excel'}
+        </Button>
         <input
           ref={fileRef} type="file" accept=".xlsx,.xls" className="hidden"
           onChange={(e) => { const f = e.target.files?.[0]; if (f) procesarArchivo(f); e.target.value = ''; }}
