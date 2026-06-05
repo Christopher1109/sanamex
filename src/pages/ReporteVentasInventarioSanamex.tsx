@@ -377,6 +377,7 @@ export default function ReporteVentasInventarioSanamex() {
                 <SelectItem value="all">Todas</SelectItem>
                 <SelectItem value="A">A</SelectItem><SelectItem value="B">B</SelectItem>
                 <SelectItem value="C">C</SelectItem><SelectItem value="D">D</SelectItem>
+                <SelectItem value="O">O — Obsoleto</SelectItem>
               </SelectContent>
             </Select>
           </div>
