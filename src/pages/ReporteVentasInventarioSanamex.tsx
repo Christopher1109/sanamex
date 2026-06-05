@@ -324,15 +324,15 @@ export default function ReporteVentasInventarioSanamex() {
       return XLSX.utils.aoa_to_sheet([header, ...body]);
     };
     XLSX.utils.book_append_sheet(wb, sheetFromRows(filtroRows), 'Filtro Personalizado');
-    XLSX.utils.book_append_sheet(wb, sheetFromRows(allData['general'] || []), 'Ventas e Inventario General');
+    XLSX.utils.book_append_sheet(wb, sheetFromRows(data['general'] || []), 'Ventas e Inventario General');
     availableSucursales.forEach(s => {
       const name = `V&I ${s.codigo}`.slice(0, 31);
-      XLSX.utils.book_append_sheet(wb, sheetFromRows(allData[s.id] || []), name);
+      XLSX.utils.book_append_sheet(wb, sheetFromRows(data[s.id] || []), name);
     });
-    if (allData['iztapalapa']) XLSX.utils.book_append_sheet(wb, sheetFromRows(allData['iztapalapa']), 'V&I Iztapalapa');
+    if (data['iztapalapa']) XLSX.utils.book_append_sheet(wb, sheetFromRows(data['iztapalapa']), 'V&I Iztapalapa');
     const frSheet = XLSX.utils.aoa_to_sheet([
       ['Numero Proveedor', 'Nombre', 'Numero OC', 'Items Solicitados', 'Items Entregados', 'Fill Rate Items %', 'Lead Time Días', 'Fecha Emisión', 'Fecha Recepción', 'Varianza Tiempo', 'Fill Rate Lead Time %'],
-      ...fillRate.map(f => [f.numero_proveedor, f.nombre_proveedor, f.numero_oc, f.total_items_solicitados, f.total_items_entregados, f.fill_rate_items, f.lead_time_dias, f.fecha_emision, f.fecha_recepcion, f.varianza_tiempo, f.fill_rate_lead_time]),
+      ...fr.map(f => [f.numero_proveedor, f.nombre_proveedor, f.numero_oc, f.total_items_solicitados, f.total_items_entregados, f.fill_rate_items, f.lead_time_dias, f.fecha_emision, f.fecha_recepcion, f.varianza_tiempo, f.fill_rate_lead_time]),
     ]);
     XLSX.utils.book_append_sheet(wb, frSheet, 'Fill Rate Proveedores');
     XLSX.writeFile(wb, `Reporte Ventas e Inventario SANAMEX ${fechaCorte.replace(/-/g, '')}.xlsx`);
