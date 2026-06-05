@@ -26,8 +26,8 @@ const empty = {
   sku: '', codigo_interno: '', nombre: '', descripcion: '', codigo_barras: '',
   formula: '', sustancia_activa: '', presentacion: '', forma_farmaceutica: '',
   laboratorio: '', indice_terapeutico: '', registro_sanitario: '', fraccion_arancelaria: '',
-  receta_medica: false, departamento: '', categoria: '', estatus: 'A',
-  clasificacion_80_20: '', iva_tasa: '0', ieps: '0', clave_sat: '',
+  receta_medica: false, departamento: '', categoria: '', agrupador: '', estatus: 'A',
+  clasificacion_80_20: '', iva_tasa: '', ieps: '0', clave_sat: '',
   unidad: 'pieza', precio_base: '0', costo: '0', stock_minimo: '10',
   requiere_lote: true,
 };
