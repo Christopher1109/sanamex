@@ -180,18 +180,28 @@ export default function ReporteVentasInventarioSanamex() {
   const [fechaCorte, setFechaCorte] = useState(new Date().toISOString().slice(0, 10));
   const [productosFiltro, setProductosFiltro] = useState<[string, string, string, string]>(['', '', '', '']);
 
-  // Build tab list: general + each sucursal + Iztapalapa consolidated
-  const iztaSucs = useMemo(() => availableSucursales.filter(s => /izta|F\d|H$/i.test(s.codigo) || /izta/i.test(s.nombre)), [availableSucursales]);
+  // Pestañas en orden EXACTO: filtro, general(sin cedis), SV, ECA, F36, GH, CEDIS, fillrate
+  const sucOrder = ['SV', 'ECA', 'F36', 'GH'];
+  const orderedSucs = useMemo(
+    () => sucOrder
+      .map(code => availableSucursales.find(s => s.codigo === code))
+      .filter(Boolean) as typeof availableSucursales,
+    [availableSucursales],
+  );
+  const cedisSuc = useMemo(
+    () => availableSucursales.find(s => s.codigo === 'CEDIS' || /cedis/i.test(s.nombre)),
+    [availableSucursales],
+  );
   const tabs = useMemo(() => {
-    const t: { key: string; label: string; sucursalIds: string[] | null }[] = [
-      { key: 'filtro', label: 'Filtro Personalizado', sucursalIds: null },
-      { key: 'general', label: 'General (Consolidado)', sucursalIds: null },
+    const t: { key: string; label: string }[] = [
+      { key: 'filtro', label: 'Filtro Personalizado' },
+      { key: 'general', label: 'V&I General' },
     ];
-    availableSucursales.forEach(s => t.push({ key: s.id, label: s.nombre.replace('Distribuidora Farmacéutica Sanamex ', ''), sucursalIds: [s.id] }));
-    if (iztaSucs.length > 1) t.push({ key: 'iztapalapa', label: 'Iztapalapa (consolidado)', sucursalIds: iztaSucs.map(s => s.id) });
-    t.push({ key: 'fillrate', label: 'Fill Rate Proveedores', sucursalIds: null });
+    orderedSucs.forEach(s => t.push({ key: s.id, label: `V&I ${s.nombre.replace('Distribuidora Farmacéutica Sanamex ', '')}` }));
+    if (cedisSuc) t.push({ key: `cedis:${cedisSuc.id}`, label: 'Inventario CEDIS' });
+    t.push({ key: 'fillrate', label: 'Fill Rate Proveedores' });
     return t;
-  }, [availableSucursales, iztaSucs]);
+  }, [orderedSucs, cedisSuc]);
 
   // Lazy load: solo la pestaña activa. Cache por fechaCorte.
   const loadKey = async (key: string, currentCache: Record<string, Row[]> = allData) => {
@@ -319,12 +329,12 @@ export default function ReporteVentasInventarioSanamex() {
     const wb = XLSX.utils.book_new();
     const sheetFromRows = (rows: Row[]) => {
       const header = [
-        'Clave', 'Lab', 'Categoria', 'Departamento', 'Descripción', 'Agrupador', 'Sustancia', 'IVA', 'Cantidad', 'Clasif.', 'Status',
+        'Clave', 'Lab', 'Categoria', 'Departamento', 'Descripción', 'Agrupador', 'Sustancia', 'IVA', 'Stock Mínimo', 'Clasif.', 'Status',
         'CPI', 'Costo Total', 'TE', '7 DDI', '14 DDI', '30 DDI', '60 DDI', '90 DDI',
         ...PERIODS.flatMap(p => [`Un V ${p.label}`, 'CU Compra', 'PU Venta', 'Venta', 'Utilidad', 'Margen']),
       ];
       const body = rows.map(r => [
-        r.clave, r.lab, r.categoria, r.departamento, r.descripcion, r.agrupador, r.sustancia, r.iva, r.cantidad, r.clasif, r.status,
+        r.clave, r.lab, r.categoria, r.departamento, r.descripcion, r.agrupador, r.sustancia, r.iva, r.stock_minimo, r.clasif, r.status,
         r.cpi, r.costo_total, r.te, r.ddi_7, r.ddi_14, r.ddi_30, r.ddi_60, r.ddi_90,
         ...PERIODS.flatMap(p => [
           (r as any)[`un_v_${p.key}`], (r as any)[`cu_compra_${p.key}`], (r as any)[`pu_venta_${p.key}`],
