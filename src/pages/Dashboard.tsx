@@ -135,7 +135,7 @@ const Dashboard = ({ userRole }: DashboardProps) => {
     almacen: 'Almacenista',
     almacen_ventas: 'Almacén y Ventas',
     repartidor: 'Repartidor',
-    auditoria_old: 'Auditor',
+    
     auditoria: 'Auditoría',
   };
 
