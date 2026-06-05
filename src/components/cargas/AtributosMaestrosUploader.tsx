@@ -68,14 +68,13 @@ export default function AtributosMaestrosUploader({ onDone }: { onDone?: () => v
     XLSX.writeFile(wb, 'plantilla_atributos_maestros.xlsx');
   };
 
-  const procesarArchivo = async (file: File) => {
-    setFileName(file.name);
-    setProgress('Leyendo archivo...');
-    const buf = await file.arrayBuffer();
-    const wb = XLSX.read(buf);
-    const sheet = wb.Sheets[wb.SheetNames[0]];
+  const procesarArchivo = async (wb: XLSX.WorkBook, sheetName: string, name: string) => {
+    setFileName(name);
+    setProgress(`Leyendo hoja "${sheetName}"...`);
+    const sheet = wb.Sheets[sheetName];
+    if (!sheet) { toast.error(`Hoja "${sheetName}" no encontrada`); setProgress(''); return; }
     const raw: any[] = XLSX.utils.sheet_to_json(sheet, { defval: '' });
-    if (!raw.length) { toast.error('Archivo vacío'); setProgress(''); return; }
+    if (!raw.length) { toast.error('La hoja seleccionada está vacía'); setProgress(''); return; }
 
     // Normaliza headers a lowercase
     const normalized = raw.map((r) => {
