@@ -273,7 +273,39 @@ export default function ReporteVentasInventarioSanamex() {
     return productosFiltro.map(c => (allData['general'] || []).find(r => r.clave === c || r.descripcion?.toLowerCase().includes(c.toLowerCase()))).filter(Boolean) as Row[];
   }, [productosFiltro, allData]);
 
-  const exportExcel = () => {
+  const exportExcel = async () => {
+    // Asegurar que todas las pestañas estén cargadas para el export completo
+    const sb = supabase as any;
+    const needed = ['general', ...availableSucursales.map(s => s.id)];
+    const faltantes = needed.filter(k => !allData[k]);
+    if (faltantes.length || !fillRate.length) {
+      setLoading(true);
+      try {
+        const calls = await Promise.all([
+          ...faltantes.map(k => sb.rpc('reporte_ventas_inventario_sanamex', { p_sucursal_id: k === 'general' ? null : k, p_fecha_corte: fechaCorte })),
+          fillRate.length ? Promise.resolve({ data: fillRate }) : sb.rpc('fill_rate_proveedores', { p_desde: null, p_hasta: null }),
+        ]);
+        const next = { ...allData };
+        faltantes.forEach((k, i) => { next[k] = (calls[i].data as Row[]) || []; });
+        if (iztaSucs.length > 1) {
+          const byKey = new Map<string, Row>();
+          iztaSucs.forEach(s => (next[s.id] || []).forEach(r => {
+            const ex = byKey.get(r.clave);
+            if (!ex) byKey.set(r.clave, { ...r });
+            else { ex.te += r.te; ex.costo_total += r.costo_total; PERIODS.forEach(p => ['un_v','venta','utilidad'].forEach(f => { (ex as any)[`${f}_${p.key}`] += (r as any)[`${f}_${p.key}`]; })); }
+          }));
+          next['iztapalapa'] = Array.from(byKey.values());
+        }
+        setAllData(next);
+        if (!fillRate.length) setFillRate((calls[calls.length - 1].data as FillRateRow[]) || []);
+        // usar next localmente
+        return doExport(next, !fillRate.length ? ((calls[calls.length - 1].data as FillRateRow[]) || []) : fillRate);
+      } finally { setLoading(false); }
+    }
+    doExport(allData, fillRate);
+  };
+
+  const doExport = (data: Record<string, Row[]>, fr: FillRateRow[]) => {
     const wb = XLSX.utils.book_new();
     const sheetFromRows = (rows: Row[]) => {
       const header = [
