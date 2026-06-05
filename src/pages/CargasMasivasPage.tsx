@@ -61,12 +61,11 @@ export default function CargasMasivasPage() {
     XLSX.writeFile(wb, `plantilla_${tipo}.xlsx`);
   }
 
-  async function procesarArchivo(file: File) {
-    const buf = await file.arrayBuffer();
-    const wb = XLSX.read(buf);
-    const sheet = wb.Sheets[wb.SheetNames[0]];
+  async function procesarArchivo(wb: XLSX.WorkBook, sheetName: string, fileName: string) {
+    const sheet = wb.Sheets[sheetName];
+    if (!sheet) { toast.error(`Hoja "${sheetName}" no encontrada`); return; }
     const rows: any[] = XLSX.utils.sheet_to_json(sheet);
-    if (!rows.length) { toast.error('Archivo vacío'); return; }
+    if (!rows.length) { toast.error('La hoja seleccionada está vacía'); return; }
 
     let ok = 0, err = 0;
     const errores: any[] = [];
