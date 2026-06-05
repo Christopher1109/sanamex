@@ -125,6 +125,8 @@ export default function HistoricoVentasUploader({ onDone }: { onDone?: () => voi
   const [omitidas, setOmitidas] = useState<OmitidaRow[]>([]);
   const [noMatch, setNoMatch] = useState<NoMatchRow[]>([]);
   const [totalFilas, setTotalFilas] = useState(0);
+  const [pickerFile, setPickerFile] = useState<File | null>(null);
+  const [pickerOpen, setPickerOpen] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const descargarPlantilla = () => {
