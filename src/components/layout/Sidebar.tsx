@@ -33,20 +33,18 @@ const Sidebar = ({ userRole, onLogout }: SidebarProps) => {
     gerente: 'Gerente',
     subgerente: 'Subgerente',
     supervisor: 'Supervisor',
-    cajero: 'Cajero',
     ventas: 'Ventas',
     almacen: 'Almacén',
     almacen_ventas: 'Almacén y Ventas',
     repartidor: 'Repartidor',
-    auditor: 'Auditor',
     auditoria: 'Auditoría',
   };
 
-  const ALL: UserRole[] = ['super_admin','admin','gerente','subgerente','supervisor','cajero','ventas','almacen','almacen_ventas','repartidor','auditor','auditoria'];
+  const ALL: UserRole[] = ['super_admin','admin','gerente','subgerente','supervisor','ventas','almacen','almacen_ventas','repartidor','auditoria'];
   const MGMT: UserRole[] = ['super_admin','admin','gerente','subgerente'];
   const OPS: UserRole[] = ['super_admin','admin','gerente','subgerente','almacen','almacen_ventas'];
-  const SALES: UserRole[] = ['super_admin','admin','gerente','subgerente','cajero','ventas','almacen_ventas'];
-  const AUDIT: UserRole[] = ['super_admin','admin','gerente','auditor','auditoria','supervisor'];
+  const SALES: UserRole[] = ['super_admin','admin','gerente','subgerente','ventas','almacen_ventas'];
+  const AUDIT: UserRole[] = ['super_admin','admin','gerente','auditoria','supervisor'];
 
   const menuItems: MenuItem[] = [
     { path: '/dashboard', icon: LayoutDashboard, label: 'Dashboard', roles: ALL, category: 'Principal' },
