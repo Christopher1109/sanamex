@@ -83,7 +83,7 @@ export default function AtributosMaestrosUploader({ onDone }: { onDone?: () => v
     const claves = normalized.map((r) => norm(r.clave)).filter(Boolean);
     const { data: existentes } = await supabase
       .from('productos')
-      .select('id,sku,codigo_barras,nombre,descripcion,laboratorio,categoria,departamento,agrupador,sustancia_activa,iva_tasa,estatus,clasificacion_80_20')
+      .select('id,sku,codigo_barras,nombre,descripcion,laboratorio,categoria,departamento,agrupador,sustancia_activa,iva_tasa,estatus,clasificacion')
       .or(`sku.in.(${claves.map((c) => `"${c}"`).join(',') || '""'}),codigo_barras.in.(${claves.map((c) => `"${c}"`).join(',') || '""'})`);
     const byClave = new Map<string, any>();
     (existentes || []).forEach((p: any) => {
