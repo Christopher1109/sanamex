@@ -9,6 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
+import AtributosMaestrosUploader from '@/components/cargas/AtributosMaestrosUploader';
 
 type TipoCarga = 'productos' | 'proveedores' | 'clientes' | 'historico_ventas' | 'atributos_maestros';
 
@@ -30,8 +31,8 @@ const PLANTILLAS: Record<TipoCarga, { columnas: string[]; ejemplo: any[] }> = {
     ejemplo: [{ producto_sku: 'MED-001', producto_nombre: 'Paracetamol 500mg', cantidad: 25, precio_unitario: 45, fecha: '2025-01-15', proveedor_sugerido: 'Laboratorios ABC' }],
   },
   atributos_maestros: {
-    columnas: ['clave', 'categoria', 'departamento', 'agrupador', 'iva'],
-    ejemplo: [{ clave: '7501000000001', categoria: 'Analgésicos', departamento: 'Medicamentos', agrupador: 'GENÉRICOS', iva: 0.16 }],
+    columnas: ['clave', 'descripcion', 'nombre', 'laboratorio', 'categoria', 'departamento', 'agrupador', 'sustancia', 'iva', 'estatus', 'clasificacion'],
+    ejemplo: [{ clave: '7501000000001', descripcion: 'PARACETAMOL 500MG C/10', nombre: 'PARACETAMOL 500MG', laboratorio: 'GENOMMA', categoria: 'ANALGÉSICOS', departamento: 'GENERICO', agrupador: 'GENÉRICOS', sustancia: 'PARACETAMOL', iva: 0, estatus: 'A', clasificacion: 'B' }],
   },
 };
 
@@ -104,25 +105,8 @@ export default function CargasMasivasPage() {
       const { error, count } = await supabase.from('ventas_historicas').insert(batch, { count: 'exact' });
       if (error) { err = batch.length; errores.push({ error: error.message }); } else ok = count || batch.length;
     } else if (tipo === 'atributos_maestros') {
-      for (const r of rows) {
-        const clave = r.clave ? String(r.clave).trim() : '';
-        if (!clave) { err++; errores.push({ fila: r, error: 'Falta clave' }); continue; }
-        // Buscar producto por codigo_barras o sku
-        const { data: prod } = await supabase.from('productos')
-          .select('id').or(`codigo_barras.eq.${clave},sku.eq.${clave}`).maybeSingle();
-        if (!prod) { err++; errores.push({ fila: r, error: `Clave no encontrada: ${clave}` }); continue; }
-        const patch: any = {};
-        if (r.categoria != null && String(r.categoria).trim() !== '') patch.categoria = String(r.categoria).trim();
-        if (r.departamento != null && String(r.departamento).trim() !== '') patch.departamento = String(r.departamento).trim();
-        if (r.agrupador != null && String(r.agrupador).trim() !== '') patch.agrupador = String(r.agrupador).trim();
-        if (r.iva != null && String(r.iva).trim() !== '') {
-          const ivaNum = Number(r.iva);
-          if (!isNaN(ivaNum)) patch.iva_tasa = ivaNum > 1 ? ivaNum : ivaNum * 100;
-        }
-        if (Object.keys(patch).length === 0) { ok++; continue; }
-        const { error } = await supabase.from('productos').update(patch).eq('id', prod.id);
-        if (error) { err++; errores.push({ fila: r, error: error.message }); } else ok++;
-      }
+      // Handled via dedicated component with preview dialog. No-op here.
+      return;
     }
 
     await supabase.from('cargas_masivas_historico').insert({
