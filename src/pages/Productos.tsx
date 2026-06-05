@@ -412,8 +412,14 @@ const Productos = () => {
                 <div><Label>Laboratorio</Label><Input value={form.laboratorio} onChange={e => setForm({...form, laboratorio: e.target.value})} /></div>
               </div>
               <div className="grid grid-cols-3 gap-3">
-                <div><Label>Categoría</Label><Input value={form.categoria} onChange={e => setForm({...form, categoria: e.target.value})} /></div>
-                <div><Label>Departamento</Label><Input value={form.departamento} onChange={e => setForm({...form, departamento: e.target.value})} /></div>
+                <div>
+                  <Label>Categoría {(!form.categoria || !form.categoria.trim()) && <span className="text-amber-600 text-xs">⚠ Sin definir</span>}</Label>
+                  <Input value={form.categoria} onChange={e => setForm({...form, categoria: e.target.value})} />
+                </div>
+                <div>
+                  <Label>Departamento {(!form.departamento || !form.departamento.trim()) && <span className="text-amber-600 text-xs">⚠ Sin definir</span>}</Label>
+                  <Input value={form.departamento} onChange={e => setForm({...form, departamento: e.target.value})} />
+                </div>
                 <div><Label>Unidad</Label>
                   <Select value={form.unidad} onValueChange={v => setForm({...form, unidad: v})}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
