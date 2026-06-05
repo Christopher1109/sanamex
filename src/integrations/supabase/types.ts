@@ -1714,9 +1714,10 @@ export type Database = {
       venta_lineas: {
         Row: {
           cantidad: number
+          costo_unitario: number | null
           created_at: string | null
           id: string
-          lote_id: string
+          lote_id: string | null
           precio_unitario: number
           producto_id: string
           subtotal: number
@@ -1724,9 +1725,10 @@ export type Database = {
         }
         Insert: {
           cantidad: number
+          costo_unitario?: number | null
           created_at?: string | null
           id?: string
-          lote_id: string
+          lote_id?: string | null
           precio_unitario: number
           producto_id: string
           subtotal: number
@@ -1734,9 +1736,10 @@ export type Database = {
         }
         Update: {
           cantidad?: number
+          costo_unitario?: number | null
           created_at?: string | null
           id?: string
-          lote_id?: string
+          lote_id?: string | null
           precio_unitario?: number
           producto_id?: string
           subtotal?: number
@@ -1810,8 +1813,10 @@ export type Database = {
       }
       ventas: {
         Row: {
-          cajero_id: string
+          caja: string | null
+          cajero_id: string | null
           cliente_id: string | null
+          cliente_nombre_libre: string | null
           cliente_uuid_local: string | null
           corte_id: string | null
           created_at: string | null
@@ -1828,10 +1833,14 @@ export type Database = {
           subtotal: number
           sucursal_id: string
           total: number
+          usuario_libre: string | null
+          vendedor_libre: string | null
         }
         Insert: {
-          cajero_id: string
+          caja?: string | null
+          cajero_id?: string | null
           cliente_id?: string | null
+          cliente_nombre_libre?: string | null
           cliente_uuid_local?: string | null
           corte_id?: string | null
           created_at?: string | null
@@ -1848,10 +1857,14 @@ export type Database = {
           subtotal?: number
           sucursal_id: string
           total?: number
+          usuario_libre?: string | null
+          vendedor_libre?: string | null
         }
         Update: {
-          cajero_id?: string
+          caja?: string | null
+          cajero_id?: string | null
           cliente_id?: string | null
+          cliente_nombre_libre?: string | null
           cliente_uuid_local?: string | null
           corte_id?: string | null
           created_at?: string | null
@@ -1868,6 +1881,8 @@ export type Database = {
           subtotal?: number
           sucursal_id?: string
           total?: number
+          usuario_libre?: string | null
+          vendedor_libre?: string | null
         }
         Relationships: [
           {
