@@ -202,7 +202,10 @@ export default function ReporteInventarioGeneral() {
     }
   };
 
-  const exportExcel = () => {
+  const exportExcel = async () => {
+    // Asegurar que datos pesados estén cargados antes de exportar
+    if (!bdLoaded) await loadBd();
+    if (!margenesLoaded) await loadMargenes();
     const wb = XLSX.utils.book_new();
     // BD
     const bdHeader = ['Clave', 'Departamento', 'Descripcion', 'Clasificacion', 'CP Inventario', 'Costo Total', 'Existencias', 'DDI 30', 'DDI 60', 'DDI 90',
