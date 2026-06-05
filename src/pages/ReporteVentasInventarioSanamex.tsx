@@ -210,37 +210,20 @@ export default function ReporteVentasInventarioSanamex() {
     try {
       const sb = supabase as any;
       if (key === 'general') {
-        const { data, error } = await sb.rpc('reporte_ventas_inventario_sanamex', { p_sucursal_id: null, p_fecha_corte: fechaCorte });
+        const { data, error } = await sb.rpc('reporte_ventas_inventario_sanamex', { p_sucursal_id: null, p_fecha_corte: fechaCorte, p_incluir_cedis: false });
         if (error) throw error;
         setAllData(p => ({ ...p, general: (data as Row[]) || [] }));
-      } else if (key === 'iztapalapa') {
-        const faltantes = iztaSucs.filter(s => !currentCache[s.id]);
-        const results = await Promise.all(faltantes.map(s => sb.rpc('reporte_ventas_inventario_sanamex', { p_sucursal_id: s.id, p_fecha_corte: fechaCorte })));
-        const next: Record<string, Row[]> = { ...currentCache };
-        faltantes.forEach((s, i) => { next[s.id] = (results[i].data as Row[]) || []; });
-        const byKey = new Map<string, Row>();
-        iztaSucs.forEach(s => {
-          (next[s.id] || []).forEach(r => {
-            const ex = byKey.get(r.clave);
-            if (!ex) byKey.set(r.clave, { ...r });
-            else {
-              ex.te += r.te; ex.costo_total += r.costo_total;
-              PERIODS.forEach(p => {
-                ['un_v', 'venta', 'utilidad'].forEach(f => {
-                  (ex as any)[`${f}_${p.key}`] += (r as any)[`${f}_${p.key}`];
-                });
-              });
-            }
-          });
-        });
-        next['iztapalapa'] = Array.from(byKey.values());
-        setAllData(next);
+      } else if (key.startsWith('cedis:')) {
+        const cedisId = key.slice('cedis:'.length);
+        const { data, error } = await sb.rpc('reporte_ventas_inventario_sanamex', { p_sucursal_id: cedisId, p_fecha_corte: fechaCorte, p_incluir_cedis: true });
+        if (error) throw error;
+        setAllData(p => ({ ...p, [key]: (data as Row[]) || [] }));
       } else if (key === 'fillrate') {
         const { data, error } = await sb.rpc('fill_rate_proveedores', { p_desde: null, p_hasta: null });
         if (error) throw error;
         setFillRate((data as FillRateRow[]) || []);
       } else {
-        const { data, error } = await sb.rpc('reporte_ventas_inventario_sanamex', { p_sucursal_id: key, p_fecha_corte: fechaCorte });
+        const { data, error } = await sb.rpc('reporte_ventas_inventario_sanamex', { p_sucursal_id: key, p_fecha_corte: fechaCorte, p_incluir_cedis: false });
         if (error) throw error;
         setAllData(p => ({ ...p, [key]: (data as Row[]) || [] }));
       }
