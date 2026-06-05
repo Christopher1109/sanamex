@@ -42,6 +42,8 @@ export default function CargasMasivasPage() {
   const { selectedSucursal } = useSucursal();
   const [tipo, setTipo] = useState<TipoCarga>('productos');
   const [historico, setHistorico] = useState<any[]>([]);
+  const [pickerFile, setPickerFile] = useState<File | null>(null);
+  const [pickerOpen, setPickerOpen] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => { loadHist(); }, []);
