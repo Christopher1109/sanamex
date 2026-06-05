@@ -318,12 +318,12 @@ export default function ReporteVentasInventarioSanamex() {
     const wb = XLSX.utils.book_new();
     const sheetFromRows = (rows: Row[]) => {
       const header = [
-        'Clave', 'Lab', 'Categoria', 'Departamento', 'Descripción', 'Agrupador', 'Sustancia', 'IVA', 'Stock Mínimo', 'Clasif.', 'Status',
+        'Clave', 'Lab', 'Categoria', 'Departamento', 'Descripción', 'Agrupador', 'Sustancia', 'IVA', 'Stock Mínimo', 'Clasif. (Cliente)', 'ABC (Sistema)', 'Status',
         'CPI', 'Costo Total', 'TE', '7 DDI', '14 DDI', '30 DDI', '60 DDI', '90 DDI',
         ...PERIODS.flatMap(p => [`Un V ${p.label}`, 'CU Compra', 'PU Venta', 'Venta', 'Utilidad', 'Margen']),
       ];
       const body = rows.map(r => [
-        r.clave, r.lab, r.categoria, r.departamento, r.descripcion, r.agrupador, r.sustancia, r.iva, r.stock_minimo, r.clasif, r.status,
+        r.clave, r.lab, r.categoria, r.departamento, r.descripcion, r.agrupador, r.sustancia, r.iva, r.stock_minimo, r.clasif, r.clasif_abc, r.status,
         r.cpi, r.costo_total, r.te, r.ddi_7, r.ddi_14, r.ddi_30, r.ddi_60, r.ddi_90,
         ...PERIODS.flatMap(p => [
           (r as any)[`un_v_${p.key}`], (r as any)[`cu_compra_${p.key}`], (r as any)[`pu_venta_${p.key}`],
