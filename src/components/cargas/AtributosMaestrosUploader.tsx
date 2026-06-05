@@ -120,7 +120,7 @@ export default function AtributosMaestrosUploader({ onDone }: { onDone?: () => v
       if (notEmpty(r.sustancia)) patch.sustancia_activa = norm(r.sustancia);
       if (notEmpty(r.iva)) patch.iva_tasa = iva.value;
       if (estatus) patch.estatus = estatus;
-      if (clasif) patch.clasificacion_80_20 = clasif;
+      if (clasif) patch.clasificacion = clasif;
 
       const existente = byClave.get(clave);
       if (existente) {
