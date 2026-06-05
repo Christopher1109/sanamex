@@ -11,6 +11,7 @@ import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
 import AtributosMaestrosUploader from '@/components/cargas/AtributosMaestrosUploader';
 import HistoricoVentasUploader from '@/components/cargas/HistoricoVentasUploader';
+import SheetPickerDialog from '@/components/cargas/SheetPickerDialog';
 
 type TipoCarga = 'productos' | 'proveedores' | 'clientes' | 'historico_ventas' | 'atributos_maestros';
 
