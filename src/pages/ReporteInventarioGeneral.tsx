@@ -293,7 +293,7 @@ export default function ReporteInventarioGeneral() {
                   <td className="px-2 py-1 text-right">{mxn(r[`pu_venta_${p.key}`])}</td>
                   <td className="px-2 py-1 text-right">{mxn(r[`venta_${p.key}`])}</td>
                   <td className="px-2 py-1 text-right">{mxn(r[`utilidad_${p.key}`])}</td>
-                  <td className="px-2 py-1 text-right">{pct(r[`margen_${p.key}`] * 100)}</td>
+                  <td className="px-2 py-1 text-right">{pct(r[`margen_${p.key}`])}</td>
                 </>
               ))}
             </tr>

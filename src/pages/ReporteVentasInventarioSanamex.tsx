@@ -14,7 +14,7 @@ import * as XLSX from 'xlsx';
 type Row = {
   clave: string; lab: string | null; categoria: string | null; departamento: string | null;
   descripcion: string; agrupador: string | null; sustancia: string | null;
-  iva: number; cantidad: number; clasif: string | null; status: string | null;
+  iva: number | null; stock_minimo: number; clasif: string | null; status: string | null;
   cpi: number; costo_total: number; te: number;
   ddi_7: number | null; ddi_14: number | null; ddi_30: number | null; ddi_60: number | null; ddi_90: number | null;
   un_v_dia: number; cu_compra_dia: number; pu_venta_dia: number; venta_dia: number; utilidad_dia: number; margen_dia: number;
@@ -37,7 +37,12 @@ type FillRateRow = {
 
 const mxn = (n: number) => new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN', minimumFractionDigits: 2 }).format(n || 0);
 const num = (n: number) => new Intl.NumberFormat('es-MX').format(Math.round(n || 0));
-const pct = (n: number) => `${((n || 0) * 100).toFixed(2)}%`;
+// SQL ya devuelve márgenes en escala 0–100. NO multiplicar aquí.
+const pct = (n: number | null | undefined) => (n == null ? '—' : `${(n || 0).toFixed(2)}%`);
+const ivaCell = (n: number | null) =>
+  n == null
+    ? <span className="text-muted-foreground italic">Sin definir</span>
+    : <span>{Number(n).toFixed(Number(n) % 1 === 0 ? 0 : 2)}%</span>;
 
 const ddiColor = (v: number | null) => {
   if (v == null) return 'text-muted-foreground';
@@ -81,7 +86,7 @@ function ReportTable({ rows, loading }: { rows: Row[]; loading: boolean }) {
               <th className="px-2 py-1 text-left">Agrupador</th>
               <th className="px-2 py-1 text-left">Sustancia</th>
               <th className="px-2 py-1 text-right">IVA</th>
-              <th className="px-2 py-1 text-right">Cant.</th>
+              <th className="px-2 py-1 text-right">Stock Mín.</th>
               <th className="px-2 py-1 text-center">Clasif.</th>
               <th className="px-2 py-1 text-center">Status</th>
               <th className="px-2 py-1 text-right">CPI</th>
@@ -114,8 +119,8 @@ function ReportTable({ rows, loading }: { rows: Row[]; loading: boolean }) {
                 <td className="px-2 py-1">{r.departamento || '—'}</td>
                 <td className="px-2 py-1">{r.agrupador || '—'}</td>
                 <td className="px-2 py-1 max-w-[200px] truncate" title={r.sustancia || ''}>{r.sustancia || '—'}</td>
-                <td className="px-2 py-1 text-right">{r.iva}</td>
-                <td className="px-2 py-1 text-right">{num(r.cantidad)}</td>
+                <td className="px-2 py-1 text-right">{ivaCell(r.iva)}</td>
+                <td className="px-2 py-1 text-right">{num(r.stock_minimo)}</td>
                 <td className="px-2 py-1 text-center">{r.clasif || '—'}</td>
                 <td className="px-2 py-1 text-center">{r.status || '—'}</td>
                 <td className="px-2 py-1 text-right">{mxn(r.cpi)}</td>
@@ -175,18 +180,28 @@ export default function ReporteVentasInventarioSanamex() {
   const [fechaCorte, setFechaCorte] = useState(new Date().toISOString().slice(0, 10));
   const [productosFiltro, setProductosFiltro] = useState<[string, string, string, string]>(['', '', '', '']);
 
-  // Build tab list: general + each sucursal + Iztapalapa consolidated
-  const iztaSucs = useMemo(() => availableSucursales.filter(s => /izta|F\d|H$/i.test(s.codigo) || /izta/i.test(s.nombre)), [availableSucursales]);
+  // Pestañas en orden EXACTO: filtro, general(sin cedis), SV, ECA, F36, GH, CEDIS, fillrate
+  const sucOrder = ['SV', 'ECA', 'F36', 'GH'];
+  const orderedSucs = useMemo(
+    () => sucOrder
+      .map(code => availableSucursales.find(s => s.codigo === code))
+      .filter(Boolean) as typeof availableSucursales,
+    [availableSucursales],
+  );
+  const cedisSuc = useMemo(
+    () => availableSucursales.find(s => s.codigo === 'CEDIS' || /cedis/i.test(s.nombre)),
+    [availableSucursales],
+  );
   const tabs = useMemo(() => {
-    const t: { key: string; label: string; sucursalIds: string[] | null }[] = [
-      { key: 'filtro', label: 'Filtro Personalizado', sucursalIds: null },
-      { key: 'general', label: 'General (Consolidado)', sucursalIds: null },
+    const t: { key: string; label: string }[] = [
+      { key: 'filtro', label: 'Filtro Personalizado' },
+      { key: 'general', label: 'V&I General' },
     ];
-    availableSucursales.forEach(s => t.push({ key: s.id, label: s.nombre.replace('Distribuidora Farmacéutica Sanamex ', ''), sucursalIds: [s.id] }));
-    if (iztaSucs.length > 1) t.push({ key: 'iztapalapa', label: 'Iztapalapa (consolidado)', sucursalIds: iztaSucs.map(s => s.id) });
-    t.push({ key: 'fillrate', label: 'Fill Rate Proveedores', sucursalIds: null });
+    orderedSucs.forEach(s => t.push({ key: s.id, label: `V&I ${s.nombre.replace('Distribuidora Farmacéutica Sanamex ', '')}` }));
+    if (cedisSuc) t.push({ key: `cedis:${cedisSuc.id}`, label: 'Inventario CEDIS' });
+    t.push({ key: 'fillrate', label: 'Fill Rate Proveedores' });
     return t;
-  }, [availableSucursales, iztaSucs]);
+  }, [orderedSucs, cedisSuc]);
 
   // Lazy load: solo la pestaña activa. Cache por fechaCorte.
   const loadKey = async (key: string, currentCache: Record<string, Row[]> = allData) => {
@@ -195,37 +210,20 @@ export default function ReporteVentasInventarioSanamex() {
     try {
       const sb = supabase as any;
       if (key === 'general') {
-        const { data, error } = await sb.rpc('reporte_ventas_inventario_sanamex', { p_sucursal_id: null, p_fecha_corte: fechaCorte });
+        const { data, error } = await sb.rpc('reporte_ventas_inventario_sanamex', { p_sucursal_id: null, p_fecha_corte: fechaCorte, p_incluir_cedis: false });
         if (error) throw error;
         setAllData(p => ({ ...p, general: (data as Row[]) || [] }));
-      } else if (key === 'iztapalapa') {
-        const faltantes = iztaSucs.filter(s => !currentCache[s.id]);
-        const results = await Promise.all(faltantes.map(s => sb.rpc('reporte_ventas_inventario_sanamex', { p_sucursal_id: s.id, p_fecha_corte: fechaCorte })));
-        const next: Record<string, Row[]> = { ...currentCache };
-        faltantes.forEach((s, i) => { next[s.id] = (results[i].data as Row[]) || []; });
-        const byKey = new Map<string, Row>();
-        iztaSucs.forEach(s => {
-          (next[s.id] || []).forEach(r => {
-            const ex = byKey.get(r.clave);
-            if (!ex) byKey.set(r.clave, { ...r });
-            else {
-              ex.te += r.te; ex.costo_total += r.costo_total;
-              PERIODS.forEach(p => {
-                ['un_v', 'venta', 'utilidad'].forEach(f => {
-                  (ex as any)[`${f}_${p.key}`] += (r as any)[`${f}_${p.key}`];
-                });
-              });
-            }
-          });
-        });
-        next['iztapalapa'] = Array.from(byKey.values());
-        setAllData(next);
+      } else if (key.startsWith('cedis:')) {
+        const cedisId = key.slice('cedis:'.length);
+        const { data, error } = await sb.rpc('reporte_ventas_inventario_sanamex', { p_sucursal_id: cedisId, p_fecha_corte: fechaCorte, p_incluir_cedis: true });
+        if (error) throw error;
+        setAllData(p => ({ ...p, [key]: (data as Row[]) || [] }));
       } else if (key === 'fillrate') {
         const { data, error } = await sb.rpc('fill_rate_proveedores', { p_desde: null, p_hasta: null });
         if (error) throw error;
         setFillRate((data as FillRateRow[]) || []);
       } else {
-        const { data, error } = await sb.rpc('reporte_ventas_inventario_sanamex', { p_sucursal_id: key, p_fecha_corte: fechaCorte });
+        const { data, error } = await sb.rpc('reporte_ventas_inventario_sanamex', { p_sucursal_id: key, p_fecha_corte: fechaCorte, p_incluir_cedis: false });
         if (error) throw error;
         setAllData(p => ({ ...p, [key]: (data as Row[]) || [] }));
       }
@@ -279,32 +277,27 @@ export default function ReporteVentasInventarioSanamex() {
   }, [productosFiltro, allData]);
 
   const exportExcel = async () => {
-    // Asegurar que todas las pestañas estén cargadas para el export completo
+    // Asegurar que todas las pestañas (general + sucursales operativas + CEDIS) estén cargadas
     const sb = supabase as any;
-    const needed = ['general', ...availableSucursales.map(s => s.id)];
-    const faltantes = needed.filter(k => !allData[k]);
+    const needed: { key: string; sucId: string | null; incluirCedis: boolean }[] = [
+      { key: 'general', sucId: null, incluirCedis: false },
+      ...orderedSucs.map(s => ({ key: s.id, sucId: s.id, incluirCedis: false })),
+      ...(cedisSuc ? [{ key: `cedis:${cedisSuc.id}`, sucId: cedisSuc.id, incluirCedis: true }] : []),
+    ];
+    const faltantes = needed.filter(n => !allData[n.key]);
     if (faltantes.length || !fillRate.length) {
       setLoading(true);
       try {
         const calls = await Promise.all([
-          ...faltantes.map(k => sb.rpc('reporte_ventas_inventario_sanamex', { p_sucursal_id: k === 'general' ? null : k, p_fecha_corte: fechaCorte })),
+          ...faltantes.map(n => sb.rpc('reporte_ventas_inventario_sanamex', { p_sucursal_id: n.sucId, p_fecha_corte: fechaCorte, p_incluir_cedis: n.incluirCedis })),
           fillRate.length ? Promise.resolve({ data: fillRate }) : sb.rpc('fill_rate_proveedores', { p_desde: null, p_hasta: null }),
         ]);
         const next = { ...allData };
-        faltantes.forEach((k, i) => { next[k] = (calls[i].data as Row[]) || []; });
-        if (iztaSucs.length > 1) {
-          const byKey = new Map<string, Row>();
-          iztaSucs.forEach(s => (next[s.id] || []).forEach(r => {
-            const ex = byKey.get(r.clave);
-            if (!ex) byKey.set(r.clave, { ...r });
-            else { ex.te += r.te; ex.costo_total += r.costo_total; PERIODS.forEach(p => ['un_v','venta','utilidad'].forEach(f => { (ex as any)[`${f}_${p.key}`] += (r as any)[`${f}_${p.key}`]; })); }
-          }));
-          next['iztapalapa'] = Array.from(byKey.values());
-        }
+        faltantes.forEach((n, i) => { next[n.key] = (calls[i].data as Row[]) || []; });
         setAllData(next);
-        if (!fillRate.length) setFillRate((calls[calls.length - 1].data as FillRateRow[]) || []);
-        // usar next localmente
-        return doExport(next, !fillRate.length ? ((calls[calls.length - 1].data as FillRateRow[]) || []) : fillRate);
+        const fr = !fillRate.length ? ((calls[calls.length - 1].data as FillRateRow[]) || []) : fillRate;
+        if (!fillRate.length) setFillRate(fr);
+        return doExport(next, fr);
       } finally { setLoading(false); }
     }
     doExport(allData, fillRate);
@@ -314,12 +307,12 @@ export default function ReporteVentasInventarioSanamex() {
     const wb = XLSX.utils.book_new();
     const sheetFromRows = (rows: Row[]) => {
       const header = [
-        'Clave', 'Lab', 'Categoria', 'Departamento', 'Descripción', 'Agrupador', 'Sustancia', 'IVA', 'Cantidad', 'Clasif.', 'Status',
+        'Clave', 'Lab', 'Categoria', 'Departamento', 'Descripción', 'Agrupador', 'Sustancia', 'IVA', 'Stock Mínimo', 'Clasif.', 'Status',
         'CPI', 'Costo Total', 'TE', '7 DDI', '14 DDI', '30 DDI', '60 DDI', '90 DDI',
         ...PERIODS.flatMap(p => [`Un V ${p.label}`, 'CU Compra', 'PU Venta', 'Venta', 'Utilidad', 'Margen']),
       ];
       const body = rows.map(r => [
-        r.clave, r.lab, r.categoria, r.departamento, r.descripcion, r.agrupador, r.sustancia, r.iva, r.cantidad, r.clasif, r.status,
+        r.clave, r.lab, r.categoria, r.departamento, r.descripcion, r.agrupador, r.sustancia, r.iva, r.stock_minimo, r.clasif, r.status,
         r.cpi, r.costo_total, r.te, r.ddi_7, r.ddi_14, r.ddi_30, r.ddi_60, r.ddi_90,
         ...PERIODS.flatMap(p => [
           (r as any)[`un_v_${p.key}`], (r as any)[`cu_compra_${p.key}`], (r as any)[`pu_venta_${p.key}`],
@@ -329,12 +322,14 @@ export default function ReporteVentasInventarioSanamex() {
       return XLSX.utils.aoa_to_sheet([header, ...body]);
     };
     XLSX.utils.book_append_sheet(wb, sheetFromRows(filtroRows), 'Filtro Personalizado');
-    XLSX.utils.book_append_sheet(wb, sheetFromRows(data['general'] || []), 'Ventas e Inventario General');
-    availableSucursales.forEach(s => {
+    XLSX.utils.book_append_sheet(wb, sheetFromRows(data['general'] || []), 'V&I General');
+    orderedSucs.forEach(s => {
       const name = `V&I ${s.codigo}`.slice(0, 31);
       XLSX.utils.book_append_sheet(wb, sheetFromRows(data[s.id] || []), name);
     });
-    if (data['iztapalapa']) XLSX.utils.book_append_sheet(wb, sheetFromRows(data['iztapalapa']), 'V&I Iztapalapa');
+    if (cedisSuc && data[`cedis:${cedisSuc.id}`]) {
+      XLSX.utils.book_append_sheet(wb, sheetFromRows(data[`cedis:${cedisSuc.id}`]), 'Inventario CEDIS');
+    }
     const frSheet = XLSX.utils.aoa_to_sheet([
       ['Numero Proveedor', 'Nombre', 'Numero OC', 'Items Solicitados', 'Items Entregados', 'Fill Rate Items %', 'Lead Time Días', 'Fecha Emisión', 'Fecha Recepción', 'Varianza Tiempo', 'Fill Rate Lead Time %'],
       ...fr.map(f => [f.numero_proveedor, f.nombre_proveedor, f.numero_oc, f.total_items_solicitados, f.total_items_entregados, f.fill_rate_items, f.lead_time_dias, f.fecha_emision, f.fecha_recepcion, f.varianza_tiempo, f.fill_rate_lead_time]),
@@ -382,6 +377,7 @@ export default function ReporteVentasInventarioSanamex() {
                 <SelectItem value="all">Todas</SelectItem>
                 <SelectItem value="A">A</SelectItem><SelectItem value="B">B</SelectItem>
                 <SelectItem value="C">C</SelectItem><SelectItem value="D">D</SelectItem>
+                <SelectItem value="O">O — Obsoleto</SelectItem>
               </SelectContent>
             </Select>
           </div>
