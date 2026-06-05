@@ -1188,7 +1188,15 @@ export type Database = {
           unidad?: string | null
           updated_at?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "fk_productos_estatus"
+            columns: ["estatus"]
+            isOneToOne: false
+            referencedRelation: "productos_status"
+            referencedColumns: ["codigo"]
+          },
+        ]
       }
       productos_precios_lista: {
         Row: {
@@ -1541,6 +1549,7 @@ export type Database = {
           id: string
           nombre: string
           telefono: string | null
+          tipo: string
           updated_at: string | null
         }
         Insert: {
@@ -1551,6 +1560,7 @@ export type Database = {
           id?: string
           nombre: string
           telefono?: string | null
+          tipo: string
           updated_at?: string | null
         }
         Update: {
@@ -1561,6 +1571,7 @@ export type Database = {
           id?: string
           nombre?: string
           telefono?: string | null
+          tipo?: string
           updated_at?: string | null
         }
         Relationships: []
@@ -1923,7 +1934,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      clasificacion_abc_productos: { Args: never; Returns: undefined }
+      clasificacion_abc_productos: {
+        Args: { p_dias_ventana?: number }
+        Returns: undefined
+      }
       fill_rate_proveedores: {
         Args: { p_desde?: string; p_hasta?: string }
         Returns: {
@@ -1963,7 +1977,7 @@ export type Database = {
         }[]
       }
       inventario_resumen_por_sucursal: {
-        Args: { p_fecha?: string }
+        Args: { p_fecha?: string; p_incluir_cedis?: boolean }
         Returns: {
           ddi_30: number
           ddi_60: number
@@ -1974,6 +1988,7 @@ export type Database = {
           sucursal_codigo: string
           sucursal_id: string
           sucursal_nombre: string
+          sucursal_tipo: string
         }[]
       }
       inventario_status_por_sucursal: {
@@ -2044,7 +2059,7 @@ export type Database = {
         }[]
       }
       reporte_margenes: {
-        Args: { p_fecha?: string }
+        Args: { p_fecha?: string; p_incluir_cedis?: boolean }
         Returns: {
           clasificacion: string
           clave: string
@@ -2070,10 +2085,13 @@ export type Database = {
         }[]
       }
       reporte_ventas_inventario_sanamex: {
-        Args: { p_fecha_corte?: string; p_sucursal_id?: string }
+        Args: {
+          p_fecha_corte?: string
+          p_incluir_cedis?: boolean
+          p_sucursal_id?: string
+        }
         Returns: {
           agrupador: string
-          cantidad: number
           categoria: string
           clasif: string
           clave: string
@@ -2113,6 +2131,7 @@ export type Database = {
           pu_venta_sem: number
           pu_venta_sem_ant: number
           status: string
+          stock_minimo: number
           sustancia: string
           te: number
           un_v_2sem_ant: number

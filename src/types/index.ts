@@ -3,14 +3,12 @@ export type UserRole =
   | 'admin'
   | 'gerente'
   | 'subgerente'
-  | 'cajero'
-  | 'ventas'
-  | 'almacen'
-  | 'almacen_ventas'
+  | 'supervisor'
+  | 'almacen'          // almacenista puro: recepción, traspasos, mermas, kardex; NO opera POS
+  | 'almacen_ventas'   // almacenista que ALSO opera POS para cobertura en caja
+  | 'ventas'           // operador POS (anteriormente 'cajero', consolidado)
   | 'repartidor'
-  | 'auditor'
-  | 'auditoria'
-  | 'supervisor';
+  | 'auditoria';       // auditoría operativa (anteriormente 'auditor', consolidado)
 
 export interface Sucursal {
   id: string;

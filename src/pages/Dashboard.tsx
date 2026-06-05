@@ -78,10 +78,6 @@ const quickActionsByRole: Record<UserRole, Array<{
     { path: '/reportes', icon: FileSpreadsheet, label: 'Reportes', description: 'Operativos' },
     { path: '/actividad', icon: Activity, label: 'Actividad', description: 'Auditoría' },
   ],
-  cajero: [
-    { path: '/inventario', icon: Warehouse, label: 'Inventario', description: 'Ver existencias' },
-    { path: '/pedidos', icon: PackageCheck, label: 'Pedidos', description: 'Gestionar pedidos' },
-  ],
   ventas: [
     { path: '/pos', icon: Package, label: 'Punto de Venta', description: 'Vender' },
     { path: '/pedidos', icon: PackageCheck, label: 'Pedidos', description: 'Mis ventas' },
@@ -99,11 +95,6 @@ const quickActionsByRole: Record<UserRole, Array<{
   ],
   repartidor: [
     { path: '/pedidos', icon: PackageCheck, label: 'Mis Pedidos', description: 'Ver entregas' },
-  ],
-  auditor: [
-    { path: '/actividad', icon: Activity, label: 'Auditoría', description: 'Ver logs' },
-    { path: '/caducidades', icon: AlertCircle, label: 'Caducidades', description: 'Vencimientos' },
-    { path: '/reportes', icon: FileSpreadsheet, label: 'Reportes', description: 'Operativos' },
   ],
   auditoria: [
     { path: '/actividad', icon: Activity, label: 'Auditoría', description: 'Ver logs' },
@@ -139,12 +130,12 @@ const Dashboard = ({ userRole }: DashboardProps) => {
     gerente: 'Gerente de Sucursal',
     subgerente: 'Subgerente',
     supervisor: 'Supervisor',
-    cajero: 'Cajero',
+    
     ventas: 'Ventas',
     almacen: 'Almacenista',
     almacen_ventas: 'Almacén y Ventas',
     repartidor: 'Repartidor',
-    auditor: 'Auditor',
+    
     auditoria: 'Auditoría',
   };
 
