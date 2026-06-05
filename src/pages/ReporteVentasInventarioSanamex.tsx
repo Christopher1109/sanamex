@@ -284,7 +284,7 @@ export default function ReporteVentasInventarioSanamex() {
   };
 
   const recalcAbc = async () => {
-    const { error } = await supabase.rpc('clasificacion_abc_productos');
+    const { error } = await (supabase as any).rpc('clasificacion_abc_productos');
     if (error) toast.error(error.message); else { toast.success('Clasificación ABC recalculada'); loadData(); }
   };
 
