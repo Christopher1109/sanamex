@@ -47,6 +47,8 @@ export default function AtributosMaestrosUploader({ onDone }: { onDone?: () => v
   const [open, setOpen] = useState(false);
   const [committing, setCommitting] = useState(false);
   const [progress, setProgress] = useState<string>('');
+  const [pickerFile, setPickerFile] = useState<File | null>(null);
+  const [pickerOpen, setPickerOpen] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
