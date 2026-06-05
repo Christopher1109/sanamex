@@ -7,6 +7,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Upload, Download, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
+import SheetPickerDialog from './SheetPickerDialog';
 
 const COLUMNAS = [
   'clave', 'descripcion', 'nombre', 'laboratorio', 'categoria',
