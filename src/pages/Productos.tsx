@@ -486,7 +486,18 @@ const Productos = () => {
                 <div><Label>Fracción arancelaria</Label><Input value={form.fraccion_arancelaria} onChange={e => setForm({...form, fraccion_arancelaria: e.target.value})} /></div>
               </div>
               <div className="grid grid-cols-2 gap-3">
-                <div><Label>IVA (%)</Label><Input type="number" step="0.01" value={form.iva_tasa} onChange={e => setForm({...form, iva_tasa: e.target.value})} /></div>
+                <div>
+                  <Label>IVA {form.iva_tasa === '' && <span className="text-amber-600 text-xs">⚠ Sin definir</span>}</Label>
+                  <Select value={form.iva_tasa === '' ? '__null__' : form.iva_tasa} onValueChange={v => setForm({...form, iva_tasa: v === '__null__' ? '' : v})}>
+                    <SelectTrigger><SelectValue placeholder="Selecciona" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="0">0% (exento)</SelectItem>
+                      <SelectItem value="8">8% (frontera)</SelectItem>
+                      <SelectItem value="16">16%</SelectItem>
+                      <SelectItem value="__null__">Sin definir</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
                 <div><Label>IEPS (%)</Label><Input type="number" step="0.01" value={form.ieps} onChange={e => setForm({...form, ieps: e.target.value})} /></div>
               </div>
             </TabsContent>
