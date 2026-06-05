@@ -331,8 +331,14 @@ export default function ReporteVentasInventarioSanamex() {
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Todos</SelectItem>
-                <SelectItem value="A">A — Activo</SelectItem><SelectItem value="I">I — Inactivo</SelectItem>
-                <SelectItem value="C">C — Continuo</SelectItem><SelectItem value="S">S — Suspendido</SelectItem>
+                <SelectItem value="A">A — Activo</SelectItem>
+                <SelectItem value="I">I — Inactivo</SelectItem>
+                <SelectItem value="C">C — Cancelado</SelectItem>
+                <SelectItem value="S">S — Sustituto</SelectItem>
+                <SelectItem value="N">N — Nuevo</SelectItem>
+                <SelectItem value="E">E — Compra Especial</SelectItem>
+                <SelectItem value="K">K — Corta Caducidad</SelectItem>
+                <SelectItem value="G">G — Agotado</SelectItem>
               </SelectContent>
             </Select>
           </div>
