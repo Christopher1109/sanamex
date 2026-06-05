@@ -260,7 +260,10 @@ export default function AtributosMaestrosUploader({ onDone }: { onDone?: () => v
       </div>
       <div className="flex gap-2">
         <Button variant="outline" onClick={descargarPlantilla}><Download className="h-4 w-4 mr-2" />Descargar plantilla</Button>
-        <Button onClick={() => fileRef.current?.click()}><Upload className="h-4 w-4 mr-2" />Subir Excel</Button>
+        <Button onClick={() => fileRef.current?.click()} disabled={!!progress}>
+          {progress ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Upload className="h-4 w-4 mr-2" />}
+          {progress || 'Subir Excel'}
+        </Button>
         <input
           ref={fileRef} type="file" accept=".xlsx,.xls" className="hidden"
           onChange={(e) => { const f = e.target.files?.[0]; if (f) procesarArchivo(f); e.target.value = ''; }}
