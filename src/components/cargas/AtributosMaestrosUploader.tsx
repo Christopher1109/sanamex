@@ -13,7 +13,8 @@ const COLUMNAS = [
   'departamento', 'agrupador', 'sustancia', 'iva', 'estatus', 'clasificacion',
 ] as const;
 
-const CLASIF_VALIDAS = new Set(['A', 'B', 'C', 'D', 'O']);
+// Nota: el campo `clasificacion` es texto libre del cliente (A-W, DESCLASIFICADO, etc.).
+// La clasificación ABC (A/B/C/D/O) es calculada por el sistema en `clasificacion_80_20` y NO se carga desde Excel.
 
 type PreviewRow = {
   fila: number;             // row number in Excel (1-based, header excluded)
