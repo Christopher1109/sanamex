@@ -447,6 +447,10 @@ const Productos = () => {
                     </SelectContent>
                   </Select>
                 </div>
+                <div>
+                  <Label>Agrupador {(!form.agrupador || !form.agrupador.trim()) && <span className="text-amber-600 text-xs">⚠ Sin definir</span>}</Label>
+                  <Input value={form.agrupador} onChange={e => setForm({...form, agrupador: e.target.value})} />
+                </div>
                 <div><Label>Clasificación 80/20</Label><Input value={form.clasificacion_80_20} onChange={e => setForm({...form, clasificacion_80_20: e.target.value})} /></div>
                 <div><Label>Stock mínimo</Label><Input type="number" value={form.stock_minimo} onChange={e => setForm({...form, stock_minimo: e.target.value})} /></div>
               </div>
