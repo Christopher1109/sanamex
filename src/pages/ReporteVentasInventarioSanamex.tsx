@@ -14,7 +14,10 @@ import * as XLSX from 'xlsx';
 type Row = {
   clave: string; lab: string | null; categoria: string | null; departamento: string | null;
   descripcion: string; agrupador: string | null; sustancia: string | null;
-  iva: number | null; stock_minimo: number; clasif: string | null; status: string | null;
+  iva: number | null; stock_minimo: number;
+  clasif: string | null;       // Clasificación libre del cliente (A-W, DESCLASIFICADO, etc.)
+  clasif_abc: string | null;   // Clasificación ABC Pareto (A/B/C/D/O) calculada por el sistema
+  status: string | null;
   cpi: number; costo_total: number; te: number;
   ddi_7: number | null; ddi_14: number | null; ddi_30: number | null; ddi_60: number | null; ddi_90: number | null;
   un_v_dia: number; cu_compra_dia: number; pu_venta_dia: number; venta_dia: number; utilidad_dia: number; margen_dia: number;
