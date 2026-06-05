@@ -267,16 +267,21 @@ export default function ReporteVentasInventarioSanamex() {
     const base = allData[tab] || [];
     return base.filter(r => {
       if (search && !`${r.clave} ${r.descripcion}`.toLowerCase().includes(search.toLowerCase())) return false;
-      if (filterClasif !== 'all' && r.clasif !== filterClasif) return false;
+      if (filterClasif !== 'all' && (r.clasif || '') !== filterClasif) return false;
+      if (filterAbc !== 'all' && (r.clasif_abc || '') !== filterAbc) return false;
       if (filterStatus !== 'all' && r.status !== filterStatus) return false;
       if (filterDepto !== 'all' && r.departamento !== filterDepto) return false;
       if (filterLab !== 'all' && r.lab !== filterLab) return false;
       return true;
     });
-  }, [allData, tab, search, filterClasif, filterStatus, filterDepto, filterLab]);
+  }, [allData, tab, search, filterClasif, filterAbc, filterStatus, filterDepto, filterLab]);
 
   const depts = useMemo(() => Array.from(new Set((allData['general'] || []).map(r => r.departamento).filter(Boolean))) as string[], [allData]);
   const labs = useMemo(() => Array.from(new Set((allData['general'] || []).map(r => r.lab).filter(Boolean))) as string[], [allData]);
+  const clasifValues = useMemo(
+    () => Array.from(new Set((allData['general'] || []).map(r => r.clasif).filter(Boolean))).sort() as string[],
+    [allData],
+  );
 
   const filtroRows = useMemo(() => {
     return productosFiltro.map(c => (allData['general'] || []).find(r => r.clave === c || r.descripcion?.toLowerCase().includes(c.toLowerCase()))).filter(Boolean) as Row[];
