@@ -51,7 +51,7 @@ const Sidebar = ({ userRole, onLogout }: SidebarProps) => {
     // Catálogos
     { path: '/productos', icon: Package, label: 'Productos', roles: ['super_admin','admin','gerente','subgerente','almacen','almacen_ventas'], category: 'Catálogos' },
     { path: '/proveedores', icon: Store, label: 'Proveedores', roles: MGMT, category: 'Catálogos' },
-    { path: '/clientes', icon: Users, label: 'Clientes', roles: [...MGMT,'cajero','ventas'], category: 'Catálogos' },
+    { path: '/clientes', icon: Users, label: 'Clientes', roles: [...MGMT,'ventas'], category: 'Catálogos' },
     // Operaciones
     { path: '/compras', icon: ShoppingCart, label: 'Compras', roles: OPS, category: 'Operaciones' },
     { path: '/pedidos', icon: PackageCheck, label: 'Ventas', roles: SALES, category: 'Operaciones' },
@@ -59,9 +59,9 @@ const Sidebar = ({ userRole, onLogout }: SidebarProps) => {
     { path: '/traspasos', icon: ArrowLeftRight, label: 'Traspasos', roles: OPS, category: 'Operaciones' },
     // Inventario
     { path: '/inventario', icon: Warehouse, label: 'Inventario', roles: ['super_admin','admin','gerente','subgerente','almacen','almacen_ventas'], category: 'Inventario' },
-    { path: '/kardex', icon: ClipboardList, label: 'Kardex', roles: [...OPS,'auditor','auditoria'], category: 'Inventario' },
-    { path: '/mermas', icon: AlertTriangle, label: 'Mermas', roles: [...OPS,'auditor','auditoria'], category: 'Inventario' },
-    { path: '/caducidades', icon: AlertCircle, label: 'Caducidades', roles: [...OPS,'auditor','auditoria'], category: 'Inventario' },
+    { path: '/kardex', icon: ClipboardList, label: 'Kardex', roles: [...OPS,'auditoria','auditoria'], category: 'Inventario' },
+    { path: '/mermas', icon: AlertTriangle, label: 'Mermas', roles: [...OPS,'auditoria','auditoria'], category: 'Inventario' },
+    { path: '/caducidades', icon: AlertCircle, label: 'Caducidades', roles: [...OPS,'auditoria','auditoria'], category: 'Inventario' },
     // Análisis
     { path: '/rotacion', icon: TrendingUp, label: 'Inteligencia de Rotación', roles: MGMT, category: 'Análisis' },
     { path: '/rentabilidad-lotes', icon: DollarSign, label: 'Rentabilidad por Lote', roles: MGMT, category: 'Análisis' },

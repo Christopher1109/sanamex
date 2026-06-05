@@ -139,12 +139,12 @@ const Dashboard = ({ userRole }: DashboardProps) => {
     gerente: 'Gerente de Sucursal',
     subgerente: 'Subgerente',
     supervisor: 'Supervisor',
-    cajero: 'Cajero',
+    
     ventas: 'Ventas',
     almacen: 'Almacenista',
     almacen_ventas: 'Almacén y Ventas',
     repartidor: 'Repartidor',
-    auditor: 'Auditor',
+    auditoria_old: 'Auditor',
     auditoria: 'Auditoría',
   };
 
