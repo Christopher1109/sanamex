@@ -506,9 +506,18 @@ export default function HistoricoVentasUploader({ onDone }: { onDone?: () => voi
         </Button>
         <input
           ref={fileRef} type="file" accept=".xlsx,.xls" className="hidden"
-          onChange={(e) => { const f = e.target.files?.[0]; if (f) procesarArchivo(f); e.target.value = ''; }}
+          onChange={(e) => { const f = e.target.files?.[0]; if (f) { setPickerFile(f); setPickerOpen(true); } e.target.value = ''; }}
         />
       </div>
+
+      <SheetPickerDialog
+        file={pickerFile}
+        open={pickerOpen}
+        preferred={['BD']}
+        cellDates
+        onCancel={() => { setPickerOpen(false); setPickerFile(null); }}
+        onConfirm={(wb, sheetName, name) => { setPickerOpen(false); setPickerFile(null); procesarArchivo(wb, sheetName, name); }}
+      />
 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-w-6xl">
