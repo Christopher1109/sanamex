@@ -566,10 +566,13 @@ export default function ReporteInventarioGeneral() {
           <Card><CardContent className="pt-4 flex items-center gap-3">
             <Label className="text-xs">Clasificación:</Label>
             <Select value={filterClasif} onValueChange={setFilterClasif}>
-              <SelectTrigger className="w-32"><SelectValue /></SelectTrigger>
-              <SelectContent>{ABC_CODES.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
+              <SelectTrigger className="w-48"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todas</SelectItem>
+                {clasifValuesBd.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+              </SelectContent>
             </Select>
-            <span className="text-xs text-muted-foreground">{byClasif.length} SKUs</span>
+            <span className="text-xs text-muted-foreground">{byClasif.length} SKUs · clasificación del cliente</span>
           </CardContent></Card>
           <Card><CardContent className="pt-4">{renderBdTable(byClasif)}</CardContent></Card>
         </TabsContent>
