@@ -221,7 +221,8 @@ export default function AtributosMaestrosUploader({ onDone }: { onDone?: () => v
           <li>• UPSERT por clave: solo se actualizan los campos NO vacíos del Excel; celdas en blanco no sobreescriben.</li>
           <li>• <b>iva</b> acepta vacío (queda NULL = "Sin definir"), 0, 0.16, 16, "16%".</li>
           <li>• <b>estatus</b> se valida contra el catálogo <code>productos_status</code>.</li>
-          <li>• <b>clasificacion</b> debe ser una de A, B, C, D, O.</li>
+          <li>• <b>clasificacion</b> es <b>texto libre del cliente</b> (A-W, DESCLASIFICADO, vacío). NO se valida.</li>
+          <li>• La clasificación <b>ABC (A/B/C/D/O) es calculada por el sistema</b> en otra columna; NO se carga desde Excel.</li>
           <li>• Idempotente: una segunda corrida del mismo archivo muestra 0 INSERT y solo UPDATEs con cambio real.</li>
         </ul>
       </div>
