@@ -90,7 +90,8 @@ function ReportTable({ rows, loading }: { rows: Row[]; loading: boolean }) {
               <th className="px-2 py-1 text-left">Sustancia</th>
               <th className="px-2 py-1 text-right">IVA</th>
               <th className="px-2 py-1 text-right">Stock Mín.</th>
-              <th className="px-2 py-1 text-center">Clasif.</th>
+              <th className="px-2 py-1 text-center" title="Clasificación del cliente (Excel original)">Clasif.</th>
+              <th className="px-2 py-1 text-center" title="Clasificación ABC Pareto calculada por el sistema">ABC</th>
               <th className="px-2 py-1 text-center">Status</th>
               <th className="px-2 py-1 text-right">CPI</th>
               <th className="px-2 py-1 text-right">Costo Total</th>
