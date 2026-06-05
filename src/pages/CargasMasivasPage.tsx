@@ -10,6 +10,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
 import AtributosMaestrosUploader from '@/components/cargas/AtributosMaestrosUploader';
+import HistoricoVentasUploader from '@/components/cargas/HistoricoVentasUploader';
 
 type TipoCarga = 'productos' | 'proveedores' | 'clientes' | 'historico_ventas' | 'atributos_maestros';
 
@@ -143,6 +144,8 @@ export default function CargasMasivasPage() {
             <Card className="p-5 space-y-4">
               {t === 'atributos_maestros' ? (
                 <AtributosMaestrosUploader onDone={loadHist} />
+              ) : t === 'historico_ventas' ? (
+                <HistoricoVentasUploader onDone={loadHist} />
               ) : (
                 <>
                   <div>
@@ -156,9 +159,6 @@ export default function CargasMasivasPage() {
                     <Button onClick={() => fileRef.current?.click()}><Upload className="h-4 w-4 mr-2" />Subir Excel</Button>
                     <input ref={fileRef} type="file" accept=".xlsx,.xls" className="hidden" onChange={e => { const f = e.target.files?.[0]; if (f) procesarArchivo(f); e.target.value = ''; }} />
                   </div>
-                  {t === 'historico_ventas' && (
-                    <p className="text-sm text-muted-foreground">Este histórico alimenta el módulo de Recomendaciones IA.</p>
-                  )}
                 </>
               )}
             </Card>
