@@ -29,6 +29,7 @@ import CargasMasivasPage from './pages/CargasMasivasPage';
 import CuentasPorPagarPage from './pages/CuentasPorPagarPage';
 import RotacionPage from './pages/RotacionPage';
 import RentabilidadLotesPage from './pages/RentabilidadLotesPage';
+import ReporteVentasInventarioSanamex from './pages/ReporteVentasInventarioSanamex';
 import Sidebar from './components/layout/Sidebar';
 import Header from './components/layout/Header';
 
