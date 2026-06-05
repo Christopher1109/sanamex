@@ -121,11 +121,16 @@ function ReportTable({ rows, loading }: { rows: Row[]; loading: boolean }) {
                 <td className="px-2 py-1 text-right">{mxn(r.cpi)}</td>
                 <td className="px-2 py-1 text-right">{mxn(r.costo_total)}</td>
                 <td className="px-2 py-1 text-right">{num(r.te)}</td>
-                <td className={`px-2 py-1 text-right ${ddiColor(r.ddi_7)}`}>{r.ddi_7 != null ? r.ddi_7.toFixed(1) : '—'}</td>
-                <td className={`px-2 py-1 text-right ${ddiColor(r.ddi_14)}`}>{r.ddi_14 != null ? r.ddi_14.toFixed(1) : '—'}</td>
-                <td className={`px-2 py-1 text-right ${ddiColor(r.ddi_30)}`}>{r.ddi_30 != null ? r.ddi_30.toFixed(1) : '—'}</td>
-                <td className={`px-2 py-1 text-right ${ddiColor(r.ddi_60)}`}>{r.ddi_60 != null ? r.ddi_60.toFixed(1) : '—'}</td>
-                <td className={`px-2 py-1 text-right ${ddiColor(r.ddi_90)}`}>{r.ddi_90 != null ? r.ddi_90.toFixed(1) : '—'}</td>
+                {(['ddi_7','ddi_14','ddi_30','ddi_60','ddi_90'] as const).map(k => {
+                  const v = (r as any)[k] as number | null;
+                  const noAplica = (r.te ?? 0) === 0 || r.status === 'O' || r.status === 'I';
+                  const sinVenta = !noAplica && (v == null || v === 0);
+                  return (
+                    <td key={k} className={`px-2 py-1 text-right ${noAplica || sinVenta ? 'text-muted-foreground' : ddiColor(v)}`}>
+                      {noAplica ? '—' : sinVenta ? 'Sin venta' : v!.toFixed(1)}
+                    </td>
+                  );
+                })}
                 {PERIODS.map(p => {
                   const k = (s: string) => (r as any)[`${s}_${p.key}`];
                   return (
