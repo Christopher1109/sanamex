@@ -183,28 +183,24 @@ export default function ReporteVentasInventarioSanamex() {
     return t;
   }, [availableSucursales, iztaSucs]);
 
-  const loadData = async () => {
+  // Lazy load: solo la pestaña activa. Cache por fechaCorte.
+  const loadKey = async (key: string, currentCache: Record<string, Row[]> = allData) => {
+    if (currentCache[key]) return;
     setLoading(true);
     try {
       const sb = supabase as any;
-      const promises: Promise<any>[] = [];
-      promises.push(sb.rpc('reporte_ventas_inventario_sanamex', { p_sucursal_id: null, p_fecha_corte: fechaCorte }));
-      availableSucursales.forEach(s => {
-        promises.push(sb.rpc('reporte_ventas_inventario_sanamex', { p_sucursal_id: s.id, p_fecha_corte: fechaCorte }));
-      });
-      promises.push(sb.rpc('fill_rate_proveedores', { p_desde: null, p_hasta: null }));
-
-      const results = await Promise.all(promises);
-      const data: Record<string, Row[]> = {};
-      data['general'] = (results[0].data as Row[]) || [];
-      availableSucursales.forEach((s, i) => {
-        data[s.id] = (results[i + 1].data as Row[]) || [];
-      });
-      // Build Iztapalapa consolidated client-side
-      if (iztaSucs.length > 1) {
+      if (key === 'general') {
+        const { data, error } = await sb.rpc('reporte_ventas_inventario_sanamex', { p_sucursal_id: null, p_fecha_corte: fechaCorte });
+        if (error) throw error;
+        setAllData(p => ({ ...p, general: (data as Row[]) || [] }));
+      } else if (key === 'iztapalapa') {
+        const faltantes = iztaSucs.filter(s => !currentCache[s.id]);
+        const results = await Promise.all(faltantes.map(s => sb.rpc('reporte_ventas_inventario_sanamex', { p_sucursal_id: s.id, p_fecha_corte: fechaCorte })));
+        const next: Record<string, Row[]> = { ...currentCache };
+        faltantes.forEach((s, i) => { next[s.id] = (results[i].data as Row[]) || []; });
         const byKey = new Map<string, Row>();
         iztaSucs.forEach(s => {
-          (data[s.id] || []).forEach(r => {
+          (next[s.id] || []).forEach(r => {
             const ex = byKey.get(r.clave);
             if (!ex) byKey.set(r.clave, { ...r });
             else {
@@ -217,10 +213,17 @@ export default function ReporteVentasInventarioSanamex() {
             }
           });
         });
-        data['iztapalapa'] = Array.from(byKey.values());
+        next['iztapalapa'] = Array.from(byKey.values());
+        setAllData(next);
+      } else if (key === 'fillrate') {
+        const { data, error } = await sb.rpc('fill_rate_proveedores', { p_desde: null, p_hasta: null });
+        if (error) throw error;
+        setFillRate((data as FillRateRow[]) || []);
+      } else {
+        const { data, error } = await sb.rpc('reporte_ventas_inventario_sanamex', { p_sucursal_id: key, p_fecha_corte: fechaCorte });
+        if (error) throw error;
+        setAllData(p => ({ ...p, [key]: (data as Row[]) || [] }));
       }
-      setAllData(data);
-      setFillRate((results[results.length - 1].data as FillRateRow[]) || []);
     } catch (e: any) {
       toast.error('Error al cargar: ' + e.message);
     } finally {
@@ -228,7 +231,27 @@ export default function ReporteVentasInventarioSanamex() {
     }
   };
 
-  useEffect(() => { if (availableSucursales.length) loadData(); /* eslint-disable-next-line */ }, [availableSucursales.length, fechaCorte]);
+  const loadData = async () => {
+    setAllData({});
+    setFillRate([]);
+    await loadKey(tab === 'filtro' ? 'general' : tab, {});
+  };
+
+  // Recarga al cambiar fecha o cuando se monta con sucursales disponibles
+  useEffect(() => {
+    if (!availableSucursales.length) return;
+    setAllData({});
+    setFillRate([]);
+    loadKey(tab === 'filtro' ? 'general' : tab, {});
+    /* eslint-disable-next-line */
+  }, [fechaCorte, availableSucursales.length]);
+
+  // Carga al cambiar de pestaña (usa cache si ya existe)
+  useEffect(() => {
+    if (!availableSucursales.length) return;
+    loadKey(tab === 'filtro' ? 'general' : tab);
+    /* eslint-disable-next-line */
+  }, [tab]);
 
   const currentRows = useMemo(() => {
     if (tab === 'filtro' || tab === 'fillrate') return [];
@@ -250,7 +273,39 @@ export default function ReporteVentasInventarioSanamex() {
     return productosFiltro.map(c => (allData['general'] || []).find(r => r.clave === c || r.descripcion?.toLowerCase().includes(c.toLowerCase()))).filter(Boolean) as Row[];
   }, [productosFiltro, allData]);
 
-  const exportExcel = () => {
+  const exportExcel = async () => {
+    // Asegurar que todas las pestañas estén cargadas para el export completo
+    const sb = supabase as any;
+    const needed = ['general', ...availableSucursales.map(s => s.id)];
+    const faltantes = needed.filter(k => !allData[k]);
+    if (faltantes.length || !fillRate.length) {
+      setLoading(true);
+      try {
+        const calls = await Promise.all([
+          ...faltantes.map(k => sb.rpc('reporte_ventas_inventario_sanamex', { p_sucursal_id: k === 'general' ? null : k, p_fecha_corte: fechaCorte })),
+          fillRate.length ? Promise.resolve({ data: fillRate }) : sb.rpc('fill_rate_proveedores', { p_desde: null, p_hasta: null }),
+        ]);
+        const next = { ...allData };
+        faltantes.forEach((k, i) => { next[k] = (calls[i].data as Row[]) || []; });
+        if (iztaSucs.length > 1) {
+          const byKey = new Map<string, Row>();
+          iztaSucs.forEach(s => (next[s.id] || []).forEach(r => {
+            const ex = byKey.get(r.clave);
+            if (!ex) byKey.set(r.clave, { ...r });
+            else { ex.te += r.te; ex.costo_total += r.costo_total; PERIODS.forEach(p => ['un_v','venta','utilidad'].forEach(f => { (ex as any)[`${f}_${p.key}`] += (r as any)[`${f}_${p.key}`]; })); }
+          }));
+          next['iztapalapa'] = Array.from(byKey.values());
+        }
+        setAllData(next);
+        if (!fillRate.length) setFillRate((calls[calls.length - 1].data as FillRateRow[]) || []);
+        // usar next localmente
+        return doExport(next, !fillRate.length ? ((calls[calls.length - 1].data as FillRateRow[]) || []) : fillRate);
+      } finally { setLoading(false); }
+    }
+    doExport(allData, fillRate);
+  };
+
+  const doExport = (data: Record<string, Row[]>, fr: FillRateRow[]) => {
     const wb = XLSX.utils.book_new();
     const sheetFromRows = (rows: Row[]) => {
       const header = [
@@ -269,15 +324,15 @@ export default function ReporteVentasInventarioSanamex() {
       return XLSX.utils.aoa_to_sheet([header, ...body]);
     };
     XLSX.utils.book_append_sheet(wb, sheetFromRows(filtroRows), 'Filtro Personalizado');
-    XLSX.utils.book_append_sheet(wb, sheetFromRows(allData['general'] || []), 'Ventas e Inventario General');
+    XLSX.utils.book_append_sheet(wb, sheetFromRows(data['general'] || []), 'Ventas e Inventario General');
     availableSucursales.forEach(s => {
       const name = `V&I ${s.codigo}`.slice(0, 31);
-      XLSX.utils.book_append_sheet(wb, sheetFromRows(allData[s.id] || []), name);
+      XLSX.utils.book_append_sheet(wb, sheetFromRows(data[s.id] || []), name);
     });
-    if (allData['iztapalapa']) XLSX.utils.book_append_sheet(wb, sheetFromRows(allData['iztapalapa']), 'V&I Iztapalapa');
+    if (data['iztapalapa']) XLSX.utils.book_append_sheet(wb, sheetFromRows(data['iztapalapa']), 'V&I Iztapalapa');
     const frSheet = XLSX.utils.aoa_to_sheet([
       ['Numero Proveedor', 'Nombre', 'Numero OC', 'Items Solicitados', 'Items Entregados', 'Fill Rate Items %', 'Lead Time Días', 'Fecha Emisión', 'Fecha Recepción', 'Varianza Tiempo', 'Fill Rate Lead Time %'],
-      ...fillRate.map(f => [f.numero_proveedor, f.nombre_proveedor, f.numero_oc, f.total_items_solicitados, f.total_items_entregados, f.fill_rate_items, f.lead_time_dias, f.fecha_emision, f.fecha_recepcion, f.varianza_tiempo, f.fill_rate_lead_time]),
+      ...fr.map(f => [f.numero_proveedor, f.nombre_proveedor, f.numero_oc, f.total_items_solicitados, f.total_items_entregados, f.fill_rate_items, f.lead_time_dias, f.fecha_emision, f.fecha_recepcion, f.varianza_tiempo, f.fill_rate_lead_time]),
     ]);
     XLSX.utils.book_append_sheet(wb, frSheet, 'Fill Rate Proveedores');
     XLSX.writeFile(wb, `Reporte Ventas e Inventario SANAMEX ${fechaCorte.replace(/-/g, '')}.xlsx`);
