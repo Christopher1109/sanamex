@@ -1986,6 +1986,7 @@ export type Database = {
           sucursal_id: string
         }[]
       }
+      mapear_sucursal_legacy: { Args: { p_codigo: string }; Returns: string }
       process_pos_sale:
         | {
             Args: {
