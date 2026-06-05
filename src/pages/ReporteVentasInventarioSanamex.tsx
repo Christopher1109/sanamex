@@ -277,32 +277,27 @@ export default function ReporteVentasInventarioSanamex() {
   }, [productosFiltro, allData]);
 
   const exportExcel = async () => {
-    // Asegurar que todas las pestañas estén cargadas para el export completo
+    // Asegurar que todas las pestañas (general + sucursales operativas + CEDIS) estén cargadas
     const sb = supabase as any;
-    const needed = ['general', ...availableSucursales.map(s => s.id)];
-    const faltantes = needed.filter(k => !allData[k]);
+    const needed: { key: string; sucId: string | null; incluirCedis: boolean }[] = [
+      { key: 'general', sucId: null, incluirCedis: false },
+      ...orderedSucs.map(s => ({ key: s.id, sucId: s.id, incluirCedis: false })),
+      ...(cedisSuc ? [{ key: `cedis:${cedisSuc.id}`, sucId: cedisSuc.id, incluirCedis: true }] : []),
+    ];
+    const faltantes = needed.filter(n => !allData[n.key]);
     if (faltantes.length || !fillRate.length) {
       setLoading(true);
       try {
         const calls = await Promise.all([
-          ...faltantes.map(k => sb.rpc('reporte_ventas_inventario_sanamex', { p_sucursal_id: k === 'general' ? null : k, p_fecha_corte: fechaCorte })),
+          ...faltantes.map(n => sb.rpc('reporte_ventas_inventario_sanamex', { p_sucursal_id: n.sucId, p_fecha_corte: fechaCorte, p_incluir_cedis: n.incluirCedis })),
           fillRate.length ? Promise.resolve({ data: fillRate }) : sb.rpc('fill_rate_proveedores', { p_desde: null, p_hasta: null }),
         ]);
         const next = { ...allData };
-        faltantes.forEach((k, i) => { next[k] = (calls[i].data as Row[]) || []; });
-        if (iztaSucs.length > 1) {
-          const byKey = new Map<string, Row>();
-          iztaSucs.forEach(s => (next[s.id] || []).forEach(r => {
-            const ex = byKey.get(r.clave);
-            if (!ex) byKey.set(r.clave, { ...r });
-            else { ex.te += r.te; ex.costo_total += r.costo_total; PERIODS.forEach(p => ['un_v','venta','utilidad'].forEach(f => { (ex as any)[`${f}_${p.key}`] += (r as any)[`${f}_${p.key}`]; })); }
-          }));
-          next['iztapalapa'] = Array.from(byKey.values());
-        }
+        faltantes.forEach((n, i) => { next[n.key] = (calls[i].data as Row[]) || []; });
         setAllData(next);
-        if (!fillRate.length) setFillRate((calls[calls.length - 1].data as FillRateRow[]) || []);
-        // usar next localmente
-        return doExport(next, !fillRate.length ? ((calls[calls.length - 1].data as FillRateRow[]) || []) : fillRate);
+        const fr = !fillRate.length ? ((calls[calls.length - 1].data as FillRateRow[]) || []) : fillRate;
+        if (!fillRate.length) setFillRate(fr);
+        return doExport(next, fr);
       } finally { setLoading(false); }
     }
     doExport(allData, fillRate);
@@ -327,12 +322,14 @@ export default function ReporteVentasInventarioSanamex() {
       return XLSX.utils.aoa_to_sheet([header, ...body]);
     };
     XLSX.utils.book_append_sheet(wb, sheetFromRows(filtroRows), 'Filtro Personalizado');
-    XLSX.utils.book_append_sheet(wb, sheetFromRows(data['general'] || []), 'Ventas e Inventario General');
-    availableSucursales.forEach(s => {
+    XLSX.utils.book_append_sheet(wb, sheetFromRows(data['general'] || []), 'V&I General');
+    orderedSucs.forEach(s => {
       const name = `V&I ${s.codigo}`.slice(0, 31);
       XLSX.utils.book_append_sheet(wb, sheetFromRows(data[s.id] || []), name);
     });
-    if (data['iztapalapa']) XLSX.utils.book_append_sheet(wb, sheetFromRows(data['iztapalapa']), 'V&I Iztapalapa');
+    if (cedisSuc && data[`cedis:${cedisSuc.id}`]) {
+      XLSX.utils.book_append_sheet(wb, sheetFromRows(data[`cedis:${cedisSuc.id}`]), 'Inventario CEDIS');
+    }
     const frSheet = XLSX.utils.aoa_to_sheet([
       ['Numero Proveedor', 'Nombre', 'Numero OC', 'Items Solicitados', 'Items Entregados', 'Fill Rate Items %', 'Lead Time Días', 'Fecha Emisión', 'Fecha Recepción', 'Varianza Tiempo', 'Fill Rate Lead Time %'],
       ...fr.map(f => [f.numero_proveedor, f.nombre_proveedor, f.numero_oc, f.total_items_solicitados, f.total_items_entregados, f.fill_rate_items, f.lead_time_dias, f.fecha_emision, f.fecha_recepcion, f.varianza_tiempo, f.fill_rate_lead_time]),
