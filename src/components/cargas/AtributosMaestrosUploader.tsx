@@ -57,7 +57,7 @@ export default function AtributosMaestrosUploader({ onDone }: { onDone?: () => v
     const ws = XLSX.utils.json_to_sheet([{
       clave: '7501000000001', descripcion: 'PARACETAMOL 500MG C/10', nombre: 'PARACETAMOL 500MG',
       laboratorio: 'GENOMMA', categoria: 'ANALGÉSICOS', departamento: 'GENERICO',
-      agrupador: 'GENÉRICOS', sustancia: 'PARACETAMOL', iva: '0', estatus: 'A', clasificacion: 'B',
+      agrupador: 'GENÉRICOS', sustancia: 'PARACETAMOL', iva: '0', estatus: 'A', clasificacion: 'W',
     }]);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'atributos_maestros');
