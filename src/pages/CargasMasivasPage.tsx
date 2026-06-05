@@ -141,26 +141,25 @@ export default function CargasMasivasPage() {
         {(['productos', 'atributos_maestros', 'proveedores', 'clientes', 'historico_ventas'] as TipoCarga[]).map(t => (
           <TabsContent key={t} value={t}>
             <Card className="p-5 space-y-4">
-              <div>
-                <h3 className="font-semibold">
-                  {t === 'atributos_maestros' ? 'Cargar Atributos Maestros (Categoría / Departamento / Agrupador / IVA)' : 'Columnas esperadas:'}
-                </h3>
-                <div className="flex flex-wrap gap-1 mt-2">
-                  {PLANTILLAS[t].columnas.map(c => <Badge key={c} variant="outline">{c}</Badge>)}
-                </div>
-                {t === 'atributos_maestros' && (
-                  <p className="text-xs text-muted-foreground mt-2">
-                    UPSERT por <b>clave</b> (busca por código de barras o SKU). Solo actualiza los campos no vacíos del Excel; no sobreescribe con celdas en blanco.
-                  </p>
-                )}
-              </div>
-              <div className="flex gap-2">
-                <Button variant="outline" onClick={descargarPlantilla}><Download className="h-4 w-4 mr-2" />Descargar plantilla</Button>
-                <Button onClick={() => fileRef.current?.click()}><Upload className="h-4 w-4 mr-2" />Subir Excel</Button>
-                <input ref={fileRef} type="file" accept=".xlsx,.xls" className="hidden" onChange={e => { const f = e.target.files?.[0]; if (f) procesarArchivo(f); e.target.value = ''; }} />
-              </div>
-              {t === 'historico_ventas' && (
-                <p className="text-sm text-muted-foreground">Este histórico alimenta el módulo de Recomendaciones IA.</p>
+              {t === 'atributos_maestros' ? (
+                <AtributosMaestrosUploader onDone={loadHist} />
+              ) : (
+                <>
+                  <div>
+                    <h3 className="font-semibold">Columnas esperadas:</h3>
+                    <div className="flex flex-wrap gap-1 mt-2">
+                      {PLANTILLAS[t].columnas.map(c => <Badge key={c} variant="outline">{c}</Badge>)}
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button variant="outline" onClick={descargarPlantilla}><Download className="h-4 w-4 mr-2" />Descargar plantilla</Button>
+                    <Button onClick={() => fileRef.current?.click()}><Upload className="h-4 w-4 mr-2" />Subir Excel</Button>
+                    <input ref={fileRef} type="file" accept=".xlsx,.xls" className="hidden" onChange={e => { const f = e.target.files?.[0]; if (f) procesarArchivo(f); e.target.value = ''; }} />
+                  </div>
+                  {t === 'historico_ventas' && (
+                    <p className="text-sm text-muted-foreground">Este histórico alimenta el módulo de Recomendaciones IA.</p>
+                  )}
+                </>
               )}
             </Card>
           </TabsContent>
