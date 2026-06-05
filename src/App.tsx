@@ -29,6 +29,7 @@ import CargasMasivasPage from './pages/CargasMasivasPage';
 import CuentasPorPagarPage from './pages/CuentasPorPagarPage';
 import RotacionPage from './pages/RotacionPage';
 import RentabilidadLotesPage from './pages/RentabilidadLotesPage';
+import ReporteVentasInventarioSanamex from './pages/ReporteVentasInventarioSanamex';
 import Sidebar from './components/layout/Sidebar';
 import Header from './components/layout/Header';
 
@@ -87,6 +88,7 @@ const AppContent = () => {
               <Route path="/recomendaciones" element={<RecomendacionesPage />} />
               <Route path="/rotacion" element={<RotacionPage />} />
               <Route path="/rentabilidad-lotes" element={<RentabilidadLotesPage />} />
+              <Route path="/reporte-sanamex" element={<ReporteVentasInventarioSanamex />} />
               <Route path="/cuentas-por-pagar" element={<CuentasPorPagarPage />} />
               <Route path="/fiscal" element={<FiscalPage />} />
               <Route path="/cargas-masivas" element={<CargasMasivasPage />} />
