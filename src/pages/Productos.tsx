@@ -26,8 +26,8 @@ const empty = {
   sku: '', codigo_interno: '', nombre: '', descripcion: '', codigo_barras: '',
   formula: '', sustancia_activa: '', presentacion: '', forma_farmaceutica: '',
   laboratorio: '', indice_terapeutico: '', registro_sanitario: '', fraccion_arancelaria: '',
-  receta_medica: false, departamento: '', categoria: '', estatus: 'A',
-  clasificacion_80_20: '', iva_tasa: '0', ieps: '0', clave_sat: '',
+  receta_medica: false, departamento: '', categoria: '', agrupador: '', estatus: 'A',
+  clasificacion_80_20: '', iva_tasa: '', ieps: '0', clave_sat: '',
   unidad: 'pieza', precio_base: '0', costo: '0', stock_minimo: '10',
   requiere_lote: true,
 };
@@ -105,8 +105,9 @@ const Productos = () => {
       laboratorio: p.laboratorio || '', indice_terapeutico: p.indice_terapeutico || '',
       registro_sanitario: p.registro_sanitario || '', fraccion_arancelaria: p.fraccion_arancelaria || '',
       receta_medica: !!p.receta_medica, departamento: p.departamento || '', categoria: p.categoria || '',
+      agrupador: p.agrupador || '',
       estatus: p.estatus || 'A', clasificacion_80_20: p.clasificacion_80_20 || '',
-      iva_tasa: String(p.iva_tasa ?? 0), ieps: String(p.ieps ?? 0), clave_sat: p.clave_sat || '',
+      iva_tasa: p.iva_tasa == null ? '' : String(p.iva_tasa), ieps: String(p.ieps ?? 0), clave_sat: p.clave_sat || '',
       unidad: p.unidad || 'pieza', precio_base: String(p.precio_base ?? 0), costo: String(p.costo ?? 0),
       stock_minimo: String(p.stock_minimo ?? 10), requiere_lote: !!p.requiere_lote,
     });
@@ -134,9 +135,11 @@ const Productos = () => {
       laboratorio: form.laboratorio || null, indice_terapeutico: form.indice_terapeutico || null,
       registro_sanitario: form.registro_sanitario || null, fraccion_arancelaria: form.fraccion_arancelaria || null,
       receta_medica: form.receta_medica, departamento: form.departamento || null,
-      categoria: form.categoria || null, estatus: form.estatus || 'A',
+      categoria: form.categoria || null, agrupador: form.agrupador || null,
+      estatus: form.estatus || 'A',
       clasificacion_80_20: form.clasificacion_80_20 || null,
-      iva_tasa: parseFloat(form.iva_tasa) || 0, ieps: parseFloat(form.ieps) || 0,
+      iva_tasa: form.iva_tasa === '' || form.iva_tasa == null ? null : parseFloat(form.iva_tasa),
+      ieps: parseFloat(form.ieps) || 0,
       clave_sat: form.clave_sat || null, unidad: form.unidad || 'pieza',
       precio_base: parseFloat(form.precio_base) || 0, costo: parseFloat(form.costo) || 0,
       stock_minimo: parseInt(form.stock_minimo) || 10, requiere_lote: form.requiere_lote,
@@ -229,9 +232,10 @@ const Productos = () => {
           laboratorio: norm(r['LABORATORIO']), indice_terapeutico: norm(r['INDICE TERAPEUTICO']),
           registro_sanitario: norm(r['REGISTRO SANITARIO']), fraccion_arancelaria: norm(r['FRACCIÓN']),
           receta_medica: bool(r['RECETA MEDICA']), departamento: norm(r['DEPARTAMENTO']),
-          categoria: norm(r['CATEGORIA']), estatus: norm(r['ESTATUS']) || 'A',
+          categoria: norm(r['CATEGORIA']), agrupador: norm(r['AGRUPADOR']),
+          estatus: norm(r['ESTATUS']) || 'A',
           clasificacion_80_20: norm(r['CLASIFICACIÓN 80/20']),
-          iva_tasa: String(r['IVA'] ?? '').trim().toUpperCase() === 'S' ? 16 : 0,
+          iva_tasa: (() => { const v = String(r['IVA'] ?? '').trim().toUpperCase(); if (v === '') return null; if (v === 'S') return 16; if (v === 'N') return 0; const n = Number(v); return isNaN(n) ? null : n; })(),
           ieps: num(r['IEPS']), clave_sat: norm(r['CLAVE SAT']),
           fecha_carga_erp: fechaErp,
           costo: num(r['COSTO']), precio_base: num(r['PRECIO 1']),
@@ -337,7 +341,10 @@ const Productos = () => {
                 <TableBody>
                   {productos.length === 0 ? (
                     <TableRow><TableCell colSpan={10} className="text-center text-muted-foreground py-8">No hay productos</TableCell></TableRow>
-                  ) : productos.map((p) => (
+                  ) : productos.map((p) => {
+                    const faltante = (v: any) => v === null || v === undefined || String(v).trim() === '';
+                    const SinDef = () => <Badge variant="outline" className="text-amber-600 border-amber-500 text-xs whitespace-nowrap">⚠ Sin definir</Badge>;
+                    return (
                     <TableRow key={p.id} className={!p.activo ? 'opacity-50' : ''}>
                       <TableCell>
                         <Checkbox checked={selectedIds.has(p.id)} onCheckedChange={v => toggleSelect(p.id, !!v)} />
@@ -347,7 +354,7 @@ const Productos = () => {
                       <TableCell className="font-medium max-w-md truncate" title={p.nombre}>{p.nombre}</TableCell>
                       <TableCell className="text-sm">{p.laboratorio || '—'}</TableCell>
                       <TableCell className="text-sm">{p.forma_farmaceutica || '—'}</TableCell>
-                      <TableCell className="text-sm">{p.categoria || '—'}</TableCell>
+                      <TableCell className="text-sm">{faltante(p.categoria) ? <SinDef /> : p.categoria}</TableCell>
                       <TableCell className="text-right">${Number(p.precio_base || 0).toFixed(2)}</TableCell>
                       <TableCell>
                         {p.activo === false ? <Badge variant="destructive">Inactivo</Badge>
@@ -368,7 +375,7 @@ const Productos = () => {
                         </div>
                       </TableCell>
                     </TableRow>
-                  ))}
+                  );})}
                 </TableBody>
               </Table>
               </div>
@@ -409,8 +416,14 @@ const Productos = () => {
                 <div><Label>Laboratorio</Label><Input value={form.laboratorio} onChange={e => setForm({...form, laboratorio: e.target.value})} /></div>
               </div>
               <div className="grid grid-cols-3 gap-3">
-                <div><Label>Categoría</Label><Input value={form.categoria} onChange={e => setForm({...form, categoria: e.target.value})} /></div>
-                <div><Label>Departamento</Label><Input value={form.departamento} onChange={e => setForm({...form, departamento: e.target.value})} /></div>
+                <div>
+                  <Label>Categoría {(!form.categoria || !form.categoria.trim()) && <span className="text-amber-600 text-xs">⚠ Sin definir</span>}</Label>
+                  <Input value={form.categoria} onChange={e => setForm({...form, categoria: e.target.value})} />
+                </div>
+                <div>
+                  <Label>Departamento {(!form.departamento || !form.departamento.trim()) && <span className="text-amber-600 text-xs">⚠ Sin definir</span>}</Label>
+                  <Input value={form.departamento} onChange={e => setForm({...form, departamento: e.target.value})} />
+                </div>
                 <div><Label>Unidad</Label>
                   <Select value={form.unidad} onValueChange={v => setForm({...form, unidad: v})}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
@@ -434,6 +447,10 @@ const Productos = () => {
                       <SelectItem value="D">Descontinuado (D)</SelectItem>
                     </SelectContent>
                   </Select>
+                </div>
+                <div>
+                  <Label>Agrupador {(!form.agrupador || !form.agrupador.trim()) && <span className="text-amber-600 text-xs">⚠ Sin definir</span>}</Label>
+                  <Input value={form.agrupador} onChange={e => setForm({...form, agrupador: e.target.value})} />
                 </div>
                 <div><Label>Clasificación 80/20</Label><Input value={form.clasificacion_80_20} onChange={e => setForm({...form, clasificacion_80_20: e.target.value})} /></div>
                 <div><Label>Stock mínimo</Label><Input type="number" value={form.stock_minimo} onChange={e => setForm({...form, stock_minimo: e.target.value})} /></div>
@@ -470,7 +487,18 @@ const Productos = () => {
                 <div><Label>Fracción arancelaria</Label><Input value={form.fraccion_arancelaria} onChange={e => setForm({...form, fraccion_arancelaria: e.target.value})} /></div>
               </div>
               <div className="grid grid-cols-2 gap-3">
-                <div><Label>IVA (%)</Label><Input type="number" step="0.01" value={form.iva_tasa} onChange={e => setForm({...form, iva_tasa: e.target.value})} /></div>
+                <div>
+                  <Label>IVA {form.iva_tasa === '' && <span className="text-amber-600 text-xs">⚠ Sin definir</span>}</Label>
+                  <Select value={form.iva_tasa === '' ? '__null__' : form.iva_tasa} onValueChange={v => setForm({...form, iva_tasa: v === '__null__' ? '' : v})}>
+                    <SelectTrigger><SelectValue placeholder="Selecciona" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="0">0% (exento)</SelectItem>
+                      <SelectItem value="8">8% (frontera)</SelectItem>
+                      <SelectItem value="16">16%</SelectItem>
+                      <SelectItem value="__null__">Sin definir</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
                 <div><Label>IEPS (%)</Label><Input type="number" step="0.01" value={form.ieps} onChange={e => setForm({...form, ieps: e.target.value})} /></div>
               </div>
             </TabsContent>

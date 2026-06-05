@@ -10,7 +10,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
 
-type TipoCarga = 'productos' | 'proveedores' | 'clientes' | 'historico_ventas';
+type TipoCarga = 'productos' | 'proveedores' | 'clientes' | 'historico_ventas' | 'atributos_maestros';
 
 const PLANTILLAS: Record<TipoCarga, { columnas: string[]; ejemplo: any[] }> = {
   productos: {
@@ -28,6 +28,10 @@ const PLANTILLAS: Record<TipoCarga, { columnas: string[]; ejemplo: any[] }> = {
   historico_ventas: {
     columnas: ['producto_sku', 'producto_nombre', 'cantidad', 'precio_unitario', 'fecha', 'proveedor_sugerido'],
     ejemplo: [{ producto_sku: 'MED-001', producto_nombre: 'Paracetamol 500mg', cantidad: 25, precio_unitario: 45, fecha: '2025-01-15', proveedor_sugerido: 'Laboratorios ABC' }],
+  },
+  atributos_maestros: {
+    columnas: ['clave', 'categoria', 'departamento', 'agrupador', 'iva'],
+    ejemplo: [{ clave: '7501000000001', categoria: 'Analgésicos', departamento: 'Medicamentos', agrupador: 'GENÉRICOS', iva: 0.16 }],
   },
 };
 
@@ -99,6 +103,26 @@ export default function CargasMasivasPage() {
       })).filter(r => r.producto_sku && r.fecha);
       const { error, count } = await supabase.from('ventas_historicas').insert(batch, { count: 'exact' });
       if (error) { err = batch.length; errores.push({ error: error.message }); } else ok = count || batch.length;
+    } else if (tipo === 'atributos_maestros') {
+      for (const r of rows) {
+        const clave = r.clave ? String(r.clave).trim() : '';
+        if (!clave) { err++; errores.push({ fila: r, error: 'Falta clave' }); continue; }
+        // Buscar producto por codigo_barras o sku
+        const { data: prod } = await supabase.from('productos')
+          .select('id').or(`codigo_barras.eq.${clave},sku.eq.${clave}`).maybeSingle();
+        if (!prod) { err++; errores.push({ fila: r, error: `Clave no encontrada: ${clave}` }); continue; }
+        const patch: any = {};
+        if (r.categoria != null && String(r.categoria).trim() !== '') patch.categoria = String(r.categoria).trim();
+        if (r.departamento != null && String(r.departamento).trim() !== '') patch.departamento = String(r.departamento).trim();
+        if (r.agrupador != null && String(r.agrupador).trim() !== '') patch.agrupador = String(r.agrupador).trim();
+        if (r.iva != null && String(r.iva).trim() !== '') {
+          const ivaNum = Number(r.iva);
+          if (!isNaN(ivaNum)) patch.iva_tasa = ivaNum > 1 ? ivaNum : ivaNum * 100;
+        }
+        if (Object.keys(patch).length === 0) { ok++; continue; }
+        const { error } = await supabase.from('productos').update(patch).eq('id', prod.id);
+        if (error) { err++; errores.push({ fila: r, error: error.message }); } else ok++;
+      }
     }
 
     await supabase.from('cargas_masivas_historico').insert({
@@ -122,21 +146,29 @@ export default function CargasMasivasPage() {
       </div>
 
       <Tabs value={tipo} onValueChange={v => setTipo(v as TipoCarga)}>
-        <TabsList>
+        <TabsList className="flex-wrap h-auto">
           <TabsTrigger value="productos">Productos</TabsTrigger>
+          <TabsTrigger value="atributos_maestros">Atributos Maestros</TabsTrigger>
           <TabsTrigger value="proveedores">Proveedores</TabsTrigger>
           <TabsTrigger value="clientes">Clientes</TabsTrigger>
           <TabsTrigger value="historico_ventas">Histórico ventas</TabsTrigger>
         </TabsList>
 
-        {(['productos', 'proveedores', 'clientes', 'historico_ventas'] as TipoCarga[]).map(t => (
+        {(['productos', 'atributos_maestros', 'proveedores', 'clientes', 'historico_ventas'] as TipoCarga[]).map(t => (
           <TabsContent key={t} value={t}>
             <Card className="p-5 space-y-4">
               <div>
-                <h3 className="font-semibold">Columnas esperadas:</h3>
+                <h3 className="font-semibold">
+                  {t === 'atributos_maestros' ? 'Cargar Atributos Maestros (Categoría / Departamento / Agrupador / IVA)' : 'Columnas esperadas:'}
+                </h3>
                 <div className="flex flex-wrap gap-1 mt-2">
                   {PLANTILLAS[t].columnas.map(c => <Badge key={c} variant="outline">{c}</Badge>)}
                 </div>
+                {t === 'atributos_maestros' && (
+                  <p className="text-xs text-muted-foreground mt-2">
+                    UPSERT por <b>clave</b> (busca por código de barras o SKU). Solo actualiza los campos no vacíos del Excel; no sobreescribe con celdas en blanco.
+                  </p>
+                )}
               </div>
               <div className="flex gap-2">
                 <Button variant="outline" onClick={descargarPlantilla}><Download className="h-4 w-4 mr-2" />Descargar plantilla</Button>
