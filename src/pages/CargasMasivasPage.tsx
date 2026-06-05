@@ -11,6 +11,7 @@ import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
 import AtributosMaestrosUploader from '@/components/cargas/AtributosMaestrosUploader';
 import HistoricoVentasUploader from '@/components/cargas/HistoricoVentasUploader';
+import SheetPickerDialog from '@/components/cargas/SheetPickerDialog';
 
 type TipoCarga = 'productos' | 'proveedores' | 'clientes' | 'historico_ventas' | 'atributos_maestros';
 
@@ -41,6 +42,8 @@ export default function CargasMasivasPage() {
   const { selectedSucursal } = useSucursal();
   const [tipo, setTipo] = useState<TipoCarga>('productos');
   const [historico, setHistorico] = useState<any[]>([]);
+  const [pickerFile, setPickerFile] = useState<File | null>(null);
+  const [pickerOpen, setPickerOpen] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => { loadHist(); }, []);
@@ -58,12 +61,11 @@ export default function CargasMasivasPage() {
     XLSX.writeFile(wb, `plantilla_${tipo}.xlsx`);
   }
 
-  async function procesarArchivo(file: File) {
-    const buf = await file.arrayBuffer();
-    const wb = XLSX.read(buf);
-    const sheet = wb.Sheets[wb.SheetNames[0]];
+  async function procesarArchivo(wb: XLSX.WorkBook, sheetName: string, fileName: string) {
+    const sheet = wb.Sheets[sheetName];
+    if (!sheet) { toast.error(`Hoja "${sheetName}" no encontrada`); return; }
     const rows: any[] = XLSX.utils.sheet_to_json(sheet);
-    if (!rows.length) { toast.error('Archivo vacío'); return; }
+    if (!rows.length) { toast.error('La hoja seleccionada está vacía'); return; }
 
     let ok = 0, err = 0;
     const errores: any[] = [];
@@ -111,7 +113,7 @@ export default function CargasMasivasPage() {
     }
 
     await supabase.from('cargas_masivas_historico').insert({
-      tipo, nombre_archivo: file.name, total_filas: rows.length, filas_ok: ok, filas_error: err,
+      tipo, nombre_archivo: fileName, total_filas: rows.length, filas_ok: ok, filas_error: err,
       errores: errores.length ? errores.slice(0, 50) : null,
       sucursal_id: selectedSucursal?.id || null,
     });
@@ -157,7 +159,7 @@ export default function CargasMasivasPage() {
                   <div className="flex gap-2">
                     <Button variant="outline" onClick={descargarPlantilla}><Download className="h-4 w-4 mr-2" />Descargar plantilla</Button>
                     <Button onClick={() => fileRef.current?.click()}><Upload className="h-4 w-4 mr-2" />Subir Excel</Button>
-                    <input ref={fileRef} type="file" accept=".xlsx,.xls" className="hidden" onChange={e => { const f = e.target.files?.[0]; if (f) procesarArchivo(f); e.target.value = ''; }} />
+                    <input ref={fileRef} type="file" accept=".xlsx,.xls" className="hidden" onChange={e => { const f = e.target.files?.[0]; if (f) { setPickerFile(f); setPickerOpen(true); } e.target.value = ''; }} />
                   </div>
                 </>
               )}
@@ -165,6 +167,14 @@ export default function CargasMasivasPage() {
           </TabsContent>
         ))}
       </Tabs>
+
+      <SheetPickerDialog
+        file={pickerFile}
+        open={pickerOpen}
+        preferred={[tipo, 'BD']}
+        onCancel={() => { setPickerOpen(false); setPickerFile(null); }}
+        onConfirm={(wb, sheetName, name) => { setPickerOpen(false); setPickerFile(null); procesarArchivo(wb, sheetName, name); }}
+      />
 
       <Card>
         <div className="p-4 border-b"><h2 className="font-semibold">Historial de cargas</h2></div>

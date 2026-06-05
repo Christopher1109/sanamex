@@ -7,6 +7,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Upload, Download, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
+import SheetPickerDialog from './SheetPickerDialog';
 
 const COLUMNAS = [
   'clave', 'descripcion', 'nombre', 'laboratorio', 'categoria',
@@ -46,6 +47,8 @@ export default function AtributosMaestrosUploader({ onDone }: { onDone?: () => v
   const [open, setOpen] = useState(false);
   const [committing, setCommitting] = useState(false);
   const [progress, setProgress] = useState<string>('');
+  const [pickerFile, setPickerFile] = useState<File | null>(null);
+  const [pickerOpen, setPickerOpen] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -65,14 +68,13 @@ export default function AtributosMaestrosUploader({ onDone }: { onDone?: () => v
     XLSX.writeFile(wb, 'plantilla_atributos_maestros.xlsx');
   };
 
-  const procesarArchivo = async (file: File) => {
-    setFileName(file.name);
-    setProgress('Leyendo archivo...');
-    const buf = await file.arrayBuffer();
-    const wb = XLSX.read(buf);
-    const sheet = wb.Sheets[wb.SheetNames[0]];
+  const procesarArchivo = async (wb: XLSX.WorkBook, sheetName: string, name: string) => {
+    setFileName(name);
+    setProgress(`Leyendo hoja "${sheetName}"...`);
+    const sheet = wb.Sheets[sheetName];
+    if (!sheet) { toast.error(`Hoja "${sheetName}" no encontrada`); setProgress(''); return; }
     const raw: any[] = XLSX.utils.sheet_to_json(sheet, { defval: '' });
-    if (!raw.length) { toast.error('Archivo vacío'); setProgress(''); return; }
+    if (!raw.length) { toast.error('La hoja seleccionada está vacía'); setProgress(''); return; }
 
     // Normaliza headers a lowercase
     const normalized = raw.map((r) => {
@@ -266,9 +268,17 @@ export default function AtributosMaestrosUploader({ onDone }: { onDone?: () => v
         </Button>
         <input
           ref={fileRef} type="file" accept=".xlsx,.xls" className="hidden"
-          onChange={(e) => { const f = e.target.files?.[0]; if (f) procesarArchivo(f); e.target.value = ''; }}
+          onChange={(e) => { const f = e.target.files?.[0]; if (f) { setPickerFile(f); setPickerOpen(true); } e.target.value = ''; }}
         />
       </div>
+
+      <SheetPickerDialog
+        file={pickerFile}
+        open={pickerOpen}
+        preferred={['atributos_maestros', 'atributos', 'productos', 'BD']}
+        onCancel={() => { setPickerOpen(false); setPickerFile(null); }}
+        onConfirm={(wb, sheetName, name) => { setPickerOpen(false); setPickerFile(null); procesarArchivo(wb, sheetName, name); }}
+      />
 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-w-5xl">

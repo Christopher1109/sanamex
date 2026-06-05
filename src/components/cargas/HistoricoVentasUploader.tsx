@@ -7,6 +7,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Upload, Download, Loader2, AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
+import SheetPickerDialog from './SheetPickerDialog';
 
 // =========================================================================
 // HISTÓRICO DE VENTAS (CONCENTRADOR)
@@ -124,6 +125,8 @@ export default function HistoricoVentasUploader({ onDone }: { onDone?: () => voi
   const [omitidas, setOmitidas] = useState<OmitidaRow[]>([]);
   const [noMatch, setNoMatch] = useState<NoMatchRow[]>([]);
   const [totalFilas, setTotalFilas] = useState(0);
+  const [pickerFile, setPickerFile] = useState<File | null>(null);
+  const [pickerOpen, setPickerOpen] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const descargarPlantilla = () => {
@@ -150,15 +153,14 @@ export default function HistoricoVentasUploader({ onDone }: { onDone?: () => voi
     XLSX.writeFile(wb, `productos_no_encontrados_${fileName.replace(/\.[^.]+$/, '')}.xlsx`);
   };
 
-  const procesarArchivo = async (file: File) => {
-    setFileName(file.name);
-    setProgress('Leyendo archivo...');
+  const procesarArchivo = async (wb: XLSX.WorkBook, sheetName: string, name: string) => {
+    setFileName(name);
+    setProgress(`Leyendo hoja "${sheetName}"...`);
     try {
-      const buf = await file.arrayBuffer();
-      const wb = XLSX.read(buf, { cellDates: true });
-      const sheet = wb.Sheets[wb.SheetNames[0]];
+      const sheet = wb.Sheets[sheetName];
+      if (!sheet) { toast.error(`Hoja "${sheetName}" no encontrada`); setProgress(''); return; }
       const raw: Row[] = XLSX.utils.sheet_to_json(sheet, { defval: '', raw: true });
-      if (!raw.length) { toast.error('Archivo vacío'); setProgress(''); return; }
+      if (!raw.length) { toast.error('La hoja seleccionada está vacía'); setProgress(''); return; }
       setTotalFilas(raw.length);
 
       // 1) Cargar sucursales -> codigo->id
@@ -504,9 +506,18 @@ export default function HistoricoVentasUploader({ onDone }: { onDone?: () => voi
         </Button>
         <input
           ref={fileRef} type="file" accept=".xlsx,.xls" className="hidden"
-          onChange={(e) => { const f = e.target.files?.[0]; if (f) procesarArchivo(f); e.target.value = ''; }}
+          onChange={(e) => { const f = e.target.files?.[0]; if (f) { setPickerFile(f); setPickerOpen(true); } e.target.value = ''; }}
         />
       </div>
+
+      <SheetPickerDialog
+        file={pickerFile}
+        open={pickerOpen}
+        preferred={['BD']}
+        cellDates
+        onCancel={() => { setPickerOpen(false); setPickerFile(null); }}
+        onConfirm={(wb, sheetName, name) => { setPickerOpen(false); setPickerFile(null); procesarArchivo(wb, sheetName, name); }}
+      />
 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-w-6xl">
