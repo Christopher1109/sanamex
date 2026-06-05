@@ -1082,6 +1082,7 @@ export type Database = {
       productos: {
         Row: {
           activo: boolean | null
+          agrupador: string | null
           categoria: string | null
           clasificacion_80_20: string | null
           clave_sat: string | null
@@ -1117,6 +1118,7 @@ export type Database = {
         }
         Insert: {
           activo?: boolean | null
+          agrupador?: string | null
           categoria?: string | null
           clasificacion_80_20?: string | null
           clave_sat?: string | null
@@ -1152,6 +1154,7 @@ export type Database = {
         }
         Update: {
           activo?: boolean | null
+          agrupador?: string | null
           categoria?: string | null
           clasificacion_80_20?: string | null
           clave_sat?: string | null
@@ -1236,6 +1239,7 @@ export type Database = {
           email: string | null
           id: string
           identificacion_oficial_url: string | null
+          lead_time_prometido_dias: number | null
           nombre: string
           notas: string | null
           plazo_pago_dias: number
@@ -1258,6 +1262,7 @@ export type Database = {
           email?: string | null
           id?: string
           identificacion_oficial_url?: string | null
+          lead_time_prometido_dias?: number | null
           nombre: string
           notas?: string | null
           plazo_pago_dias?: number
@@ -1280,6 +1285,7 @@ export type Database = {
           email?: string | null
           id?: string
           identificacion_oficial_url?: string | null
+          lead_time_prometido_dias?: number | null
           nombre?: string
           notas?: string | null
           plazo_pago_dias?: number
@@ -1858,6 +1864,23 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      clasificacion_abc_productos: { Args: never; Returns: undefined }
+      fill_rate_proveedores: {
+        Args: { p_desde?: string; p_hasta?: string }
+        Returns: {
+          fecha_emision: string
+          fecha_recepcion: string
+          fill_rate_items: number
+          fill_rate_lead_time: number
+          lead_time_dias: number
+          nombre_proveedor: string
+          numero_oc: string
+          numero_proveedor: string
+          total_items_entregados: number
+          total_items_solicitados: number
+          varianza_tiempo: number
+        }[]
+      }
       has_permission: {
         Args: { _modulo: string; _submodulo?: string; _user_id: string }
         Returns: boolean
@@ -1923,6 +1946,78 @@ export type Database = {
           stock_actual: number
           unidades_recibidas: number
           unidades_vendidas: number
+        }[]
+      }
+      reporte_ventas_inventario_sanamex: {
+        Args: { p_fecha_corte?: string; p_sucursal_id?: string }
+        Returns: {
+          agrupador: string
+          cantidad: number
+          categoria: string
+          clasif: string
+          clave: string
+          costo_total: number
+          cpi: number
+          cu_compra_2sem_ant: number
+          cu_compra_30: number
+          cu_compra_60: number
+          cu_compra_90: number
+          cu_compra_dia: number
+          cu_compra_mes: number
+          cu_compra_sem: number
+          cu_compra_sem_ant: number
+          ddi_14: number
+          ddi_30: number
+          ddi_60: number
+          ddi_7: number
+          ddi_90: number
+          departamento: string
+          descripcion: string
+          iva: number
+          lab: string
+          margen_2sem_ant: number
+          margen_30: number
+          margen_60: number
+          margen_90: number
+          margen_dia: number
+          margen_mes: number
+          margen_sem: number
+          margen_sem_ant: number
+          pu_venta_2sem_ant: number
+          pu_venta_30: number
+          pu_venta_60: number
+          pu_venta_90: number
+          pu_venta_dia: number
+          pu_venta_mes: number
+          pu_venta_sem: number
+          pu_venta_sem_ant: number
+          status: string
+          sustancia: string
+          te: number
+          un_v_2sem_ant: number
+          un_v_30: number
+          un_v_60: number
+          un_v_90: number
+          un_v_dia: number
+          un_v_mes: number
+          un_v_sem: number
+          un_v_sem_ant: number
+          utilidad_2sem_ant: number
+          utilidad_30: number
+          utilidad_60: number
+          utilidad_90: number
+          utilidad_dia: number
+          utilidad_mes: number
+          utilidad_sem: number
+          utilidad_sem_ant: number
+          venta_2sem_ant: number
+          venta_30: number
+          venta_60: number
+          venta_90: number
+          venta_dia: number
+          venta_mes: number
+          venta_sem: number
+          venta_sem_ant: number
         }[]
       }
       ventas_por_lote: {
