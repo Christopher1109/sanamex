@@ -113,7 +113,7 @@ export default function CargasMasivasPage() {
     }
 
     await supabase.from('cargas_masivas_historico').insert({
-      tipo, nombre_archivo: file.name, total_filas: rows.length, filas_ok: ok, filas_error: err,
+      tipo, nombre_archivo: fileName, total_filas: rows.length, filas_ok: ok, filas_error: err,
       errores: errores.length ? errores.slice(0, 50) : null,
       sucursal_id: selectedSucursal?.id || null,
     });
