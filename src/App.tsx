@@ -90,6 +90,7 @@ const AppContent = () => {
               <Route path="/rotacion" element={<RotacionPage />} />
               <Route path="/rentabilidad-lotes" element={<RentabilidadLotesPage />} />
               <Route path="/reporte-sanamex" element={<ReporteVentasInventarioSanamex />} />
+              <Route path="/reporte-inventario-general" element={<ReporteInventarioGeneral />} />
               <Route path="/cuentas-por-pagar" element={<CuentasPorPagarPage />} />
               <Route path="/fiscal" element={<FiscalPage />} />
               <Route path="/cargas-masivas" element={<CargasMasivasPage />} />
