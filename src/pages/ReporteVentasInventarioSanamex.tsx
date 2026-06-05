@@ -381,8 +381,18 @@ export default function ReporteVentasInventarioSanamex() {
             </div>
           </div>
           <div>
-            <Label className="text-xs">Clasif.</Label>
+            <Label className="text-xs">Clasif. (Cliente)</Label>
             <Select value={filterClasif} onValueChange={setFilterClasif}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todas</SelectItem>
+                {clasifValues.map(v => <SelectItem key={v} value={v}>{v}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <Label className="text-xs">ABC (Sistema)</Label>
+            <Select value={filterAbc} onValueChange={setFilterAbc}>
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Todas</SelectItem>
