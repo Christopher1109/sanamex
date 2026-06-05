@@ -337,7 +337,10 @@ const Productos = () => {
                 <TableBody>
                   {productos.length === 0 ? (
                     <TableRow><TableCell colSpan={10} className="text-center text-muted-foreground py-8">No hay productos</TableCell></TableRow>
-                  ) : productos.map((p) => (
+                  ) : productos.map((p) => {
+                    const faltante = (v: any) => v === null || v === undefined || String(v).trim() === '';
+                    const SinDef = () => <Badge variant="outline" className="text-amber-600 border-amber-500 text-xs whitespace-nowrap">⚠ Sin definir</Badge>;
+                    return (
                     <TableRow key={p.id} className={!p.activo ? 'opacity-50' : ''}>
                       <TableCell>
                         <Checkbox checked={selectedIds.has(p.id)} onCheckedChange={v => toggleSelect(p.id, !!v)} />
@@ -347,7 +350,7 @@ const Productos = () => {
                       <TableCell className="font-medium max-w-md truncate" title={p.nombre}>{p.nombre}</TableCell>
                       <TableCell className="text-sm">{p.laboratorio || '—'}</TableCell>
                       <TableCell className="text-sm">{p.forma_farmaceutica || '—'}</TableCell>
-                      <TableCell className="text-sm">{p.categoria || '—'}</TableCell>
+                      <TableCell className="text-sm">{faltante(p.categoria) ? <SinDef /> : p.categoria}</TableCell>
                       <TableCell className="text-right">${Number(p.precio_base || 0).toFixed(2)}</TableCell>
                       <TableCell>
                         {p.activo === false ? <Badge variant="destructive">Inactivo</Badge>
@@ -368,7 +371,7 @@ const Productos = () => {
                         </div>
                       </TableCell>
                     </TableRow>
-                  ))}
+                  );})}
                 </TableBody>
               </Table>
               </div>
