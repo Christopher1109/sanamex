@@ -104,11 +104,8 @@ export default function AtributosMaestrosUploader({ onDone }: { onDone?: () => v
       if (estatus && !estatusCatalog.has(estatus)) {
         return { fila, raw: r, clave, accion: 'OMIT', motivo: `Estatus inválido: "${estatus}" (no existe en catálogo)` };
       }
-      // Validar clasificación
-      const clasif = norm(r.clasificacion).toUpperCase();
-      if (clasif && !CLASIF_VALIDAS.has(clasif)) {
-        return { fila, raw: r, clave, accion: 'OMIT', motivo: `Clasificación inválida: "${clasif}" (A/B/C/D/O)` };
-      }
+      // Clasificación del cliente: TEXTO LIBRE. No se valida (acepta A-W, DESCLASIFICADO, vacío).
+      const clasif = norm(r.clasificacion);
       // Validar IVA
       const iva = parseIva(r.iva);
       if (!iva.ok) return { fila, raw: r, clave, accion: 'OMIT', motivo: iva.err };
