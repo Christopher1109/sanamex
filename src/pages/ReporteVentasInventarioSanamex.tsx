@@ -179,6 +179,7 @@ export default function ReporteVentasInventarioSanamex() {
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState('');
   const [filterClasif, setFilterClasif] = useState<string>('all');
+  const [filterAbc, setFilterAbc] = useState<string>('all');
   const [filterStatus, setFilterStatus] = useState<string>('all');
   const [filterDepto, setFilterDepto] = useState<string>('all');
   const [filterLab, setFilterLab] = useState<string>('all');
