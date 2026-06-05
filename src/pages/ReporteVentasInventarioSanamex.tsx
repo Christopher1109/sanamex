@@ -14,7 +14,7 @@ import * as XLSX from 'xlsx';
 type Row = {
   clave: string; lab: string | null; categoria: string | null; departamento: string | null;
   descripcion: string; agrupador: string | null; sustancia: string | null;
-  iva: number; cantidad: number; clasif: string | null; status: string | null;
+  iva: number | null; stock_minimo: number; clasif: string | null; status: string | null;
   cpi: number; costo_total: number; te: number;
   ddi_7: number | null; ddi_14: number | null; ddi_30: number | null; ddi_60: number | null; ddi_90: number | null;
   un_v_dia: number; cu_compra_dia: number; pu_venta_dia: number; venta_dia: number; utilidad_dia: number; margen_dia: number;
@@ -37,7 +37,12 @@ type FillRateRow = {
 
 const mxn = (n: number) => new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN', minimumFractionDigits: 2 }).format(n || 0);
 const num = (n: number) => new Intl.NumberFormat('es-MX').format(Math.round(n || 0));
-const pct = (n: number) => `${((n || 0) * 100).toFixed(2)}%`;
+// SQL ya devuelve márgenes en escala 0–100. NO multiplicar aquí.
+const pct = (n: number | null | undefined) => (n == null ? '—' : `${(n || 0).toFixed(2)}%`);
+const ivaCell = (n: number | null) =>
+  n == null
+    ? <span className="text-muted-foreground italic">Sin definir</span>
+    : <span>{Number(n).toFixed(Number(n) % 1 === 0 ? 0 : 2)}%</span>;
 
 const ddiColor = (v: number | null) => {
   if (v == null) return 'text-muted-foreground';
@@ -81,7 +86,7 @@ function ReportTable({ rows, loading }: { rows: Row[]; loading: boolean }) {
               <th className="px-2 py-1 text-left">Agrupador</th>
               <th className="px-2 py-1 text-left">Sustancia</th>
               <th className="px-2 py-1 text-right">IVA</th>
-              <th className="px-2 py-1 text-right">Cant.</th>
+              <th className="px-2 py-1 text-right">Stock Mín.</th>
               <th className="px-2 py-1 text-center">Clasif.</th>
               <th className="px-2 py-1 text-center">Status</th>
               <th className="px-2 py-1 text-right">CPI</th>
@@ -114,8 +119,8 @@ function ReportTable({ rows, loading }: { rows: Row[]; loading: boolean }) {
                 <td className="px-2 py-1">{r.departamento || '—'}</td>
                 <td className="px-2 py-1">{r.agrupador || '—'}</td>
                 <td className="px-2 py-1 max-w-[200px] truncate" title={r.sustancia || ''}>{r.sustancia || '—'}</td>
-                <td className="px-2 py-1 text-right">{r.iva}</td>
-                <td className="px-2 py-1 text-right">{num(r.cantidad)}</td>
+                <td className="px-2 py-1 text-right">{ivaCell(r.iva)}</td>
+                <td className="px-2 py-1 text-right">{num(r.stock_minimo)}</td>
                 <td className="px-2 py-1 text-center">{r.clasif || '—'}</td>
                 <td className="px-2 py-1 text-center">{r.status || '—'}</td>
                 <td className="px-2 py-1 text-right">{mxn(r.cpi)}</td>
