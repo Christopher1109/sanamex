@@ -54,7 +54,7 @@ export default function ReporteInventarioGeneral() {
   const [search, setSearch] = useState('');
   const [filterDepto, setFilterDepto] = useState('all');
   const [filterLab, setFilterLab] = useState('all');
-  const [filterClasif, setFilterClasif] = useState('A');
+  const [filterClasif, setFilterClasif] = useState('all');
   const [filterStatus, setFilterStatus] = useState('A');
   const [productosFiltro, setProductosFiltro] = useState<string[]>(['', '', '', '', '']);
   const [tab, setTab] = useState('resumen');
