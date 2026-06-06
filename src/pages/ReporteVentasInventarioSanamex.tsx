@@ -275,12 +275,12 @@ export default function ReporteVentasInventarioSanamex() {
 
   // Recarga al cambiar fecha o cuando se monta con sucursales disponibles
   useEffect(() => {
-    if (!availableSucursales.length) return;
+    if (!availableSucursales.length || !fechaInicializada) return;
     setAllData({});
     setFillRate([]);
     loadKey(tab === 'filtro' ? 'general' : tab, {});
     /* eslint-disable-next-line */
-  }, [fechaCorte, availableSucursales.length]);
+  }, [fechaCorte, availableSucursales.length, fechaInicializada]);
 
   // Carga al cambiar de pestaña (usa cache si ya existe)
   useEffect(() => {
