@@ -184,7 +184,34 @@ export default function ReporteVentasInventarioSanamex() {
   const [filterDepto, setFilterDepto] = useState<string>('all');
   const [filterLab, setFilterLab] = useState<string>('all');
   const [fechaCorte, setFechaCorte] = useState(new Date().toISOString().slice(0, 10));
+  const [maxFechaVentas, setMaxFechaVentas] = useState<string | null>(null);
+  const [fechaInicializada, setFechaInicializada] = useState(false);
   const [productosFiltro, setProductosFiltro] = useState<[string, string, string, string]>(['', '', '', '']);
+
+  // Al montar, detectar la fecha más reciente de ventas. Si los datos son históricos
+  // (más de 7 días antes de hoy), defaultear la fecha de corte a MAX(fecha).
+  useEffect(() => {
+    (async () => {
+      const { data } = await (supabase as any)
+        .from('ventas')
+        .select('fecha')
+        .eq('estado', 'completada')
+        .order('fecha', { ascending: false })
+        .limit(1);
+      const maxF = data?.[0]?.fecha ? String(data[0].fecha).slice(0, 10) : null;
+      setMaxFechaVentas(maxF);
+      if (maxF) {
+        const diffDias = (Date.now() - new Date(maxF).getTime()) / 86400000;
+        if (diffDias > 7) setFechaCorte(maxF);
+      }
+      setFechaInicializada(true);
+    })();
+  }, []);
+
+  const datosHistoricos = useMemo(() => {
+    if (!maxFechaVentas) return false;
+    return (Date.now() - new Date(maxFechaVentas).getTime()) / 86400000 > 7;
+  }, [maxFechaVentas]);
 
   // Pestañas en orden EXACTO: filtro, general(sin cedis), SV, ECA, F36, GH, CEDIS, fillrate
   const sucOrder = ['SV', 'ECA', 'F36', 'GH'];
@@ -248,12 +275,12 @@ export default function ReporteVentasInventarioSanamex() {
 
   // Recarga al cambiar fecha o cuando se monta con sucursales disponibles
   useEffect(() => {
-    if (!availableSucursales.length) return;
+    if (!availableSucursales.length || !fechaInicializada) return;
     setAllData({});
     setFillRate([]);
     loadKey(tab === 'filtro' ? 'general' : tab, {});
     /* eslint-disable-next-line */
-  }, [fechaCorte, availableSucursales.length]);
+  }, [fechaCorte, availableSucursales.length, fechaInicializada]);
 
   // Carga al cambiar de pestaña (usa cache si ya existe)
   useEffect(() => {
@@ -367,6 +394,18 @@ export default function ReporteVentasInventarioSanamex() {
           <Button size="sm" onClick={exportExcel}><Download className="h-4 w-4 mr-1" />Exportar Excel</Button>
         </div>
       </div>
+
+
+
+      {datosHistoricos && maxFechaVentas && (
+        <div className="rounded-md border border-amber-300 bg-amber-50 text-amber-900 px-3 py-2 text-sm flex items-start gap-2">
+          <span>📅</span>
+          <div>
+            Mostrando datos al <strong>{maxFechaVentas}</strong>. Los datos más recientes son históricos cargados manualmente
+            (no hay ventas del POS posteriores). Puedes cambiar la fecha de corte si necesitas otra ventana.
+          </div>
+        </div>
+      )}
 
       <Card>
         <CardContent className="pt-4 grid grid-cols-2 md:grid-cols-6 gap-3">
