@@ -216,20 +216,20 @@ export default function ReporteVentasInventarioSanamex() {
     try {
       const sb = supabase as any;
       if (key === 'general') {
-        const { data, error } = await sb.rpc('reporte_ventas_inventario_sanamex', { p_sucursal_id: null, p_fecha_corte: fechaCorte, p_incluir_cedis: false });
+        const { data, error } = await sb.rpc('reporte_ventas_inventario_sanamex', { p_sucursal_id: null, p_fecha_corte: fechaCorte, p_incluir_cedis: false }).range(0, 99999);
         if (error) throw error;
         setAllData(p => ({ ...p, general: (data as Row[]) || [] }));
       } else if (key.startsWith('cedis:')) {
         const cedisId = key.slice('cedis:'.length);
-        const { data, error } = await sb.rpc('reporte_ventas_inventario_sanamex', { p_sucursal_id: cedisId, p_fecha_corte: fechaCorte, p_incluir_cedis: true });
+        const { data, error } = await sb.rpc('reporte_ventas_inventario_sanamex', { p_sucursal_id: cedisId, p_fecha_corte: fechaCorte, p_incluir_cedis: true }).range(0, 99999);
         if (error) throw error;
         setAllData(p => ({ ...p, [key]: (data as Row[]) || [] }));
       } else if (key === 'fillrate') {
-        const { data, error } = await sb.rpc('fill_rate_proveedores', { p_desde: null, p_hasta: null });
+        const { data, error } = await sb.rpc('fill_rate_proveedores', { p_desde: null, p_hasta: null }).range(0, 99999);
         if (error) throw error;
         setFillRate((data as FillRateRow[]) || []);
       } else {
-        const { data, error } = await sb.rpc('reporte_ventas_inventario_sanamex', { p_sucursal_id: key, p_fecha_corte: fechaCorte, p_incluir_cedis: false });
+        const { data, error } = await sb.rpc('reporte_ventas_inventario_sanamex', { p_sucursal_id: key, p_fecha_corte: fechaCorte, p_incluir_cedis: false }).range(0, 99999);
         if (error) throw error;
         setAllData(p => ({ ...p, [key]: (data as Row[]) || [] }));
       }
@@ -300,8 +300,8 @@ export default function ReporteVentasInventarioSanamex() {
       setLoading(true);
       try {
         const calls = await Promise.all([
-          ...faltantes.map(n => sb.rpc('reporte_ventas_inventario_sanamex', { p_sucursal_id: n.sucId, p_fecha_corte: fechaCorte, p_incluir_cedis: n.incluirCedis })),
-          fillRate.length ? Promise.resolve({ data: fillRate }) : sb.rpc('fill_rate_proveedores', { p_desde: null, p_hasta: null }),
+          ...faltantes.map(n => sb.rpc('reporte_ventas_inventario_sanamex', { p_sucursal_id: n.sucId, p_fecha_corte: fechaCorte, p_incluir_cedis: n.incluirCedis }).range(0, 99999)),
+          fillRate.length ? Promise.resolve({ data: fillRate }) : sb.rpc('fill_rate_proveedores', { p_desde: null, p_hasta: null }).range(0, 99999),
         ]);
         const next = { ...allData };
         faltantes.forEach((n, i) => { next[n.key] = (calls[i].data as Row[]) || []; });
