@@ -300,8 +300,8 @@ export default function ReporteVentasInventarioSanamex() {
       setLoading(true);
       try {
         const calls = await Promise.all([
-          ...faltantes.map(n => sb.rpc('reporte_ventas_inventario_sanamex', { p_sucursal_id: n.sucId, p_fecha_corte: fechaCorte, p_incluir_cedis: n.incluirCedis })),
-          fillRate.length ? Promise.resolve({ data: fillRate }) : sb.rpc('fill_rate_proveedores', { p_desde: null, p_hasta: null }),
+          ...faltantes.map(n => sb.rpc('reporte_ventas_inventario_sanamex', { p_sucursal_id: n.sucId, p_fecha_corte: fechaCorte, p_incluir_cedis: n.incluirCedis }).range(0, 99999)),
+          fillRate.length ? Promise.resolve({ data: fillRate }) : sb.rpc('fill_rate_proveedores', { p_desde: null, p_hasta: null }).range(0, 99999),
         ]);
         const next = { ...allData };
         faltantes.forEach((n, i) => { next[n.key] = (calls[i].data as Row[]) || []; });
