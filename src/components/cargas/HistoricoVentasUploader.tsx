@@ -438,15 +438,28 @@ export default function HistoricoVentasUploader({ onDone }: { onDone?: () => voi
       const minD = fechasIso.length ? fechasIso.reduce((a, b) => (a < b ? a : b)) : null;
       const maxD = fechasIso.length ? fechasIso.reduce((a, b) => (a > b ? a : b)) : null;
       if (minD && maxD && sucIds.length) {
-        const { data: existentes, error: exErr } = await supabase
-          .from('ventas')
-          .select('numero_venta')
-          .eq('origen', 'carga_historica')
-          .in('sucursal_id', sucIds)
-          .gte('fecha', `${minD}T00:00:00`)
-          .lte('fecha', `${maxD}T23:59:59`);
-        if (exErr) throw exErr;
-        const existSet = new Set((existentes || []).map((v: any) => v.numero_venta));
+        const existSet = new Set<string>();
+        const PAGE = 1000;
+        let offset = 0;
+        // Paginar: PostgREST aplica cap default = 1000 filas por request.
+        // Sin esto, sólo detectaríamos los primeros 1000 duplicados.
+        while (true) {
+          setProgress(`Chequeando idempotencia... (${existSet.size} ya en BD)`);
+          const { data: existentes, error: exErr } = await supabase
+            .from('ventas')
+            .select('numero_venta')
+            .eq('origen', 'carga_historica')
+            .in('sucursal_id', sucIds)
+            .gte('fecha', `${minD}T00:00:00`)
+            .lte('fecha', `${maxD}T23:59:59`)
+            .order('numero_venta', { ascending: true })
+            .range(offset, offset + PAGE - 1);
+          if (exErr) throw exErr;
+          const batch = existentes || [];
+          batch.forEach((v: any) => existSet.add(v.numero_venta));
+          if (batch.length < PAGE) break;
+          offset += PAGE;
+        }
         for (const c of cabsArr) if (existSet.has(c.numero_venta!)) c.yaExiste = true;
       }
 
