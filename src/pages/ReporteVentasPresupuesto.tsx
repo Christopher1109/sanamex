@@ -69,10 +69,14 @@ const ReporteVentasPresupuesto = () => {
         <TabsList>
           <TabsTrigger value="dashboard">Dashboard Mensual</TabsTrigger>
           <TabsTrigger value="presupuesto">Presupuesto vs Real</TabsTrigger>
+          <TabsTrigger value="cortes">Cortes de Caja</TabsTrigger>
+          <TabsTrigger value="vendedores">Productividad Vendedores</TabsTrigger>
         </TabsList>
 
         <TabsContent value="dashboard"><DashboardMensual /></TabsContent>
         <TabsContent value="presupuesto"><PresupuestoVsReal canCapture={canCapture} /></TabsContent>
+        <TabsContent value="cortes"><CortesCajaTab userRole={userRole} /></TabsContent>
+        <TabsContent value="vendedores"><ProductividadVendedoresTab /></TabsContent>
       </Tabs>
     </div>
   );
