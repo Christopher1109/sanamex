@@ -521,4 +521,443 @@ const PresupuestoVsReal = ({ canCapture }: { canCapture: boolean }) => {
   );
 };
 
+// ============================================
+// TAB 3: Cortes de Caja
+// ============================================
+interface CorteRow {
+  fecha: string;
+  sucursal_id: string;
+  sucursal_codigo: string;
+  sucursal_nombre: string;
+  diferencia: number;
+  estado_alerta: string;
+  color: string;
+  mensaje: string;
+  observaciones: string | null;
+}
+
+const ESTADO_COLOR: Record<string, string> = {
+  amarillo: 'bg-yellow-100 text-yellow-800 border-yellow-300',
+  azul: 'bg-blue-100 text-blue-800 border-blue-300',
+  verde: 'bg-green-100 text-green-800 border-green-300',
+  naranja: 'bg-orange-100 text-orange-800 border-orange-300',
+  rojo: 'bg-red-100 text-red-800 border-red-300',
+};
+const ESTADO_LABEL: Record<string, string> = {
+  sobrante_alto: 'Sobrante alto',
+  sobrante_leve: 'Sobrante leve',
+  cuadrado: 'Cuadrado',
+  faltante_leve: 'Faltante leve',
+  faltante_alto: 'Faltante alto',
+};
+
+const CortesCajaTab: React.FC<{ userRole: any }> = ({ userRole }) => {
+  const canCapture = ['admin', 'super_admin', 'gerente', 'subgerente'].includes(userRole || '');
+  const now = new Date();
+  const firstDay = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10);
+  const today = now.toISOString().slice(0, 10);
+  const [desde, setDesde] = useState(firstDay);
+  const [hasta, setHasta] = useState(today);
+  const [sucursales, setSucursales] = useState<{ id: string; codigo: string; nombre: string }[]>([]);
+  const [sucSel, setSucSel] = useState<string[]>([]);
+  const [tipoAlerta, setTipoAlerta] = useState<string>('todos');
+  const [rows, setRows] = useState<CorteRow[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [openCapt, setOpenCapt] = useState(false);
+
+  useEffect(() => {
+    supabase.from('sucursales').select('id, codigo, nombre').eq('activo', true).order('codigo')
+      .then(({ data }) => setSucursales(data || []));
+  }, []);
+
+  const reload = () => {
+    setLoading(true);
+    supabase.rpc('reporte_cortes_caja', {
+      p_fecha_desde: desde, p_fecha_hasta: hasta,
+      p_sucursales: sucSel.length ? sucSel : null,
+    }).then(({ data, error }) => {
+      if (error) console.error(error);
+      setRows((data || []) as CorteRow[]);
+      setLoading(false);
+    });
+  };
+
+  useEffect(reload, [desde, hasta, sucSel.join(',')]);
+
+  const filtered = useMemo(() =>
+    tipoAlerta === 'todos' ? rows : rows.filter(r => r.estado_alerta === tipoAlerta),
+    [rows, tipoAlerta]);
+
+  // Resumen
+  const resumen = useMemo(() => {
+    const porSuc: Record<string, { codigo: string; acumulado: number; cuadrados: number; total: number; maxSobrante: number; maxFaltante: number }> = {};
+    rows.forEach(r => {
+      if (!porSuc[r.sucursal_codigo]) porSuc[r.sucursal_codigo] = { codigo: r.sucursal_codigo, acumulado: 0, cuadrados: 0, total: 0, maxSobrante: 0, maxFaltante: 0 };
+      const s = porSuc[r.sucursal_codigo];
+      s.acumulado += Number(r.diferencia);
+      s.total += 1;
+      if (Number(r.diferencia) === 0) s.cuadrados += 1;
+      if (Number(r.diferencia) > s.maxSobrante) s.maxSobrante = Number(r.diferencia);
+      if (Number(r.diferencia) < s.maxFaltante) s.maxFaltante = Number(r.diferencia);
+    });
+    // Alerta tendencia: >3 días seguidos con faltante por sucursal
+    const alertas: string[] = [];
+    const grupos: Record<string, CorteRow[]> = {};
+    rows.forEach(r => {
+      grupos[r.sucursal_codigo] = grupos[r.sucursal_codigo] || [];
+      grupos[r.sucursal_codigo].push(r);
+    });
+    Object.entries(grupos).forEach(([cod, arr]) => {
+      const sorted = [...arr].sort((a, b) => a.fecha.localeCompare(b.fecha));
+      let streak = 0, maxStreak = 0;
+      sorted.forEach(r => {
+        if (Number(r.diferencia) < 0) { streak++; maxStreak = Math.max(maxStreak, streak); }
+        else streak = 0;
+      });
+      if (maxStreak > 3) alertas.push(`${cod}: ${maxStreak} días seguidos con faltante`);
+    });
+    return { porSuc: Object.values(porSuc), alertas };
+  }, [rows]);
+
+  const toggleSuc = (cod: string) =>
+    setSucSel(prev => prev.includes(cod) ? prev.filter(c => c !== cod) : [...prev, cod]);
+
+  const exportExcel = () => {
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.json_to_sheet(filtered.map(r => ({
+      Fecha: r.fecha, Sucursal: r.sucursal_codigo,
+      Diferencia: Number(r.diferencia),
+      Estado: ESTADO_LABEL[r.estado_alerta] || r.estado_alerta,
+      Mensaje: r.mensaje, Observaciones: r.observaciones || '',
+    })));
+    XLSX.utils.book_append_sheet(wb, ws, 'Metricas Cortes');
+    XLSX.writeFile(wb, `cortes-caja-${desde}-${hasta}.xlsx`);
+  };
+
+  return (
+    <div className="space-y-4">
+      <Card>
+        <CardContent className="pt-6 flex flex-wrap items-end gap-3">
+          <div>
+            <Label className="text-xs">Desde</Label>
+            <Input type="date" value={desde} onChange={e => setDesde(e.target.value)} className="w-40" />
+          </div>
+          <div>
+            <Label className="text-xs">Hasta</Label>
+            <Input type="date" value={hasta} onChange={e => setHasta(e.target.value)} className="w-40" />
+          </div>
+          <div>
+            <Label className="text-xs">Tipo de alerta</Label>
+            <Select value={tipoAlerta} onValueChange={setTipoAlerta}>
+              <SelectTrigger className="w-44"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todos">Todos</SelectItem>
+                <SelectItem value="sobrante_alto">Sobrante alto</SelectItem>
+                <SelectItem value="sobrante_leve">Sobrante leve</SelectItem>
+                <SelectItem value="cuadrado">Cuadrado</SelectItem>
+                <SelectItem value="faltante_leve">Faltante leve</SelectItem>
+                <SelectItem value="faltante_alto">Faltante alto</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <Label className="text-xs">Sucursales</Label>
+            <div className="flex gap-1 mt-1 flex-wrap">
+              {sucursales.map(s => (
+                <Button key={s.id} size="sm" variant={sucSel.includes(s.codigo) ? 'default' : 'outline'}
+                  onClick={() => toggleSuc(s.codigo)}>{s.codigo}</Button>
+              ))}
+            </div>
+          </div>
+          <div className="ml-auto flex gap-2">
+            {canCapture && (
+              <Button onClick={() => setOpenCapt(true)}>
+                <Plus className="h-4 w-4 mr-1" />Capturar
+              </Button>
+            )}
+            <Button variant="outline" onClick={exportExcel}>
+              <FileSpreadsheet className="h-4 w-4 mr-1" />Exportar
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <Card>
+          <CardHeader><CardTitle className="text-base">Resumen por sucursal</CardTitle></CardHeader>
+          <CardContent>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Suc</TableHead>
+                  <TableHead className="text-right">Acumulado</TableHead>
+                  <TableHead className="text-right">Cuadrados</TableHead>
+                  <TableHead className="text-right">Max Sobr</TableHead>
+                  <TableHead className="text-right">Max Falt</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {resumen.porSuc.map(s => (
+                  <TableRow key={s.codigo}>
+                    <TableCell>{s.codigo}</TableCell>
+                    <TableCell className={`text-right ${s.acumulado < 0 ? 'text-red-600' : s.acumulado > 0 ? 'text-yellow-700' : ''}`}>
+                      ${fmt(s.acumulado)}
+                    </TableCell>
+                    <TableCell className="text-right">{s.cuadrados}/{s.total}</TableCell>
+                    <TableCell className="text-right">${fmt(s.maxSobrante)}</TableCell>
+                    <TableCell className="text-right text-red-600">${fmt(s.maxFaltante)}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader><CardTitle className="text-base flex items-center gap-2"><AlertTriangle className="h-4 w-4" />Alertas de tendencia</CardTitle></CardHeader>
+          <CardContent>
+            {resumen.alertas.length === 0
+              ? <p className="text-sm text-muted-foreground">Sin tendencias preocupantes detectadas.</p>
+              : <ul className="space-y-1 text-sm">{resumen.alertas.map((a, i) => <li key={i} className="text-red-700">⚠️ {a}</li>)}</ul>}
+          </CardContent>
+        </Card>
+      </div>
+
+      <Card>
+        <CardHeader><CardTitle className="text-base">Detalle de cortes</CardTitle></CardHeader>
+        <CardContent>
+          {loading && <div className="text-sm text-muted-foreground">Cargando...</div>}
+          <div className="max-h-[60vh] overflow-y-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Fecha</TableHead>
+                  <TableHead>Sucursal</TableHead>
+                  <TableHead className="text-right">Diferencia</TableHead>
+                  <TableHead>Estado</TableHead>
+                  <TableHead>Mensaje</TableHead>
+                  <TableHead>Observaciones</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filtered.length === 0 && (
+                  <TableRow><TableCell colSpan={6} className="text-center text-muted-foreground">Sin cortes capturados.</TableCell></TableRow>
+                )}
+                {filtered.map((r, i) => (
+                  <TableRow key={i}>
+                    <TableCell>{r.fecha}</TableCell>
+                    <TableCell>{r.sucursal_codigo}</TableCell>
+                    <TableCell className={`text-right font-medium ${Number(r.diferencia) < 0 ? 'text-red-600' : Number(r.diferencia) > 0 ? 'text-yellow-700' : ''}`}>
+                      ${fmt(Number(r.diferencia))}
+                    </TableCell>
+                    <TableCell><Badge variant="outline" className={ESTADO_COLOR[r.color]}>{ESTADO_LABEL[r.estado_alerta]}</Badge></TableCell>
+                    <TableCell className="text-sm">{r.mensaje}</TableCell>
+                    <TableCell className="text-sm text-muted-foreground">{r.observaciones || '—'}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        </CardContent>
+      </Card>
+
+      {canCapture && (
+        <CapturaCorteDialog open={openCapt} onOpenChange={setOpenCapt} sucursales={sucursales} onSaved={reload} />
+      )}
+    </div>
+  );
+};
+
+// ============================================
+// TAB 4: Productividad Vendedores
+// ============================================
+interface VendRow {
+  vendedor: string;
+  sucursal_codigo: string;
+  num_tickets: number;
+  venta_total: number;
+  ticket_promedio: number;
+  utilidad_total: number;
+  margen_pct: number;
+}
+
+const colorFromName = (name: string) => {
+  const colors = ['bg-blue-500', 'bg-green-500', 'bg-purple-500', 'bg-orange-500', 'bg-pink-500', 'bg-teal-500'];
+  let h = 0; for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) >>> 0;
+  return colors[h % colors.length];
+};
+const initials = (n: string) => n.split(/\s+/).filter(Boolean).slice(0, 2).map(w => w[0]?.toUpperCase()).join('') || '?';
+
+const ProductividadVendedoresTab: React.FC = () => {
+  const now = new Date();
+  const firstDay = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10);
+  const today = now.toISOString().slice(0, 10);
+  const [desde, setDesde] = useState(firstDay);
+  const [hasta, setHasta] = useState(today);
+  const [sucursales, setSucursales] = useState<{ id: string; codigo: string; nombre: string }[]>([]);
+  const [sucSel, setSucSel] = useState<string[]>([]);
+  const [busqueda, setBusqueda] = useState('');
+  const [rows, setRows] = useState<VendRow[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    supabase.from('sucursales').select('id, codigo, nombre').eq('activo', true).order('codigo')
+      .then(({ data }) => setSucursales(data || []));
+  }, []);
+
+  useEffect(() => {
+    setLoading(true);
+    supabase.rpc('reporte_productividad_vendedores', {
+      p_fecha_desde: desde, p_fecha_hasta: hasta,
+      p_sucursales: sucSel.length ? sucSel : null,
+    }).then(({ data, error }) => {
+      if (error) console.error(error);
+      setRows((data || []) as VendRow[]);
+      setLoading(false);
+    });
+  }, [desde, hasta, sucSel.join(',')]);
+
+  const filtered = useMemo(() => {
+    const q = busqueda.trim().toLowerCase();
+    return q ? rows.filter(r => r.vendedor.toLowerCase().includes(q)) : rows;
+  }, [rows, busqueda]);
+
+  // Aggregated by vendedor (across sucursales)
+  const topVendedores = useMemo(() => {
+    const map: Record<string, VendRow> = {};
+    rows.forEach(r => {
+      if (!map[r.vendedor]) map[r.vendedor] = { ...r, sucursal_codigo: '-' };
+      else {
+        const m = map[r.vendedor];
+        m.num_tickets += Number(r.num_tickets);
+        m.venta_total = Number(m.venta_total) + Number(r.venta_total);
+        m.utilidad_total = Number(m.utilidad_total) + Number(r.utilidad_total);
+      }
+    });
+    return Object.values(map).map(v => ({
+      ...v,
+      ticket_promedio: Number(v.num_tickets) > 0 ? Number(v.venta_total) / Number(v.num_tickets) : 0,
+      margen_pct: Number(v.venta_total) > 0 ? (Number(v.utilidad_total) / Number(v.venta_total)) * 100 : 0,
+    })).sort((a, b) => Number(b.venta_total) - Number(a.venta_total)).slice(0, 5);
+  }, [rows]);
+
+  const toggleSuc = (cod: string) =>
+    setSucSel(prev => prev.includes(cod) ? prev.filter(c => c !== cod) : [...prev, cod]);
+
+  const exportExcel = () => {
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.json_to_sheet(filtered.map(r => ({
+      Vendedor: r.vendedor, Sucursal: r.sucursal_codigo,
+      'Tickets': Number(r.num_tickets), 'Venta': Number(r.venta_total),
+      'Ticket Promedio': Number(r.ticket_promedio),
+      'Utilidad': Number(r.utilidad_total),
+      'Margen %': Number(r.margen_pct).toFixed(2),
+    })));
+    XLSX.utils.book_append_sheet(wb, ws, 'Ventas_Ocup');
+    XLSX.writeFile(wb, `productividad-vendedores-${desde}-${hasta}.xlsx`);
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-start gap-2 p-3 rounded-md border border-yellow-300 bg-yellow-50 text-sm">
+        <AlertTriangle className="h-4 w-4 text-yellow-700 mt-0.5 flex-shrink-0" />
+        <span>
+          Los vendedores se identifican por nombre capturado. Pueden existir variaciones
+          (mayúsculas, espacios). Función de normalización disponible próximamente.
+        </span>
+      </div>
+
+      <Card>
+        <CardContent className="pt-6 flex flex-wrap items-end gap-3">
+          <div>
+            <Label className="text-xs">Desde</Label>
+            <Input type="date" value={desde} onChange={e => setDesde(e.target.value)} className="w-40" />
+          </div>
+          <div>
+            <Label className="text-xs">Hasta</Label>
+            <Input type="date" value={hasta} onChange={e => setHasta(e.target.value)} className="w-40" />
+          </div>
+          <div>
+            <Label className="text-xs">Buscar vendedor</Label>
+            <Input value={busqueda} onChange={e => setBusqueda(e.target.value)} placeholder="Nombre..." className="w-56" />
+          </div>
+          <div>
+            <Label className="text-xs">Sucursales</Label>
+            <div className="flex gap-1 mt-1 flex-wrap">
+              {sucursales.map(s => (
+                <Button key={s.id} size="sm" variant={sucSel.includes(s.codigo) ? 'default' : 'outline'}
+                  onClick={() => toggleSuc(s.codigo)}>{s.codigo}</Button>
+              ))}
+            </div>
+          </div>
+          <div className="ml-auto">
+            <Button variant="outline" onClick={exportExcel}>
+              <FileSpreadsheet className="h-4 w-4 mr-1" />Exportar
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader><CardTitle className="text-base">Top 5 vendedores del período</CardTitle></CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+            {topVendedores.map((v, i) => (
+              <div key={i} className="flex items-center gap-3 p-3 rounded-lg border">
+                <div className={`h-10 w-10 rounded-full flex items-center justify-center text-white font-semibold ${colorFromName(v.vendedor)}`}>
+                  {initials(v.vendedor)}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="text-sm font-medium truncate">{v.vendedor}</div>
+                  <div className="text-xs text-muted-foreground">
+                    ${fmt(Number(v.venta_total))} · {v.num_tickets} tickets · {pct(Number(v.margen_pct))}
+                  </div>
+                </div>
+              </div>
+            ))}
+            {topVendedores.length === 0 && <p className="text-sm text-muted-foreground">Sin datos.</p>}
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader><CardTitle className="text-base">Detalle por vendedor y sucursal</CardTitle></CardHeader>
+        <CardContent>
+          {loading && <div className="text-sm text-muted-foreground">Cargando...</div>}
+          <div className="max-h-[60vh] overflow-y-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Vendedor</TableHead>
+                  <TableHead>Sucursal</TableHead>
+                  <TableHead className="text-right"># Tickets</TableHead>
+                  <TableHead className="text-right">Venta $</TableHead>
+                  <TableHead className="text-right">Ticket Prom.</TableHead>
+                  <TableHead className="text-right">Utilidad $</TableHead>
+                  <TableHead className="text-right">Margen %</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filtered.length === 0 && (
+                  <TableRow><TableCell colSpan={7} className="text-center text-muted-foreground">Sin datos</TableCell></TableRow>
+                )}
+                {filtered.map((r, i) => (
+                  <TableRow key={i}>
+                    <TableCell className="font-medium">{r.vendedor}</TableCell>
+                    <TableCell>{r.sucursal_codigo}</TableCell>
+                    <TableCell className="text-right">{Number(r.num_tickets).toLocaleString('es-MX')}</TableCell>
+                    <TableCell className="text-right">${fmt(Number(r.venta_total))}</TableCell>
+                    <TableCell className="text-right">${fmt(Number(r.ticket_promedio))}</TableCell>
+                    <TableCell className="text-right">${fmt(Number(r.utilidad_total))}</TableCell>
+                    <TableCell className="text-right">{pct(Number(r.margen_pct))}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+};
+
 export default ReporteVentasPresupuesto;
