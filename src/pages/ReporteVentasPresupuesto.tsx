@@ -740,7 +740,9 @@ const CortesCajaTab: React.FC<{ userRole: any }> = ({ userRole }) => {
               </TableHeader>
               <TableBody>
                 {filtered.length === 0 && (
-                  <TableRow><TableCell colSpan={6} className="text-center text-muted-foreground">Sin cortes capturados.</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={6} className="text-center text-muted-foreground py-8">
+                    Sin cortes capturados aún. Usa el botón Capturar para registrar el corte diario por sucursal.
+                  </TableCell></TableRow>
                 )}
                 {filtered.map((r, i) => (
                   <TableRow key={i}>
