@@ -31,6 +31,7 @@ import RotacionPage from './pages/RotacionPage';
 import RentabilidadLotesPage from './pages/RentabilidadLotesPage';
 import ReporteVentasInventarioSanamex from './pages/ReporteVentasInventarioSanamex';
 import ReporteInventarioGeneral from './pages/ReporteInventarioGeneral';
+import ReporteVentasPresupuesto from './pages/ReporteVentasPresupuesto';
 import Sidebar from './components/layout/Sidebar';
 import Header from './components/layout/Header';
 
