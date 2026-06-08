@@ -51,6 +51,8 @@ const Sidebar = ({ userRole, onLogout }: SidebarProps) => {
     // Catálogos
     { path: '/productos', icon: Package, label: 'Productos', roles: ['super_admin','admin','gerente','subgerente','almacen','almacen_ventas'], category: 'Catálogos' },
     { path: '/proveedores', icon: Store, label: 'Proveedores', roles: MGMT, category: 'Catálogos' },
+    { path: '/catalogos-cotizador', icon: Upload, label: 'Catálogos Cotizador', roles: MGMT, category: 'Catálogos' },
+    { path: '/listas-precios', icon: DollarSign, label: 'Listas de Precios', roles: MGMT, category: 'Catálogos' },
     { path: '/clientes', icon: Users, label: 'Clientes', roles: [...MGMT,'ventas'], category: 'Catálogos' },
     // Operaciones
     { path: '/compras', icon: ShoppingCart, label: 'Compras', roles: OPS, category: 'Operaciones' },

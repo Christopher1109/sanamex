@@ -635,6 +635,135 @@ export type Database = {
           },
         ]
       }
+      lista_precio_cargas: {
+        Row: {
+          archivo_nombre: string
+          cargado_por: string | null
+          created_at: string
+          fecha_vigencia_desde: string
+          fecha_vigencia_hasta: string | null
+          id: string
+          iva_tasa_default: number
+          precio_incluye_iva: boolean
+          productos_actualizados: number
+          productos_autocreados: number
+          productos_cargados: number
+          productos_omitidos: number
+          proveedor_id: string
+          reemplaza_carga_anterior: boolean
+        }
+        Insert: {
+          archivo_nombre: string
+          cargado_por?: string | null
+          created_at?: string
+          fecha_vigencia_desde: string
+          fecha_vigencia_hasta?: string | null
+          id?: string
+          iva_tasa_default?: number
+          precio_incluye_iva?: boolean
+          productos_actualizados?: number
+          productos_autocreados?: number
+          productos_cargados?: number
+          productos_omitidos?: number
+          proveedor_id: string
+          reemplaza_carga_anterior?: boolean
+        }
+        Update: {
+          archivo_nombre?: string
+          cargado_por?: string | null
+          created_at?: string
+          fecha_vigencia_desde?: string
+          fecha_vigencia_hasta?: string | null
+          id?: string
+          iva_tasa_default?: number
+          precio_incluye_iva?: boolean
+          productos_actualizados?: number
+          productos_autocreados?: number
+          productos_cargados?: number
+          productos_omitidos?: number
+          proveedor_id?: string
+          reemplaza_carga_anterior?: boolean
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lista_precio_cargas_proveedor_id_fkey"
+            columns: ["proveedor_id"]
+            isOneToOne: false
+            referencedRelation: "proveedores"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      lista_precio_proveedor: {
+        Row: {
+          activo: boolean
+          cantidad_min: number
+          carga_id: string | null
+          created_at: string
+          existencia_proveedor: number | null
+          fecha_vigencia_desde: string
+          fecha_vigencia_hasta: string | null
+          id: string
+          observaciones: string | null
+          precio: number
+          precio_con_iva: number | null
+          producto_id: string
+          proveedor_id: string
+        }
+        Insert: {
+          activo?: boolean
+          cantidad_min?: number
+          carga_id?: string | null
+          created_at?: string
+          existencia_proveedor?: number | null
+          fecha_vigencia_desde: string
+          fecha_vigencia_hasta?: string | null
+          id?: string
+          observaciones?: string | null
+          precio: number
+          precio_con_iva?: number | null
+          producto_id: string
+          proveedor_id: string
+        }
+        Update: {
+          activo?: boolean
+          cantidad_min?: number
+          carga_id?: string | null
+          created_at?: string
+          existencia_proveedor?: number | null
+          fecha_vigencia_desde?: string
+          fecha_vigencia_hasta?: string | null
+          id?: string
+          observaciones?: string | null
+          precio?: number
+          precio_con_iva?: number | null
+          producto_id?: string
+          proveedor_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lista_precio_proveedor_carga_id_fkey"
+            columns: ["carga_id"]
+            isOneToOne: false
+            referencedRelation: "lista_precio_cargas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lista_precio_proveedor_producto_id_fkey"
+            columns: ["producto_id"]
+            isOneToOne: false
+            referencedRelation: "productos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lista_precio_proveedor_proveedor_id_fkey"
+            columns: ["proveedor_id"]
+            isOneToOne: false
+            referencedRelation: "proveedores"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       lotes: {
         Row: {
           compra_id: string | null
@@ -853,6 +982,63 @@ export type Database = {
         }
         Relationships: []
       }
+      ofertas_proveedor: {
+        Row: {
+          activo: boolean
+          cantidad_minima: number | null
+          created_at: string
+          descuento_pct: number | null
+          fecha_fin: string
+          fecha_inicio: string
+          id: string
+          notas: string | null
+          precio_oferta: number
+          producto_id: string
+          proveedor_id: string
+        }
+        Insert: {
+          activo?: boolean
+          cantidad_minima?: number | null
+          created_at?: string
+          descuento_pct?: number | null
+          fecha_fin: string
+          fecha_inicio: string
+          id?: string
+          notas?: string | null
+          precio_oferta: number
+          producto_id: string
+          proveedor_id: string
+        }
+        Update: {
+          activo?: boolean
+          cantidad_minima?: number | null
+          created_at?: string
+          descuento_pct?: number | null
+          fecha_fin?: string
+          fecha_inicio?: string
+          id?: string
+          notas?: string | null
+          precio_oferta?: number
+          producto_id?: string
+          proveedor_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ofertas_proveedor_producto_id_fkey"
+            columns: ["producto_id"]
+            isOneToOne: false
+            referencedRelation: "productos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ofertas_proveedor_proveedor_id_fkey"
+            columns: ["proveedor_id"]
+            isOneToOne: false
+            referencedRelation: "proveedores"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       password_resets_log: {
         Row: {
           created_at: string
@@ -1049,6 +1235,57 @@ export type Database = {
           },
         ]
       }
+      producto_corrugado: {
+        Row: {
+          created_at: string
+          id: string
+          notas: string | null
+          piezas_por_caja_master: number | null
+          piezas_por_corrugado: number
+          producto_id: string
+          proveedor_id: string | null
+          unidad_minima_compra: number | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          notas?: string | null
+          piezas_por_caja_master?: number | null
+          piezas_por_corrugado: number
+          producto_id: string
+          proveedor_id?: string | null
+          unidad_minima_compra?: number | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          notas?: string | null
+          piezas_por_caja_master?: number | null
+          piezas_por_corrugado?: number
+          producto_id?: string
+          proveedor_id?: string | null
+          unidad_minima_compra?: number | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "producto_corrugado_producto_id_fkey"
+            columns: ["producto_id"]
+            isOneToOne: false
+            referencedRelation: "productos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "producto_corrugado_proveedor_id_fkey"
+            columns: ["proveedor_id"]
+            isOneToOne: false
+            referencedRelation: "proveedores"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       producto_precios_escalonados: {
         Row: {
           cantidad_minima: number
@@ -1125,6 +1362,54 @@ export type Database = {
           },
           {
             foreignKeyName: "producto_precios_sucursal_sucursal_id_fkey"
+            columns: ["sucursal_id"]
+            isOneToOne: false
+            referencedRelation: "sucursales"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      producto_sucursal_estatus: {
+        Row: {
+          created_at: string
+          estatus: string
+          fecha_cambio: string
+          id: string
+          motivo: string | null
+          producto_id: string
+          sucursal_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          estatus: string
+          fecha_cambio?: string
+          id?: string
+          motivo?: string | null
+          producto_id: string
+          sucursal_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          estatus?: string
+          fecha_cambio?: string
+          id?: string
+          motivo?: string | null
+          producto_id?: string
+          sucursal_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "producto_sucursal_estatus_producto_id_fkey"
+            columns: ["producto_id"]
+            isOneToOne: false
+            referencedRelation: "productos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "producto_sucursal_estatus_sucursal_id_fkey"
             columns: ["sucursal_id"]
             isOneToOne: false
             referencedRelation: "sucursales"
@@ -1348,9 +1633,11 @@ export type Database = {
       }
       proveedores: {
         Row: {
+          acepta_devoluciones: boolean | null
           activo: boolean | null
           aviso_funcionamiento_url: string | null
           banco: string | null
+          codigo: string | null
           comprobante_domicilio_url: string | null
           condiciones: string | null
           constancia_situacion_fiscal_url: string | null
@@ -1363,17 +1650,23 @@ export type Database = {
           id: string
           identificacion_oficial_url: string | null
           lead_time_prometido_dias: number | null
+          monto_minimo_pedido: number | null
           nombre: string
           notas: string | null
+          notas_credito: boolean | null
+          pago_contra_entrega: boolean | null
           plazo_pago_dias: number
+          razon_social: string | null
           rfc: string | null
           telefono: string | null
           updated_at: string | null
         }
         Insert: {
+          acepta_devoluciones?: boolean | null
           activo?: boolean | null
           aviso_funcionamiento_url?: string | null
           banco?: string | null
+          codigo?: string | null
           comprobante_domicilio_url?: string | null
           condiciones?: string | null
           constancia_situacion_fiscal_url?: string | null
@@ -1386,17 +1679,23 @@ export type Database = {
           id?: string
           identificacion_oficial_url?: string | null
           lead_time_prometido_dias?: number | null
+          monto_minimo_pedido?: number | null
           nombre: string
           notas?: string | null
+          notas_credito?: boolean | null
+          pago_contra_entrega?: boolean | null
           plazo_pago_dias?: number
+          razon_social?: string | null
           rfc?: string | null
           telefono?: string | null
           updated_at?: string | null
         }
         Update: {
+          acepta_devoluciones?: boolean | null
           activo?: boolean | null
           aviso_funcionamiento_url?: string | null
           banco?: string | null
+          codigo?: string | null
           comprobante_domicilio_url?: string | null
           condiciones?: string | null
           constancia_situacion_fiscal_url?: string | null
@@ -1409,9 +1708,13 @@ export type Database = {
           id?: string
           identificacion_oficial_url?: string | null
           lead_time_prometido_dias?: number | null
+          monto_minimo_pedido?: number | null
           nombre?: string
           notas?: string | null
+          notas_credito?: boolean | null
+          pago_contra_entrega?: boolean | null
           plazo_pago_dias?: number
+          razon_social?: string | null
           rfc?: string | null
           telefono?: string | null
           updated_at?: string | null
@@ -2076,6 +2379,22 @@ export type Database = {
         }[]
       }
       mapear_sucursal_legacy: { Args: { p_codigo: string }; Returns: string }
+      precio_vigente_proveedor: {
+        Args: {
+          p_fecha?: string
+          p_producto_id: string
+          p_proveedor_id: string
+        }
+        Returns: {
+          cantidad_minima_oferta: number
+          con_oferta: boolean
+          existencia: number
+          precio: number
+          precio_oferta: number
+          vigencia_desde: string
+          vigencia_hasta: string
+        }[]
+      }
       process_pos_sale:
         | {
             Args: {
