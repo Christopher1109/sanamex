@@ -67,6 +67,7 @@ const Sidebar = ({ userRole, onLogout }: SidebarProps) => {
     { path: '/rentabilidad-lotes', icon: DollarSign, label: 'Rentabilidad por Lote', roles: MGMT, category: 'Análisis' },
     { path: '/reporte-sanamex', icon: FileSpreadsheet, label: 'Ventas e Inventario SANAMEX', roles: MGMT, category: 'Análisis' },
     { path: '/reporte-inventario-general', icon: FileSpreadsheet, label: 'Reporte Inventario General', roles: MGMT, category: 'Análisis' },
+    { path: '/reporte-ventas-presupuesto', icon: FileSpreadsheet, label: 'Reporte Ventas y Presupuesto', roles: MGMT, category: 'Análisis' },
     { path: '/reportes', icon: FileSpreadsheet, label: 'Reportes', roles: AUDIT, category: 'Análisis' },
     // Finanzas
     { path: '/cuentas-por-pagar', icon: Wallet, label: 'Cuentas por Pagar', roles: MGMT, category: 'Finanzas' },

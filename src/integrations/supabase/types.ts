@@ -996,6 +996,59 @@ export type Database = {
           },
         ]
       }
+      presupuesto_ventas: {
+        Row: {
+          anio: number
+          created_at: string
+          created_by: string | null
+          dia: number | null
+          id: string
+          margen_presupuestado: number | null
+          mes: number
+          notas: string | null
+          sucursal_id: string
+          updated_at: string
+          utilidad_presupuestada: number | null
+          venta_presupuestada: number
+        }
+        Insert: {
+          anio: number
+          created_at?: string
+          created_by?: string | null
+          dia?: number | null
+          id?: string
+          margen_presupuestado?: number | null
+          mes: number
+          notas?: string | null
+          sucursal_id: string
+          updated_at?: string
+          utilidad_presupuestada?: number | null
+          venta_presupuestada?: number
+        }
+        Update: {
+          anio?: number
+          created_at?: string
+          created_by?: string | null
+          dia?: number | null
+          id?: string
+          margen_presupuestado?: number | null
+          mes?: number
+          notas?: string | null
+          sucursal_id?: string
+          updated_at?: string
+          utilidad_presupuestada?: number | null
+          venta_presupuestada?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "presupuesto_ventas_sucursal_id_fkey"
+            columns: ["sucursal_id"]
+            isOneToOne: false
+            referencedRelation: "sucursales"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       producto_precios_escalonados: {
         Row: {
           cantidad_minima: number
@@ -2076,6 +2129,19 @@ export type Database = {
           unidades_vendidas: number
         }[]
       }
+      reporte_dashboard_mensual: {
+        Args: { p_anios?: number[]; p_sucursales?: string[] }
+        Returns: {
+          anio: number
+          costo: number
+          margen_pct: number
+          mes: number
+          sucursal_codigo: string
+          sucursal_nombre: string
+          utilidad: number
+          ventas: number
+        }[]
+      }
       reporte_margenes: {
         Args: { p_fecha?: string; p_incluir_cedis?: boolean }
         Returns: {
@@ -2101,6 +2167,24 @@ export type Database = {
           util_lp2: number
           util_lp3: number
           util_lp4: number
+        }[]
+      }
+      reporte_presupuesto_vs_real: {
+        Args: { p_anio: number; p_mes?: number; p_sucursales?: string[] }
+        Returns: {
+          diferencia: number
+          estatus: string
+          fecha: string
+          margen_presupuestado: number
+          margen_real: number
+          porcentaje_cumplimiento: number
+          sucursal_codigo: string
+          sucursal_id: string
+          sucursal_nombre: string
+          utilidad_presupuestada: number
+          utilidad_real: number
+          venta_presupuestada: number
+          venta_real: number
         }[]
       }
       reporte_ventas_inventario_sanamex: {
