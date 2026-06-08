@@ -11,6 +11,9 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Download, Plus, FileSpreadsheet } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { CapturaPresupuestoDialog } from '@/components/presupuesto/CapturaPresupuestoDialog';
+import { CapturaCorteDialog } from '@/components/cortes/CapturaCorteDialog';
+import { Input } from '@/components/ui/input';
+import { AlertTriangle } from 'lucide-react';
 
 const MONTHS = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 const VENDEDORAS = ['SV', 'ECA', 'F36', 'GH']; // sucursales que venden al público
