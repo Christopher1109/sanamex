@@ -740,7 +740,9 @@ const CortesCajaTab: React.FC<{ userRole: any }> = ({ userRole }) => {
               </TableHeader>
               <TableBody>
                 {filtered.length === 0 && (
-                  <TableRow><TableCell colSpan={6} className="text-center text-muted-foreground">Sin cortes capturados.</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={6} className="text-center text-muted-foreground py-8">
+                    Sin cortes capturados aún. Usa el botón Capturar para registrar el corte diario por sucursal.
+                  </TableCell></TableRow>
                 )}
                 {filtered.map((r, i) => (
                   <TableRow key={i}>
@@ -788,6 +790,19 @@ const colorFromName = (name: string) => {
 const initials = (n: string) => n.split(/\s+/).filter(Boolean).slice(0, 2).map(w => w[0]?.toUpperCase()).join('') || '?';
 
 const ProductividadVendedoresTab: React.FC = () => {
+  const [vista, setVista] = useState<'lista' | 'pivote'>('lista');
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center gap-2">
+        <Button size="sm" variant={vista === 'lista' ? 'default' : 'outline'} onClick={() => setVista('lista')}>Lista Plana</Button>
+        <Button size="sm" variant={vista === 'pivote' ? 'default' : 'outline'} onClick={() => setVista('pivote')}>Pivote por día</Button>
+      </div>
+      {vista === 'lista' ? <ProductividadLista /> : <ProductividadPivote />}
+    </div>
+  );
+};
+
+const ProductividadLista: React.FC = () => {
   const now = new Date();
   const firstDay = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10);
   const today = now.toISOString().slice(0, 10);
@@ -821,7 +836,6 @@ const ProductividadVendedoresTab: React.FC = () => {
     return q ? rows.filter(r => r.vendedor.toLowerCase().includes(q)) : rows;
   }, [rows, busqueda]);
 
-  // Aggregated by vendedor (across sucursales)
   const topVendedores = useMemo(() => {
     const map: Record<string, VendRow> = {};
     rows.forEach(r => {
@@ -954,6 +968,172 @@ const ProductividadVendedoresTab: React.FC = () => {
               </TableBody>
             </Table>
           </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+};
+
+// ============================================
+// Pivote por día (vista tipo Excel del cliente)
+// ============================================
+interface PivoteRow { sucursal_codigo: string; vendedor: string; dia: number; valor: number; }
+
+const ProductividadPivote: React.FC = () => {
+  const now = new Date();
+  const [anio, setAnio] = useState<number>(2026);
+  const [mes, setMes] = useState<number>(1); // enero por defecto (más datos)
+  const [metrica, setMetrica] = useState<'tickets' | 'venta'>('tickets');
+  const [rows, setRows] = useState<PivoteRow[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    setLoading(true);
+    supabase.rpc('reporte_productividad_pivote', {
+      p_anio: anio, p_mes: mes, p_metrica: metrica, p_sucursales: null,
+    }).then(({ data, error }) => {
+      if (error) console.error(error);
+      setRows(((data || []) as any[]).map(r => ({
+        sucursal_codigo: r.sucursal_codigo,
+        vendedor: r.vendedor,
+        dia: Number(r.dia),
+        valor: Number(r.valor),
+      })));
+      setLoading(false);
+    });
+  }, [anio, mes, metrica]);
+
+  const diasMes = new Date(anio, mes, 0).getDate();
+  const diasArr = Array.from({ length: diasMes }, (_, i) => i + 1);
+
+  // Agrupar: { sucursal: { vendedores: { vendedor: { dia: valor } }, subtotal: { dia: valor } } }
+  const agrupado = useMemo(() => {
+    const map: Record<string, { vendedores: Record<string, Record<number, number>>; subtotal: Record<number, number>; totalVendedor: Record<string, number>; totalSucursal: number }> = {};
+    rows.forEach(r => {
+      if (!map[r.sucursal_codigo]) map[r.sucursal_codigo] = { vendedores: {}, subtotal: {}, totalVendedor: {}, totalSucursal: 0 };
+      const s = map[r.sucursal_codigo];
+      if (!s.vendedores[r.vendedor]) s.vendedores[r.vendedor] = {};
+      s.vendedores[r.vendedor][r.dia] = (s.vendedores[r.vendedor][r.dia] || 0) + r.valor;
+      s.subtotal[r.dia] = (s.subtotal[r.dia] || 0) + r.valor;
+      s.totalVendedor[r.vendedor] = (s.totalVendedor[r.vendedor] || 0) + r.valor;
+      s.totalSucursal += r.valor;
+    });
+    return map;
+  }, [rows]);
+
+  const fmtCelda = (v: number | undefined) => {
+    if (!v || v === 0) return <span className="text-muted-foreground/50">—</span>;
+    if (metrica === 'venta') return `$${Math.round(v).toLocaleString('es-MX')}`;
+    return v.toLocaleString('es-MX');
+  };
+
+  const sucursalesOrden = Object.keys(agrupado).sort();
+
+  const exportExcel = () => {
+    const wb = XLSX.utils.book_new();
+    const header = ['Empleado/Día', ...diasArr.map(String), 'Total'];
+    const aoa: any[][] = [header];
+    sucursalesOrden.forEach(suc => {
+      const s = agrupado[suc];
+      aoa.push([suc, ...diasArr.map(d => s.subtotal[d] || 0), s.totalSucursal]);
+      Object.keys(s.vendedores).sort().forEach(v => {
+        aoa.push([`  ${v}`, ...diasArr.map(d => s.vendedores[v][d] || 0), s.totalVendedor[v]]);
+      });
+    });
+    const ws = XLSX.utils.aoa_to_sheet(aoa);
+    XLSX.utils.book_append_sheet(wb, ws, `Pivote ${MONTHS[mes - 1]} ${anio}`);
+    XLSX.writeFile(wb, `productividad-pivote-${anio}-${String(mes).padStart(2, '0')}-${metrica}.xlsx`);
+  };
+
+  return (
+    <div className="space-y-4">
+      <Card>
+        <CardContent className="pt-6 flex flex-wrap items-end gap-3">
+          <div>
+            <Label className="text-xs">Año</Label>
+            <Select value={String(anio)} onValueChange={v => setAnio(Number(v))}>
+              <SelectTrigger className="w-28"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {[2025, 2026].map(a => <SelectItem key={a} value={String(a)}>{a}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <Label className="text-xs">Mes</Label>
+            <Select value={String(mes)} onValueChange={v => setMes(Number(v))}>
+              <SelectTrigger className="w-36"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {MONTHS.map((m, i) => <SelectItem key={i} value={String(i + 1)}>{m}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <Label className="text-xs">Métrica</Label>
+            <div className="flex gap-1 mt-1">
+              <Button size="sm" variant={metrica === 'tickets' ? 'default' : 'outline'} onClick={() => setMetrica('tickets')}>Tickets</Button>
+              <Button size="sm" variant={metrica === 'venta' ? 'default' : 'outline'} onClick={() => setMetrica('venta')}>Venta $</Button>
+            </div>
+          </div>
+          <div className="ml-auto">
+            <Button variant="outline" onClick={exportExcel} disabled={!rows.length}>
+              <FileSpreadsheet className="h-4 w-4 mr-1" />Exportar
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">
+            Pivote — {MONTHS[mes - 1]} {anio} ({metrica === 'tickets' ? 'Tickets' : 'Venta $'})
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {loading && <div className="text-sm text-muted-foreground">Cargando...</div>}
+          {!loading && sucursalesOrden.length === 0 && (
+            <p className="text-sm text-muted-foreground">Sin datos para el período seleccionado.</p>
+          )}
+          {!loading && sucursalesOrden.length > 0 && (
+            <div className="overflow-auto max-h-[70vh] border rounded">
+              <table className="text-xs border-collapse">
+                <thead className="sticky top-0 bg-background z-10 shadow-sm">
+                  <tr>
+                    <th className="text-left p-2 border-b border-r min-w-[200px] sticky left-0 bg-background z-20">Empleado/Día</th>
+                    {diasArr.map(d => (
+                      <th key={d} className="text-right p-2 border-b min-w-[70px]">{d}</th>
+                    ))}
+                    <th className="text-right p-2 border-b border-l min-w-[90px] font-bold">Total</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {sucursalesOrden.map(suc => {
+                    const s = agrupado[suc];
+                    const vendedores = Object.keys(s.vendedores).sort();
+                    return (
+                      <React.Fragment key={suc}>
+                        <tr className="bg-muted/60 font-bold">
+                          <td className="p-2 border-b border-r sticky left-0 bg-muted/60 z-10">{suc}</td>
+                          {diasArr.map(d => (
+                            <td key={d} className="text-right p-2 border-b">{fmtCelda(s.subtotal[d])}</td>
+                          ))}
+                          <td className="text-right p-2 border-b border-l">{fmtCelda(s.totalSucursal)}</td>
+                        </tr>
+                        {vendedores.map(v => (
+                          <tr key={v} className="hover:bg-muted/20">
+                            <td className="p-2 border-b border-r pl-6 sticky left-0 bg-background z-10">{v}</td>
+                            {diasArr.map(d => (
+                              <td key={d} className="text-right p-2 border-b">{fmtCelda(s.vendedores[v][d])}</td>
+                            ))}
+                            <td className="text-right p-2 border-b border-l font-medium">{fmtCelda(s.totalVendedor[v])}</td>
+                          </tr>
+                        ))}
+                      </React.Fragment>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>

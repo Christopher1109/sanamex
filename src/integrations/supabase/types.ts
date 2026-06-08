@@ -2208,6 +2208,20 @@ export type Database = {
           venta_real: number
         }[]
       }
+      reporte_productividad_pivote: {
+        Args: {
+          p_anio: number
+          p_mes: number
+          p_metrica?: string
+          p_sucursales?: string[]
+        }
+        Returns: {
+          dia: number
+          sucursal_codigo: string
+          valor: number
+          vendedor: string
+        }[]
+      }
       reporte_productividad_vendedores: {
         Args: {
           p_fecha_desde: string
