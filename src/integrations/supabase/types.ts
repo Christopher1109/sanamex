@@ -1887,6 +1887,7 @@ export type Database = {
           sucursal_id: string
           total: number
           usuario_libre: string | null
+          vendedor_id: string | null
           vendedor_libre: string | null
         }
         Insert: {
@@ -1911,6 +1912,7 @@ export type Database = {
           sucursal_id: string
           total?: number
           usuario_libre?: string | null
+          vendedor_id?: string | null
           vendedor_libre?: string | null
         }
         Update: {
@@ -1935,6 +1937,7 @@ export type Database = {
           sucursal_id?: string
           total?: number
           usuario_libre?: string | null
+          vendedor_id?: string | null
           vendedor_libre?: string | null
         }
         Relationships: [
@@ -2129,6 +2132,24 @@ export type Database = {
           unidades_vendidas: number
         }[]
       }
+      reporte_cortes_caja: {
+        Args: {
+          p_fecha_desde: string
+          p_fecha_hasta: string
+          p_sucursales?: string[]
+        }
+        Returns: {
+          color: string
+          diferencia: number
+          estado_alerta: string
+          fecha: string
+          mensaje: string
+          observaciones: string
+          sucursal_codigo: string
+          sucursal_id: string
+          sucursal_nombre: string
+        }[]
+      }
       reporte_dashboard_mensual: {
         Args: { p_anios?: number[]; p_sucursales?: string[] }
         Returns: {
@@ -2185,6 +2206,22 @@ export type Database = {
           utilidad_real: number
           venta_presupuestada: number
           venta_real: number
+        }[]
+      }
+      reporte_productividad_vendedores: {
+        Args: {
+          p_fecha_desde: string
+          p_fecha_hasta: string
+          p_sucursales?: string[]
+        }
+        Returns: {
+          margen_pct: number
+          num_tickets: number
+          sucursal_codigo: string
+          ticket_promedio: number
+          utilidad_total: number
+          vendedor: string
+          venta_total: number
         }[]
       }
       reporte_ventas_inventario_sanamex: {
