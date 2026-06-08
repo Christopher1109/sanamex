@@ -221,11 +221,11 @@ const DashboardMensual = () => {
                   <TableRow>
                     <TableHead>Mes</TableHead>
                     {aniosSel.map(y => (
-                      <>
-                        <TableHead key={`${y}-v`} className="text-right">{y} Ventas</TableHead>
-                        <TableHead key={`${y}-m`} className="text-right">{y} Margen</TableHead>
-                        <TableHead key={`${y}-u`} className="text-right">{y} Utilidad</TableHead>
-                      </>
+                      <React.Fragment key={y}>
+                        <TableHead className="text-right">{y} Ventas</TableHead>
+                        <TableHead className="text-right">{y} Margen</TableHead>
+                        <TableHead className="text-right">{y} Utilidad</TableHead>
+                      </React.Fragment>
                     ))}
                     {aniosSel.slice(1).map((y, i) => (
                       <TableHead key={`var-${y}`} className="text-right">% Var {aniosSel[i]}→{y}</TableHead>
