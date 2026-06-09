@@ -96,6 +96,7 @@ const AppContent = () => {
               <Route path="/reporte-sanamex" element={<ReporteVentasInventarioSanamex />} />
               <Route path="/reporte-inventario-general" element={<ReporteInventarioGeneral />} />
               <Route path="/reporte-ventas-presupuesto" element={<ReporteVentasPresupuesto />} />
+              <Route path="/reporte-sugeridos" element={<ReporteSugeridos />} />
               <Route path="/listas-precios" element={<ListasPreciosPage />} />
               <Route path="/catalogos-cotizador" element={<CatalogosCotizadorPage />} />
               <Route path="/cuentas-por-pagar" element={<CuentasPorPagarPage />} />
