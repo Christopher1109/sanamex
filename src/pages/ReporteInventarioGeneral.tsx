@@ -9,6 +9,7 @@ import { Label } from '@/components/ui/label';
 import { Loader2, Download, RefreshCw, Upload } from 'lucide-react';
 import { toast } from 'sonner';
 import * as XLSX from 'xlsx';
+import { rpcPaginate } from '@/lib/rpcPaginate';
 
 const mxn = (n: number | null | undefined) =>
   n == null ? '—' : new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN', minimumFractionDigits: 2 }).format(n || 0);
