@@ -1935,6 +1935,63 @@ export type Database = {
         }
         Relationships: []
       }
+      sugeridos_decisiones: {
+        Row: {
+          comentario_gerente: string | null
+          created_at: string
+          decidido_por: string | null
+          fecha_decision: string
+          id: string
+          periodo_referencia: number
+          producto_id: string
+          pz_solicitadas: number
+          sucursal_id: string | null
+          sugerido_sistema: number
+          updated_at: string
+        }
+        Insert: {
+          comentario_gerente?: string | null
+          created_at?: string
+          decidido_por?: string | null
+          fecha_decision?: string
+          id?: string
+          periodo_referencia: number
+          producto_id: string
+          pz_solicitadas?: number
+          sucursal_id?: string | null
+          sugerido_sistema?: number
+          updated_at?: string
+        }
+        Update: {
+          comentario_gerente?: string | null
+          created_at?: string
+          decidido_por?: string | null
+          fecha_decision?: string
+          id?: string
+          periodo_referencia?: number
+          producto_id?: string
+          pz_solicitadas?: number
+          sucursal_id?: string | null
+          sugerido_sistema?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sugeridos_decisiones_producto_id_fkey"
+            columns: ["producto_id"]
+            isOneToOne: false
+            referencedRelation: "productos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sugeridos_decisiones_sucursal_id_fkey"
+            columns: ["sucursal_id"]
+            isOneToOne: false
+            referencedRelation: "sucursales"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       traspaso_lineas: {
         Row: {
           cantidad: number
@@ -2557,6 +2614,51 @@ export type Database = {
           venta_total: number
         }[]
       }
+      reporte_sugeridos: {
+        Args: {
+          p_clasificacion?: string
+          p_fecha_corte?: string
+          p_solo_comprar?: boolean
+          p_status?: string
+          p_sucursal_codigo?: string
+        }
+        Returns: {
+          clasificacion: string
+          clave: string
+          comentario_resumen: string
+          ddi_120: number
+          ddi_14: number
+          ddi_30: number
+          ddi_60: number
+          ddi_7: number
+          ddi_90: number
+          departamento: string
+          descripcion: string
+          eval_120: string
+          eval_14: string
+          eval_30: string
+          eval_60: string
+          eval_7: string
+          eval_90: string
+          existencias: number
+          max_dias: number
+          min_dias: number
+          producto_id: string
+          status: string
+          sugerido_120: number
+          sugerido_14: number
+          sugerido_30: number
+          sugerido_60: number
+          sugerido_7: number
+          sugerido_90: number
+          ventas_120: number
+          ventas_14: number
+          ventas_30: number
+          ventas_60: number
+          ventas_7: number
+          ventas_90: number
+        }[]
+      }
       reporte_ventas_inventario_sanamex: {
         Args: {
           p_fecha_corte?: string
@@ -2632,6 +2734,13 @@ export type Database = {
           venta_mes: number
           venta_sem: number
           venta_sem_ant: number
+        }[]
+      }
+      sugerido_min_max: {
+        Args: { p_clasificacion: string }
+        Returns: {
+          max_dias: number
+          min_dias: number
         }[]
       }
       ventas_por_lote: {
