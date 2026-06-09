@@ -259,6 +259,12 @@ export default function ReporteSugeridos() {
         </div>
       </Card>
 
+      {mostrarBannerHist && (
+        <Card className="p-3 border-blue-300 bg-blue-50 dark:bg-blue-950/30 text-sm text-blue-900 dark:text-blue-200">
+          📅 Mostrando datos al <strong>{fechaCorte}</strong>. Los datos más recientes son históricos cargados manualmente.
+        </Card>
+      )}
+
       {resumen.mostrarBannerSinInv && (
         <Card className="p-4 border-amber-300 bg-amber-50 dark:bg-amber-950/30 flex items-start gap-3">
           <AlertTriangle className="h-5 w-5 text-amber-600 mt-0.5 shrink-0" />
