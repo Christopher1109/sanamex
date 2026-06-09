@@ -94,7 +94,10 @@ export default function ReporteSugeridos() {
     const no = filtered.length - comprar;
     const inversion = filtered.reduce((acc, r) => acc + r.sugerido_30, 0); // pzs sugeridas a 30d
     const sinMov = filtered.filter(r => r.ventas_90 === 0).length;
-    return { comprar, no, inversion, sinMov };
+    const sinInventario = filtered.filter(r => r.existencias === 0 && r.ventas_30 > 0).length;
+    const conVentas = filtered.filter(r => r.ventas_30 > 0).length;
+    const mostrarBannerSinInv = conVentas > 0 && sinInventario / Math.max(conVentas, 1) > 0.5;
+    return { comprar, no, inversion, sinMov, sinInventario, mostrarBannerSinInv };
   }, [filtered]);
 
   async function saveDecision(r: Row, pz: number, comentario: string) {
