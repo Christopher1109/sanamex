@@ -133,6 +133,8 @@ export default function ReporteInventarioGeneral() {
   const labs = useMemo(() => Array.from(new Set(bd.map((r: any) => r.lab).filter(Boolean))) as string[], [bd]);
 
   const bdFiltered = useMemo(() => bd.filter((r: any) => {
+    const st = (r.status || 'A') as string;
+    if (st === 'K' || st === 'C') return false;
     if (search && !`${r.clave} ${r.descripcion}`.toLowerCase().includes(search.toLowerCase())) return false;
     if (filterDepto !== 'all' && r.departamento !== filterDepto) return false;
     if (filterLab !== 'all' && r.lab !== filterLab) return false;
