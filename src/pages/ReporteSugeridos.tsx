@@ -279,31 +279,31 @@ export default function ReporteSugeridos() {
                 const d = decisiones[r.producto_id] || { pz: 0, coment: '' };
                 return (
                   <TableRow key={r.producto_id}>
-                    <TableCell className="font-mono text-xs">{r.clave}</TableCell>
-                    <TableCell className="text-xs">{r.departamento}</TableCell>
-                    <TableCell className="text-xs max-w-[260px] truncate" title={r.descripcion}>{r.descripcion}</TableCell>
-                    <TableCell className="text-xs">{r.clasificacion}</TableCell>
-                    <TableCell className="text-xs">{r.status}</TableCell>
-                    <TableCell className="text-right tabular-nums">{r.min_dias}</TableCell>
-                    <TableCell className="text-right tabular-nums">{r.max_dias}</TableCell>
-                    <TableCell className="text-right tabular-nums">{r.existencias}</TableCell>
+                    <TableCell className="font-mono text-xs border-r">{r.clave}</TableCell>
+                    <TableCell className="text-xs border-r">{r.departamento}</TableCell>
+                    <TableCell className="text-xs max-w-[260px] truncate border-r" title={r.descripcion}>{r.descripcion}</TableCell>
+                    <TableCell className="text-xs border-r">{r.clasificacion}</TableCell>
+                    <TableCell className="text-xs border-r">{r.status}</TableCell>
+                    <TableCell className="text-right tabular-nums border-r">{r.min_dias}</TableCell>
+                    <TableCell className="text-right tabular-nums border-r">{r.max_dias}</TableCell>
+                    <TableCell className="text-right tabular-nums border-r-2">{r.existencias}</TableCell>
                     {renderBloque(r, r.ddi_7, r.ventas_7, r.eval_7, r.sugerido_7)}
                     {renderBloque(r, r.ddi_14, r.ventas_14, r.eval_14, r.sugerido_14)}
                     {renderBloque(r, r.ddi_30, r.ventas_30, r.eval_30, r.sugerido_30)}
                     {renderBloque(r, r.ddi_60, r.ventas_60, r.eval_60, r.sugerido_60)}
                     {renderBloque(r, r.ddi_90, r.ventas_90, r.eval_90, r.sugerido_90)}
                     {renderBloque(r, r.ddi_120, r.ventas_120, r.eval_120, r.sugerido_120)}
-                    <TableCell>
+                    <TableCell className="border-l-2">
                       <Badge className={r.comentario_resumen === 'Comprar' ? 'bg-emerald-600' : 'bg-rose-600'}>
                         {r.comentario_resumen}
                       </Badge>
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="border-l">
                       <Input value={d.coment} onChange={e => setDecisiones(prev => ({ ...prev, [r.producto_id]: { ...d, coment: e.target.value } }))}
                         onBlur={e => saveDecision(r, d.pz, e.target.value)}
                         className="h-8 w-40 text-xs" />
                     </TableCell>
-                    <TableCell className="text-right">
+                    <TableCell className="text-right border-l">
                       <Input type="number" value={d.pz} onChange={e => setDecisiones(prev => ({ ...prev, [r.producto_id]: { ...d, pz: parseInt(e.target.value || '0') } }))}
                         onBlur={e => saveDecision(r, parseInt(e.target.value || '0'), d.coment)}
                         className="h-8 w-24 text-right text-xs tabular-nums" />
