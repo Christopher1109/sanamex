@@ -33,6 +33,7 @@ import ReporteVentasInventarioSanamex from './pages/ReporteVentasInventarioSanam
 import ReporteInventarioGeneral from './pages/ReporteInventarioGeneral';
 import ReporteVentasPresupuesto from './pages/ReporteVentasPresupuesto';
 import ListasPreciosPage from './pages/ListasPreciosPage';
+import ReporteSugeridos from './pages/ReporteSugeridos';
 import CatalogosCotizadorPage from './pages/CatalogosCotizadorPage';
 import Sidebar from './components/layout/Sidebar';
 import Header from './components/layout/Header';
