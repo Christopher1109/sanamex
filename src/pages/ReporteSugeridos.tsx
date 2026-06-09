@@ -332,7 +332,7 @@ export default function ReporteSugeridos() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {loading && <TableRow><TableCell colSpan={36} className="text-center p-6">Cargando…</TableCell></TableRow>}
+              {loading && <TableRow><TableCell colSpan={36} className="text-center p-6">Cargando productos… {loadedCount > 0 ? `(${loadedCount.toLocaleString()})` : ''}</TableCell></TableRow>}
               {!loading && filtered.length === 0 && <TableRow><TableCell colSpan={36} className="text-center p-6 text-muted-foreground">Sin datos.</TableCell></TableRow>}
               {filtered.slice(0, 500).map(r => {
                 const d = decisiones[r.producto_id] || { pz: 0, coment: '' };
