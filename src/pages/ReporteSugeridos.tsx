@@ -61,7 +61,7 @@ export default function ReporteSugeridos() {
       p_clasificacion: filtroClasif === 'all' ? null : filtroClasif,
       p_status: filtroStatus === 'all' ? null : filtroStatus,
       p_solo_comprar: soloComprar,
-    });
+    }).range(0, 9999);
     if (error) { toast.error(error.message); setLoading(false); return; }
     setRows((data as Row[]) || []);
     // cargar decisiones del día
