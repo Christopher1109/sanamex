@@ -45,7 +45,10 @@ export default function ReporteSugeridos() {
   const [tab, setTab] = useState<string>('__all__');
   const [sucCode, setSucCode] = useState<string | null>(null);
   const [fechaCorte, setFechaCorte] = useState<string>(todayIso());
+  const [fechaInicializada, setFechaInicializada] = useState(false);
+  const [mostrarBannerHist, setMostrarBannerHist] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [loadedCount, setLoadedCount] = useState(0);
   const [rows, setRows] = useState<Row[]>([]);
   const [busqueda, setBusqueda] = useState('');
   const [filtroClasif, setFiltroClasif] = useState<string>('all');
@@ -54,30 +57,57 @@ export default function ReporteSugeridos() {
   const [soloComprar, setSoloComprar] = useState(false);
   const [decisiones, setDecisiones] = useState<Record<string, { pz: number; coment: string }>>({});
 
+  // Resolver fecha por default basada en la última venta cargada
+  useEffect(() => {
+    (async () => {
+      const { data } = await supabase
+        .from('ventas')
+        .select('fecha')
+        .eq('estado', 'completada')
+        .order('fecha', { ascending: false })
+        .limit(1);
+      const maxFecha = (data?.[0] as any)?.fecha?.split('T')[0];
+      const hoy = todayIso();
+      if (maxFecha) {
+        const diff = (new Date(hoy).getTime() - new Date(maxFecha).getTime()) / 86400000;
+        if (diff > 7) {
+          setFechaCorte(maxFecha);
+          setMostrarBannerHist(true);
+        }
+      }
+      setFechaInicializada(true);
+    })();
+  }, []);
+
   async function load() {
     setLoading(true);
-    const { data, error } = await supabase.rpc('reporte_sugeridos', {
-      p_sucursal_codigo: sucCode,
-      p_fecha_corte: fechaCorte,
-      p_clasificacion: filtroClasif === 'all' ? null : filtroClasif,
-      p_status: filtroStatus === 'all' ? null : filtroStatus,
-      p_solo_comprar: soloComprar,
-    }).range(0, 9999);
-    if (error) { toast.error(error.message); setLoading(false); return; }
-    setRows((data as Row[]) || []);
-    // cargar decisiones del día
-    const { data: deci } = await supabase
-      .from('sugeridos_decisiones')
-      .select('producto_id, pz_solicitadas, comentario_gerente')
-      .eq('fecha_decision', fechaCorte)
-      .eq('periodo_referencia', 30);
-    const map: Record<string, { pz: number; coment: string }> = {};
-    (deci || []).forEach((d: any) => { map[d.producto_id] = { pz: d.pz_solicitadas ?? 0, coment: d.comentario_gerente ?? '' }; });
-    setDecisiones(map);
-    setLoading(false);
+    setLoadedCount(0);
+    try {
+      const data = await rpcPaginate<Row>('reporte_sugeridos', {
+        p_sucursal_codigo: sucCode,
+        p_fecha_corte: fechaCorte,
+        p_clasificacion: filtroClasif === 'all' ? null : filtroClasif,
+        p_status: filtroStatus === 'all' ? null : filtroStatus,
+        p_solo_comprar: soloComprar,
+      }, { onProgress: (n) => setLoadedCount(n) });
+      setRows(data);
+      // cargar decisiones del día
+      const { data: deci } = await supabase
+        .from('sugeridos_decisiones')
+        .select('producto_id, pz_solicitadas, comentario_gerente')
+        .eq('fecha_decision', fechaCorte)
+        .eq('periodo_referencia', 30);
+      const map: Record<string, { pz: number; coment: string }> = {};
+      (deci || []).forEach((d: any) => { map[d.producto_id] = { pz: d.pz_solicitadas ?? 0, coment: d.comentario_gerente ?? '' }; });
+      setDecisiones(map);
+    } catch (e: any) {
+      toast.error(e.message || 'Error al cargar');
+    } finally {
+      setLoading(false);
+    }
   }
 
-  useEffect(() => { load(); /* eslint-disable-next-line */ }, [sucCode, fechaCorte, filtroClasif, filtroStatus, soloComprar]);
+  useEffect(() => { if (fechaInicializada) load(); /* eslint-disable-next-line */ }, [sucCode, fechaCorte, filtroClasif, filtroStatus, soloComprar, fechaInicializada]);
 
   const departamentos = useMemo(() => Array.from(new Set(rows.map(r => r.departamento).filter(Boolean))).sort() as string[], [rows]);
 
