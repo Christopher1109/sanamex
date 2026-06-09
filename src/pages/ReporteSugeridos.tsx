@@ -228,11 +228,29 @@ export default function ReporteSugeridos() {
         </div>
       </Card>
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+      {resumen.mostrarBannerSinInv && (
+        <Card className="p-4 border-amber-300 bg-amber-50 dark:bg-amber-950/30 flex items-start gap-3">
+          <AlertTriangle className="h-5 w-5 text-amber-600 mt-0.5 shrink-0" />
+          <div className="flex-1 text-sm">
+            <p className="font-medium text-amber-900 dark:text-amber-200">Aún no hay inventario inicial cargado.</p>
+            <p className="text-amber-800 dark:text-amber-300 mt-1">
+              El reporte está calculando con existencias = 0, por lo que las sugerencias de compra
+              incluyen 45 días completos de cobertura. Carga el inventario inicial para que las
+              sugerencias se ajusten a tu stock real.
+            </p>
+          </div>
+          <Button asChild variant="outline" size="sm" className="border-amber-400">
+            <Link to="/cargas-masivas"><Upload className="h-4 w-4 mr-2" />Cargar inventario</Link>
+          </Button>
+        </Card>
+      )}
+
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
         <Card className="p-4"><div className="text-xs text-muted-foreground">A Comprar</div><div className="text-2xl font-bold text-emerald-700">{resumen.comprar}</div></Card>
         <Card className="p-4"><div className="text-xs text-muted-foreground">No Resurtir</div><div className="text-2xl font-bold text-muted-foreground">{resumen.no}</div></Card>
         <Card className="p-4"><div className="text-xs text-muted-foreground">Pzs sugeridas (30d)</div><div className="text-2xl font-bold">{resumen.inversion.toLocaleString()}</div></Card>
         <Card className="p-4"><div className="text-xs text-muted-foreground">Sin movimiento 90d</div><div className="text-2xl font-bold">{resumen.sinMov}</div></Card>
+        <Card className="p-4"><div className="text-xs text-muted-foreground">Sugerencia sin inventario cargado</div><div className="text-2xl font-bold text-amber-700">{resumen.sinInventario}</div></Card>
       </div>
 
       <Tabs value={tab} onValueChange={changeTab}>
