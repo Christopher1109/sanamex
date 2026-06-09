@@ -10,6 +10,7 @@ import { Label } from '@/components/ui/label';
 import { Loader2, Download, FileSpreadsheet, Search, RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
 import * as XLSX from 'xlsx';
+import { rpcPaginate } from '@/lib/rpcPaginate';
 
 type Row = {
   clave: string; lab: string | null; categoria: string | null; departamento: string | null;
