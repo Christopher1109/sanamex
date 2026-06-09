@@ -150,14 +150,15 @@ export default function ReporteSugeridos() {
 
   const renderBloque = (r: Row, ddi: number, ventas: number, ev: string, sug: number) => (
     <>
-      <TableCell className="text-right tabular-nums">{ddi}</TableCell>
-      <TableCell className="text-right tabular-nums">{ventas}</TableCell>
-      <TableCell>
+      <TableCell className="text-right tabular-nums border-l-2 border-l-border">{ddi}</TableCell>
+      <TableCell className="text-right tabular-nums border-l">{ventas}</TableCell>
+      <TableCell className="border-l">
         <Badge variant={ev === 'Comprar' ? 'default' : 'secondary'} className={ev === 'Comprar' ? 'bg-emerald-600' : ''}>{ev}</Badge>
       </TableCell>
-      <TableCell className={`text-right tabular-nums font-medium ${sug > 0 ? 'text-emerald-700' : 'text-muted-foreground'}`}>{sug}</TableCell>
+      <TableCell className={`text-right tabular-nums font-medium border-l ${sug > 0 ? 'text-emerald-700' : 'text-muted-foreground'}`}>{sug}</TableCell>
     </>
   );
+
 
   return (
     <div className="space-y-4">
