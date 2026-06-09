@@ -13,6 +13,7 @@ import { Sparkles, Download, RefreshCw, AlertTriangle, Upload } from 'lucide-rea
 import { Link } from 'react-router-dom';
 import { toast } from 'sonner';
 import * as XLSX from 'xlsx';
+import { rpcPaginate } from '@/lib/rpcPaginate';
 
 const TABS: { code: string | null; label: string }[] = [
   { code: null, label: 'Consolidado' },
