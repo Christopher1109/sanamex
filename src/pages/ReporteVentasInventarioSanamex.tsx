@@ -312,7 +312,6 @@ export default function ReporteVentasInventarioSanamex() {
 
   const exportExcel = async () => {
     // Asegurar que todas las pestañas (general + sucursales operativas + CEDIS) estén cargadas
-    const sb = supabase as any;
     const needed: { key: string; sucId: string | null; incluirCedis: boolean }[] = [
       { key: 'general', sucId: null, incluirCedis: false },
       ...orderedSucs.map(s => ({ key: s.id, sucId: s.id, incluirCedis: false })),
@@ -322,14 +321,14 @@ export default function ReporteVentasInventarioSanamex() {
     if (faltantes.length || !fillRate.length) {
       setLoading(true);
       try {
-        const calls = await Promise.all([
-          ...faltantes.map(n => sb.rpc('reporte_ventas_inventario_sanamex', { p_sucursal_id: n.sucId, p_fecha_corte: fechaCorte, p_incluir_cedis: n.incluirCedis }).range(0, 99999)),
-          fillRate.length ? Promise.resolve({ data: fillRate }) : sb.rpc('fill_rate_proveedores', { p_desde: null, p_hasta: null }).range(0, 99999),
+        const results = await Promise.all([
+          ...faltantes.map(n => rpcPaginate<Row>('reporte_ventas_inventario_sanamex', { p_sucursal_id: n.sucId, p_fecha_corte: fechaCorte, p_incluir_cedis: n.incluirCedis })),
+          fillRate.length ? Promise.resolve(fillRate) : rpcPaginate<FillRateRow>('fill_rate_proveedores', { p_desde: null, p_hasta: null }),
         ]);
         const next = { ...allData };
-        faltantes.forEach((n, i) => { next[n.key] = (calls[i].data as Row[]) || []; });
+        faltantes.forEach((n, i) => { next[n.key] = (results[i] as Row[]) || []; });
         setAllData(next);
-        const fr = !fillRate.length ? ((calls[calls.length - 1].data as FillRateRow[]) || []) : fillRate;
+        const fr = !fillRate.length ? ((results[results.length - 1] as FillRateRow[]) || []) : fillRate;
         if (!fillRate.length) setFillRate(fr);
         return doExport(next, fr);
       } finally { setLoading(false); }
