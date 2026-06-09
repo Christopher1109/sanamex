@@ -244,25 +244,32 @@ export default function ReporteSugeridos() {
           <Table>
             <TableHeader className="sticky top-0 bg-background z-10">
               <TableRow>
-                <TableHead>Clave</TableHead>
-                <TableHead>Depto</TableHead>
-                <TableHead>Descripción</TableHead>
-                <TableHead>Clas</TableHead>
-                <TableHead>St</TableHead>
-                <TableHead className="text-right">Min</TableHead>
-                <TableHead className="text-right">Max</TableHead>
-                <TableHead className="text-right">Exist</TableHead>
+                <TableHead rowSpan={2} className="align-bottom border-r">Clave</TableHead>
+                <TableHead rowSpan={2} className="align-bottom border-r">Depto</TableHead>
+                <TableHead rowSpan={2} className="align-bottom border-r">Descripción</TableHead>
+                <TableHead rowSpan={2} className="align-bottom border-r">Clas</TableHead>
+                <TableHead rowSpan={2} className="align-bottom border-r">St</TableHead>
+                <TableHead rowSpan={2} className="align-bottom text-right border-r">Min</TableHead>
+                <TableHead rowSpan={2} className="align-bottom text-right border-r">Max</TableHead>
+                <TableHead rowSpan={2} className="align-bottom text-right border-r-2">Exist</TableHead>
+                {[7,14,30,60,90,120].map(p => (
+                  <TableHead key={`g${p}`} colSpan={4} className="text-center bg-muted/40 border-l-2 border-r-2 border-b">
+                    Período {p} días
+                  </TableHead>
+                ))}
+                <TableHead rowSpan={2} className="align-bottom border-l-2">Resumen</TableHead>
+                <TableHead rowSpan={2} className="align-bottom border-l">Coment. gerente</TableHead>
+                <TableHead rowSpan={2} className="align-bottom text-right border-l">PZ Solic.</TableHead>
+              </TableRow>
+              <TableRow>
                 {[7,14,30,60,90,120].map(p => (
                   <>
-                    <TableHead key={`d${p}`} className="text-right">{p}d DDI</TableHead>
-                    <TableHead key={`v${p}`} className="text-right">UnV {p}d</TableHead>
-                    <TableHead key={`e${p}`}>Eval {p}d</TableHead>
-                    <TableHead key={`s${p}`} className="text-right">Sug {p}d</TableHead>
+                    <TableHead key={`d${p}`} className="text-right border-l-2 border-l-border">DDI</TableHead>
+                    <TableHead key={`v${p}`} className="text-right border-l">UnV</TableHead>
+                    <TableHead key={`e${p}`} className="border-l">Eval</TableHead>
+                    <TableHead key={`s${p}`} className="text-right border-l">Sug</TableHead>
                   </>
                 ))}
-                <TableHead>Resumen</TableHead>
-                <TableHead>Coment. gerente</TableHead>
-                <TableHead className="text-right">PZ Solic.</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
