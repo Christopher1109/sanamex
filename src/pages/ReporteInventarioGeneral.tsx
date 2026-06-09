@@ -89,9 +89,8 @@ export default function ReporteInventarioGeneral() {
     if (bdLoaded) return;
     setLoading(true);
     try {
-      const { data, error } = await (supabase as any).rpc('reporte_ventas_inventario_sanamex', { p_sucursal_id: null, p_fecha_corte: fechaCorte });
-      if (error) throw error;
-      setBd((data as SanamexRow[]) || []);
+      const data = await rpcPaginate<SanamexRow>('reporte_ventas_inventario_sanamex', { p_sucursal_id: null, p_fecha_corte: fechaCorte });
+      setBd(data);
       setBdLoaded(true);
     } catch (e: any) { toast.error('Error BD: ' + e.message); }
     finally { setLoading(false); }
@@ -100,9 +99,8 @@ export default function ReporteInventarioGeneral() {
     if (margenesLoaded) return;
     setLoading(true);
     try {
-      const { data, error } = await (supabase as any).rpc('reporte_margenes', { p_fecha: fechaCorte });
-      if (error) throw error;
-      setMargenes((data as MargenRow[]) || []);
+      const data = await rpcPaginate<MargenRow>('reporte_margenes', { p_fecha: fechaCorte });
+      setMargenes(data);
       setMargenesLoaded(true);
     } catch (e: any) { toast.error('Error margenes: ' + e.message); }
     finally { setLoading(false); }
