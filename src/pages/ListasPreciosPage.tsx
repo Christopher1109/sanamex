@@ -7,8 +7,10 @@ import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Search, FileSpreadsheet, TrendingDown, TrendingUp } from 'lucide-react';
+import { Search, FileSpreadsheet, TrendingUp, History, Undo2, Loader2 } from 'lucide-react';
 import ListaPreciosUploader from '@/components/cargas/ListaPreciosUploader';
+import { useAuth } from '@/hooks/useAuth';
+import { toast } from 'sonner';
 
 type Item = {
   id: string;
