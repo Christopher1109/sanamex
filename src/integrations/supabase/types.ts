@@ -655,42 +655,6 @@ export type Database = {
           },
         ]
       }
-      cotizador_pesos: {
-        Row: {
-          activo: boolean | null
-          id: string
-          modificado_por: string | null
-          peso_credito: number
-          peso_devoluciones: number
-          peso_existencia: number
-          peso_lead_time: number
-          peso_precio: number
-          updated_at: string | null
-        }
-        Insert: {
-          activo?: boolean | null
-          id?: string
-          modificado_por?: string | null
-          peso_credito?: number
-          peso_devoluciones?: number
-          peso_existencia?: number
-          peso_lead_time?: number
-          peso_precio?: number
-          updated_at?: string | null
-        }
-        Update: {
-          activo?: boolean | null
-          id?: string
-          modificado_por?: string | null
-          peso_credito?: number
-          peso_devoluciones?: number
-          peso_existencia?: number
-          peso_lead_time?: number
-          peso_precio?: number
-          updated_at?: string | null
-        }
-        Relationships: []
-      }
       inventario: {
         Row: {
           almacen_id: string
@@ -2765,6 +2729,30 @@ export type Database = {
             }
             Returns: Json
           }
+      productos_pendientes_compra: {
+        Args: {
+          p_fecha_corte?: string
+          p_periodo_referencia?: number
+          p_sucursal_codigo?: string
+        }
+        Returns: {
+          cantidad_sugerida: number
+          clasificacion: string
+          clave: string
+          comentario_resumen: string
+          ddi_periodo: number
+          departamento: string
+          descripcion: string
+          mejor_existencia: number
+          mejor_precio: number
+          mejor_proveedor_id: string
+          mejor_proveedor_nombre: string
+          producto_id: string
+          proveedores_disponibles: number
+          total_estimado: number
+          ventas_periodo: number
+        }[]
+      }
       recalc_costo_promedio: {
         Args: { _producto_id: string }
         Returns: undefined
@@ -2782,7 +2770,6 @@ export type Database = {
         }
         Returns: {
           acepta_devoluciones: boolean
-          cantidad_disponible: number
           cantidad_sugerida: number
           con_oferta: boolean
           dias_credito: number
@@ -2797,7 +2784,6 @@ export type Database = {
           proveedor_id: string
           proveedor_nombre: string
           ranking: number
-          score: number
         }[]
       }
       rentabilidad_por_lote: {
