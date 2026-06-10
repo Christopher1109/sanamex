@@ -26,8 +26,22 @@ type Item = {
   proveedor: { codigo: string | null; nombre: string } | null;
 };
 
+type Carga = {
+  id: string;
+  archivo_nombre: string;
+  created_at: string;
+  productos_cargados: number;
+  productos_actualizados: number;
+  productos_autocreados: number;
+  cargado_por: string | null;
+  proveedor: { codigo: string | null; nombre: string } | null;
+  cargado_por_profile?: { nombre: string | null } | null;
+};
+
 export default function ListasPreciosPage() {
-  const [tab, setTab] = useState<'ver' | 'cargar'>('ver');
+  const { userRole } = useAuth();
+  const isAdmin = userRole === 'admin' || userRole === 'super_admin';
+  const [tab, setTab] = useState<'ver' | 'cargar' | 'historial'>('ver');
   const [items, setItems] = useState<Item[]>([]);
   const [loading, setLoading] = useState(true);
   const [proveedores, setProveedores] = useState<{ id: string; codigo: string | null; nombre: string }[]>([]);
@@ -35,6 +49,38 @@ export default function ListasPreciosPage() {
   const [search, setSearch] = useState('');
   const [compareClave, setCompareClave] = useState<string | null>(null);
   const [compareRows, setCompareRows] = useState<Item[]>([]);
+  const [cargas, setCargas] = useState<Carga[]>([]);
+  const [loadingCargas, setLoadingCargas] = useState(false);
+  const [reverting, setReverting] = useState<string | null>(null);
+
+  async function loadCargas() {
+    setLoadingCargas(true);
+    const { data } = await supabase
+      .from('lista_precio_cargas')
+      .select('id, archivo_nombre, created_at, productos_cargados, productos_actualizados, productos_autocreados, cargado_por, proveedor:proveedores(codigo, nombre)')
+      .order('created_at', { ascending: false })
+      .limit(200);
+    setCargas((data as any[]) || []);
+    setLoadingCargas(false);
+  }
+
+  useEffect(() => { if (tab === 'historial') loadCargas(); }, [tab]);
+
+  async function revertir(cargaId: string) {
+    if (!confirm('¿Revertir esta carga? Se reactivará la lista anterior del proveedor.')) return;
+    setReverting(cargaId);
+    try {
+      const { data, error } = await supabase.rpc('revertir_carga_lista_precios', { p_carga_id: cargaId });
+      if (error) throw error;
+      const r = data as any;
+      toast.success(`Reversión completa: ${r.desactivados} desactivados, ${r.reactivados} reactivados`);
+      loadCargas(); load();
+    } catch (e: any) {
+      toast.error('Error: ' + e.message);
+    } finally {
+      setReverting(null);
+    }
+  }
 
   async function load() {
     setLoading(true);
