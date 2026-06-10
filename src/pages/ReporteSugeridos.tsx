@@ -9,8 +9,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
-import { Sparkles, Download, RefreshCw, AlertTriangle, Upload } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Sparkles, Download, RefreshCw, AlertTriangle, Upload, Calculator } from 'lucide-react';
+import { Link, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import * as XLSX from 'xlsx';
 import { rpcPaginate } from '@/lib/rpcPaginate';
@@ -42,6 +42,7 @@ type Row = {
 const todayIso = () => new Date().toISOString().slice(0, 10);
 
 export default function ReporteSugeridos() {
+  const navigate = useNavigate();
   const [tab, setTab] = useState<string>('__all__');
   const [sucCode, setSucCode] = useState<string | null>(null);
   const [fechaCorte, setFechaCorte] = useState<string>(todayIso());
@@ -208,6 +209,15 @@ export default function ReporteSugeridos() {
         <div className="flex gap-2">
           <Button variant="outline" onClick={load} disabled={loading}>
             <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />Recalcular
+          </Button>
+          <Button variant="outline" className="gap-2" disabled={!filtered.some(r => r.sugerido_30 > 0)}
+            onClick={() => {
+              const items = filtered.filter(r => r.sugerido_30 > 0).map(r => ({ clave: r.clave, cantidad: r.sugerido_30 }));
+              if (!items.length) { toast.warning('Sin productos con sugerido > 0'); return; }
+              sessionStorage.setItem('cotizador_sugeridos', JSON.stringify(items));
+              navigate('/cotizador');
+            }}>
+            <Calculator className="h-4 w-4" />Cotizar Sugeridos
           </Button>
           <Button onClick={exportExcel} disabled={!filtered.length}><Download className="h-4 w-4 mr-2" />Exportar Excel</Button>
         </div>

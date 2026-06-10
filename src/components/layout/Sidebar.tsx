@@ -56,6 +56,8 @@ const Sidebar = ({ userRole, onLogout }: SidebarProps) => {
     { path: '/clientes', icon: Users, label: 'Clientes', roles: [...MGMT,'ventas'], category: 'Catálogos' },
     // Operaciones
     { path: '/compras', icon: ShoppingCart, label: 'Compras', roles: OPS, category: 'Operaciones' },
+    { path: '/cotizador', icon: Sparkles, label: 'Cotizador', roles: MGMT, category: 'Operaciones' },
+    { path: '/ordenes-compra', icon: ClipboardList, label: 'Órdenes de Compra', roles: OPS, category: 'Operaciones' },
     { path: '/pedidos', icon: PackageCheck, label: 'Ventas', roles: SALES, category: 'Operaciones' },
     { path: '/pos', icon: Monitor, label: 'Punto de Venta', roles: SALES, category: 'Operaciones' },
     { path: '/traspasos', icon: ArrowLeftRight, label: 'Traspasos', roles: OPS, category: 'Operaciones' },
