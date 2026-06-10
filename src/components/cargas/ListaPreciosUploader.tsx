@@ -1,4 +1,4 @@
-import { useRef, useState, useEffect } from 'react';
+import { useRef, useState, useEffect, useMemo } from 'react';
 import * as XLSX from 'xlsx';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
@@ -7,237 +7,322 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
-import { Switch } from '@/components/ui/switch';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Upload, Download, Loader2, ChevronRight, Check, AlertCircle, Plus } from 'lucide-react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { Switch } from '@/components/ui/switch';
+import {
+  Upload, Download, Loader2, ChevronRight, Check, AlertCircle, Plus,
+  FileSpreadsheet, CheckCircle2, XCircle, ArrowLeft,
+} from 'lucide-react';
 import { toast } from 'sonner';
-import { normalizeHeader, normalizeRow, parseNum, parseInt2, parseDate } from '@/lib/headerNorm';
+import { normalizeHeader, parseNum, parseInt2, parseDate } from '@/lib/headerNorm';
 
-type Proveedor = { id: string; codigo: string | null; nombre: string };
-type Producto = { id: string; sku: string | null; codigo_barras: string | null; nombre: string };
+type Proveedor = {
+  id: string; codigo: string | null; nombre: string;
+  plazo_pago_dias?: number; lead_time_prometido_dias?: number | null;
+  monto_minimo_pedido?: number | null; acepta_devoluciones?: boolean;
+};
 
-type ParsedRow = {
+// Standard 9-column template
+const REQUIRED_HEADERS = ['clave', 'descripcion', 'precio_neto', 'existencia'] as const;
+const OPTIONAL_HEADERS = ['piezas_corrugado', 'iva_pct', 'precio_oferta', 'oferta_inicio', 'oferta_fin'] as const;
+const ALL_HEADERS = [...REQUIRED_HEADERS, ...OPTIONAL_HEADERS];
+
+type Row = {
   fila: number;
   clave: string;
   descripcion: string;
-  precio: number | null;
-  precio_con_iva: number | null;
+  precio_neto: number | null;
   existencia: number | null;
-  iva_tasa: number | null;
-  fecha_vigencia: string | null;
-  cantidad_min: number;
-  match: 'OK' | 'NOT_FOUND' | 'INVALID';
-  motivo?: string;
-  producto_id?: string;
-  precio_anterior?: number | null;
+  piezas_corrugado: number | null;
+  iva_pct: number | null;
+  precio_oferta: number | null;
+  oferta_inicio: string | null;
+  oferta_fin: string | null;
 };
 
-const HEADER_MAP: Record<string, string> = {
-  clave: 'clave', sku: 'clave', codigo: 'clave', codigo_de_barras: 'clave', codigo_barras: 'clave', cb: 'clave', upc: 'clave', ean: 'clave',
-  descripcion: 'descripcion', producto: 'descripcion', nombre: 'descripcion', nombre_producto: 'descripcion',
-  precio: 'precio', precio_unitario: 'precio', costo: 'precio', precio_sin_iva: 'precio', precio_neto: 'precio', pu: 'precio',
-  precio_con_iva: 'precio_con_iva', precio_iva: 'precio_con_iva', precio_publico: 'precio_con_iva',
-  existencia: 'existencia', stock: 'existencia', inventario: 'existencia', disponible: 'existencia', existencias: 'existencia',
-  iva: 'iva', iva_tasa: 'iva', tasa_iva: 'iva',
-  vigencia: 'fecha_vigencia', fecha: 'fecha_vigencia', fecha_vigencia: 'fecha_vigencia', vigente_desde: 'fecha_vigencia',
-  cantidad_minima: 'cantidad_min', cant_min: 'cantidad_min', min: 'cantidad_min', cantidad_min: 'cantidad_min',
-};
-
-const STD_FIELDS = ['clave', 'descripcion', 'precio', 'precio_con_iva', 'existencia', 'iva', 'fecha_vigencia', 'cantidad_min'] as const;
-type StdField = typeof STD_FIELDS[number];
+type ValidationError = { fila: number; campo: string; mensaje: string };
+type DuplicatePolicy = 'first' | 'cheapest' | 'cancel';
 
 function downloadPlantilla() {
-  const ws = XLSX.utils.json_to_sheet([
-    { clave: '7501000000001', descripcion: 'PARACETAMOL 500MG C/10', precio: 12.50, existencia: 200, iva: 16, vigencia: '2026-01-01', cantidad_minima: 1 },
-    { clave: '7501000000002', descripcion: 'IBUPROFENO 400MG C/20', precio: 28.00, existencia: 80, iva: 16, vigencia: '2026-01-01', cantidad_minima: 6 },
-  ]);
   const wb = XLSX.utils.book_new();
+  const ws = XLSX.utils.aoa_to_sheet([
+    ALL_HEADERS,
+    ['7502208894557', 'CEFTRIAXONA INY 1G', 15.50, 1500, 100, 16, 13.99, '2026-06-01', '2026-06-30'],
+    ['7501000000002', 'PARACETAMOL 500MG C/10', 12.50, 200, 50, 16, '', '', ''],
+    ['7501000000003', 'IBUPROFENO 400MG C/20', 28.00, 80, '', 16, '', '', ''],
+  ]);
   XLSX.utils.book_append_sheet(wb, ws, 'lista_precios');
+  const inst = XLSX.utils.aoa_to_sheet([
+    ['INSTRUCCIONES — Plantilla estándar de lista de precios'],
+    [''],
+    ['1. No cambies los nombres de las columnas.'],
+    ['2. Columnas obligatorias: clave, descripcion, precio_neto, existencia.'],
+    ['3. Columnas opcionales: piezas_corrugado, iva_pct, precio_oferta, oferta_inicio, oferta_fin.'],
+    ['4. La clave debe ser código de barras o SKU (solo dígitos).'],
+    ['5. Los precios van SIN IVA en precio_neto. Usa iva_pct para indicar la tasa (0 ó 16).'],
+    ['6. Las fechas en formato YYYY-MM-DD (ej. 2026-06-30).'],
+    ['7. Si hay duplicados de "clave", se te preguntará qué hacer al validar.'],
+    [''],
+    ['Hoja a cargar: "lista_precios" (la primera).'],
+  ]);
+  XLSX.utils.book_append_sheet(wb, inst, 'Instrucciones');
   XLSX.writeFile(wb, 'plantilla_lista_precios.xlsx');
 }
 
 export default function ListaPreciosUploader({ onDone }: { onDone?: () => void }) {
-  const [step, setStep] = useState<1 | 2 | 3 | 4 | 5 | 6>(1);
-  const [proveedores, setProveedores] = useState<Proveedor[]>([]);
-  const [proveedorId, setProveedorId] = useState<string>('');
-  const [newProvOpen, setNewProvOpen] = useState(false);
-  const [newProv, setNewProv] = useState({ codigo: '', nombre: '', razon_social: '', plazo_pago_dias: 0 });
+  const [step, setStep] = useState<1 | 2 | 3 | 4 | 5>(1);
 
-  const [file, setFile] = useState<File | null>(null);
+  // Step 1/2 — file
   const [fileName, setFileName] = useState('');
-  const [rawHeaders, setRawHeaders] = useState<string[]>([]);
-  const [rawRows, setRawRows] = useState<any[]>([]);
-  const [mapping, setMapping] = useState<Record<StdField, string>>({
-    clave: '', descripcion: '', precio: '', precio_con_iva: '', existencia: '', iva: '', fecha_vigencia: '', cantidad_min: '',
-  });
-
-  const [vigenciaDesde, setVigenciaDesde] = useState<string>(new Date().toISOString().slice(0, 10));
-  const [vigenciaHasta, setVigenciaHasta] = useState<string>('');
-  const [precioIncluyeIva, setPrecioIncluyeIva] = useState(false);
-  const [ivaTasaDefault, setIvaTasaDefault] = useState(16);
-  const [reemplazaAnterior, setReemplazaAnterior] = useState(true);
-  const [autoCrearFaltantes, setAutoCrearFaltantes] = useState(false);
-
-  const [parsed, setParsed] = useState<ParsedRow[]>([]);
-  const [previewLoading, setPreviewLoading] = useState(false);
-  const [committing, setCommitting] = useState(false);
-  const [resumen, setResumen] = useState<{ insertados: number; reemplazados: number; omitidos: number; autocreados: number; cargaId?: string } | null>(null);
+  const [rows, setRows] = useState<Row[]>([]);
+  const [errors, setErrors] = useState<ValidationError[]>([]);
+  const [duplicateKeys, setDuplicateKeys] = useState<string[]>([]);
+  const [dupePolicy, setDupePolicy] = useState<DuplicatePolicy>('first');
   const fileRef = useRef<HTMLInputElement>(null);
+  const [dragOver, setDragOver] = useState(false);
+
+  // Step 3 — proveedor
+  const [proveedores, setProveedores] = useState<Proveedor[]>([]);
+  const [proveedorMode, setProveedorMode] = useState<'existing' | 'new'>('existing');
+  const [proveedorId, setProveedorId] = useState<string>('');
+  const [proveedorSearch, setProveedorSearch] = useState('');
+  const [prevCarga, setPrevCarga] = useState<{ archivo: string; fecha: string; lineas: number } | null>(null);
+  const [confirmReplace, setConfirmReplace] = useState(false);
+  const [newProv, setNewProv] = useState({
+    nombre: '', codigo: '', tipo: 'Farmacéutico',
+    plazo_pago_dias: 0, lead_time_dias: '' as string | number,
+    monto_minimo_pedido: '' as string | number, acepta_devoluciones: false,
+  });
+  const [creatingProv, setCreatingProv] = useState(false);
+
+  // Step 4 — catalog validation
+  const [verifying, setVerifying] = useState(false);
+  const [existingKeys, setExistingKeys] = useState<Map<string, string>>(new Map()); // clave -> producto_id
+  const [acceptNew, setAcceptNew] = useState(true);
+
+  // Step 5 — result
+  const [committing, setCommitting] = useState(false);
+  const [resumen, setResumen] = useState<{
+    cargaId: string; precios: number; nuevos: number; ofertas: number;
+  } | null>(null);
 
   useEffect(() => {
-    supabase.from('proveedores').select('id, codigo, nombre').eq('activo', true).order('nombre').then(({ data }) => {
+    supabase.from('proveedores').select('id, codigo, nombre, plazo_pago_dias, lead_time_prometido_dias, monto_minimo_pedido, acepta_devoluciones').eq('activo', true).order('nombre').then(({ data }) => {
       setProveedores((data as Proveedor[]) || []);
     });
   }, []);
 
   const proveedorActual = proveedores.find(p => p.id === proveedorId);
+  const proveedoresFiltrados = useMemo(() => {
+    const s = proveedorSearch.trim().toLowerCase();
+    if (!s) return proveedores.slice(0, 200);
+    return proveedores.filter(p =>
+      p.nombre.toLowerCase().includes(s) || (p.codigo || '').toLowerCase().includes(s)
+    ).slice(0, 200);
+  }, [proveedores, proveedorSearch]);
 
-  // ---------- Step 1: proveedor ----------
-  async function crearProveedor() {
-    if (!newProv.nombre.trim()) { toast.error('Nombre requerido'); return; }
-    const payload: any = {
-      nombre: newProv.nombre.trim(),
-      codigo: newProv.codigo.trim() || null,
-      razon_social: newProv.razon_social.trim() || null,
-      plazo_pago_dias: Number(newProv.plazo_pago_dias) || 0,
-      activo: true,
-    };
-    const { data, error } = await supabase.from('proveedores').insert(payload).select('id, codigo, nombre').single();
-    if (error) { toast.error('Error: ' + error.message); return; }
-    setProveedores(prev => [...prev, data as Proveedor].sort((a, b) => a.nombre.localeCompare(b.nombre)));
-    setProveedorId((data as any).id);
-    setNewProvOpen(false);
-    setNewProv({ codigo: '', nombre: '', razon_social: '', plazo_pago_dias: 0 });
-    toast.success('Proveedor creado');
-  }
-
-  // ---------- Step 2: leer archivo ----------
+  // ===== Step 2: parse + validate =====
   async function leerArchivo(f: File) {
-    setFile(f);
     setFileName(f.name);
     const ab = await f.arrayBuffer();
     const wb = XLSX.read(ab, { type: 'array', cellDates: true });
     const sheet = wb.Sheets[wb.SheetNames[0]];
-    const rows: any[] = XLSX.utils.sheet_to_json(sheet, { defval: '' });
-    if (!rows.length) { toast.error('Hoja vacía'); return; }
+    const raw: any[] = XLSX.utils.sheet_to_json(sheet, { defval: '' });
 
-    const headers = Object.keys(rows[0]);
-    setRawHeaders(headers);
-    setRawRows(rows);
-
-    // Auto-detect mapping
-    const auto: Record<StdField, string> = {
-      clave: '', descripcion: '', precio: '', precio_con_iva: '', existencia: '', iva: '', fecha_vigencia: '', cantidad_min: '',
-    };
-    for (const h of headers) {
-      const std = HEADER_MAP[normalizeHeader(h)];
-      if (std && !auto[std as StdField]) auto[std as StdField] = h;
+    if (!raw.length) {
+      setErrors([{ fila: 0, campo: 'archivo', mensaje: 'La hoja está vacía' }]);
+      setRows([]); setStep(2); return;
     }
-    setMapping(auto);
+
+    // Normalize headers
+    const headerMap: Record<string, string> = {};
+    Object.keys(raw[0]).forEach(h => {
+      const norm = normalizeHeader(h);
+      if (ALL_HEADERS.includes(norm as any)) headerMap[h] = norm;
+    });
+    const presentStd = new Set(Object.values(headerMap));
+    const missingRequired = REQUIRED_HEADERS.filter(h => !presentStd.has(h));
+
+    if (missingRequired.length) {
+      setErrors([{
+        fila: 0, campo: 'headers',
+        mensaje: `Faltan columnas obligatorias: ${missingRequired.join(', ')}. La plantilla debe tener: ${ALL_HEADERS.join(', ')}`,
+      }]);
+      setRows([]); setStep(2); return;
+    }
+
+    const errs: ValidationError[] = [];
+    const parsed: Row[] = [];
+    const keysSeen = new Map<string, number>(); // clave -> count
+
+    raw.forEach((r, idx) => {
+      const fila = idx + 2;
+      const get = (std: string) => {
+        const orig = Object.keys(headerMap).find(k => headerMap[k] === std);
+        return orig ? r[orig] : '';
+      };
+
+      const clave = String(get('clave') ?? '').trim();
+      const descripcion = String(get('descripcion') ?? '').trim();
+      const precio = parseNum(get('precio_neto'));
+      const existencia = parseInt2(get('existencia'));
+
+      if (!clave) errs.push({ fila, campo: 'clave', mensaje: 'clave está vacía' });
+      else if (!/^\d+$/.test(clave)) errs.push({ fila, campo: 'clave', mensaje: `la clave "${clave}" tiene caracteres no numéricos` });
+
+      if (!descripcion) errs.push({ fila, campo: 'descripcion', mensaje: 'descripcion está vacía' });
+
+      if (precio == null) errs.push({ fila, campo: 'precio_neto', mensaje: 'precio_neto está vacío o no es número' });
+      else if (precio < 0) errs.push({ fila, campo: 'precio_neto', mensaje: `precio_neto inválido (${precio})` });
+
+      if (existencia == null) errs.push({ fila, campo: 'existencia', mensaje: 'existencia está vacía o no es entera' });
+
+      if (clave) keysSeen.set(clave, (keysSeen.get(clave) || 0) + 1);
+
+      parsed.push({
+        fila, clave, descripcion,
+        precio_neto: precio,
+        existencia: existencia,
+        piezas_corrugado: presentStd.has('piezas_corrugado') ? parseInt2(get('piezas_corrugado')) : null,
+        iva_pct: presentStd.has('iva_pct') ? parseNum(get('iva_pct')) : null,
+        precio_oferta: presentStd.has('precio_oferta') ? parseNum(get('precio_oferta')) : null,
+        oferta_inicio: presentStd.has('oferta_inicio') ? parseDate(get('oferta_inicio')) : null,
+        oferta_fin: presentStd.has('oferta_fin') ? parseDate(get('oferta_fin')) : null,
+      });
+    });
+
+    const dupes = Array.from(keysSeen.entries()).filter(([, n]) => n > 1).map(([k]) => k);
+    setDuplicateKeys(dupes);
+    setRows(parsed);
+    setErrors(errs);
     setStep(2);
   }
 
-  // ---------- Step 4: vista previa ----------
-  async function generarPreview() {
-    if (!mapping.clave || !mapping.precio) {
-      toast.error('Mapeo incompleto: se requiere columna de clave y precio');
-      return;
-    }
-    setPreviewLoading(true);
-    try {
-      // Build claves
-      const wantedClaves = Array.from(new Set(
-        rawRows.map(r => String(r[mapping.clave] ?? '').trim()).filter(Boolean)
-      ));
+  function descargarErroresCSV() {
+    if (!errors.length) return;
+    const csv = ['fila,campo,mensaje', ...errors.map(e => `${e.fila},"${e.campo}","${e.mensaje.replace(/"/g, '""')}"`)].join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = `errores_${fileName.replace(/\.[^.]+$/, '')}.csv`;
+    a.click(); URL.revokeObjectURL(url);
+  }
 
-      // Fetch productos in chunks
-      const CHUNK = 250;
-      const byClave = new Map<string, Producto>();
-      for (let i = 0; i < wantedClaves.length; i += CHUNK) {
-        const slice = wantedClaves.slice(i, i + CHUNK);
-        const [a, b] = await Promise.all([
-          supabase.from('productos').select('id, sku, codigo_barras, nombre').in('sku', slice),
-          supabase.from('productos').select('id, sku, codigo_barras, nombre').in('codigo_barras', slice),
-        ]);
-        for (const p of [...(a.data || []), ...(b.data || [])] as Producto[]) {
-          if (p.codigo_barras) byClave.set(String(p.codigo_barras), p);
-          if (p.sku && !byClave.has(String(p.sku))) byClave.set(String(p.sku), p);
+  // Resolve rows after applying duplicate policy
+  const resolvedRows = useMemo(() => {
+    if (!duplicateKeys.length || dupePolicy === 'cancel') return rows;
+    const byKey = new Map<string, Row>();
+    for (const r of rows) {
+      if (!r.clave) continue;
+      const prev = byKey.get(r.clave);
+      if (!prev) { byKey.set(r.clave, r); continue; }
+      if (dupePolicy === 'cheapest' && (r.precio_neto ?? Infinity) < (prev.precio_neto ?? Infinity)) {
+        byKey.set(r.clave, r);
+      }
+    }
+    return Array.from(byKey.values());
+  }, [rows, duplicateKeys, dupePolicy]);
+
+  const validRowCount = rows.filter(r => r.clave && r.precio_neto != null).length;
+  const withExistencia = rows.filter(r => (r.existencia ?? 0) > 0).length;
+  const withCorrugado = rows.filter(r => (r.piezas_corrugado ?? 0) > 0).length;
+
+  // ===== Step 3: proveedor =====
+  async function elegirProveedor(id: string) {
+    setProveedorId(id);
+    setConfirmReplace(false);
+    const { data } = await supabase
+      .from('lista_precio_cargas')
+      .select('archivo_nombre, created_at, productos_cargados')
+      .eq('proveedor_id', id)
+      .order('created_at', { ascending: false })
+      .limit(1);
+    if (data && data.length) {
+      const d = data[0] as any;
+      setPrevCarga({
+        archivo: d.archivo_nombre,
+        fecha: new Date(d.created_at).toLocaleDateString(),
+        lineas: d.productos_cargados,
+      });
+    } else {
+      setPrevCarga(null);
+    }
+  }
+
+  async function crearProveedorNuevo() {
+    if (!newProv.nombre.trim()) { toast.error('Nombre requerido'); return; }
+    setCreatingProv(true);
+    try {
+      const payload: any = {
+        nombre: newProv.nombre.trim(),
+        codigo: (newProv.codigo || newProv.nombre.replace(/[^A-Za-z0-9]/g, '').slice(0, 6)).toUpperCase().trim(),
+        plazo_pago_dias: Number(newProv.plazo_pago_dias) || 0,
+        lead_time_prometido_dias: newProv.lead_time_dias === '' ? null : Number(newProv.lead_time_dias),
+        monto_minimo_pedido: newProv.monto_minimo_pedido === '' ? 0 : Number(newProv.monto_minimo_pedido),
+        acepta_devoluciones: !!newProv.acepta_devoluciones,
+        notas: `Tipo: ${newProv.tipo}`,
+        activo: true,
+      };
+      const { data, error } = await supabase.from('proveedores').insert(payload).select('id, codigo, nombre').single();
+      if (error) throw error;
+      setProveedores(prev => [...prev, data as Proveedor].sort((a, b) => a.nombre.localeCompare(b.nombre)));
+      setProveedorId((data as any).id);
+      setProveedorMode('existing');
+      setPrevCarga(null);
+      setConfirmReplace(true);
+      toast.success('Proveedor creado');
+    } catch (e: any) {
+      toast.error('Error: ' + e.message);
+    } finally {
+      setCreatingProv(false);
+    }
+  }
+
+  // ===== Step 4: verify catalog =====
+  async function verificarCatalogo() {
+    setVerifying(true);
+    try {
+      const claves = Array.from(new Set(resolvedRows.map(r => r.clave).filter(Boolean)));
+      const map = new Map<string, string>();
+      const CHUNK = 800;
+      for (let i = 0; i < claves.length; i += CHUNK) {
+        const slice = claves.slice(i, i + CHUNK);
+        const { data, error } = await supabase.rpc('verificar_productos_lista', { p_claves: slice });
+        if (error) throw error;
+        for (const r of (data as any[]) || []) {
+          if (r.existe) map.set(r.clave, r.producto_id);
         }
       }
-
-      // Fetch previous active prices for this proveedor
-      const { data: prevPrices } = await supabase
-        .from('lista_precio_proveedor')
-        .select('producto_id, precio')
-        .eq('proveedor_id', proveedorId)
-        .eq('activo', true);
-      const prevByProd = new Map<string, number>();
-      (prevPrices || []).forEach((p: any) => prevByProd.set(p.producto_id, Number(p.precio)));
-
-      const out: ParsedRow[] = rawRows.map((r, idx) => {
-        const clave = String(r[mapping.clave] ?? '').trim();
-        const descripcion = String(r[mapping.descripcion] ?? '').trim();
-        const precio = mapping.precio ? parseNum(r[mapping.precio]) : null;
-        const precioConIva = mapping.precio_con_iva ? parseNum(r[mapping.precio_con_iva]) : null;
-        const existencia = mapping.existencia ? parseInt2(r[mapping.existencia]) : 0;
-        const iva = mapping.iva ? parseNum(r[mapping.iva]) : null;
-        const fecha = mapping.fecha_vigencia ? parseDate(r[mapping.fecha_vigencia]) : null;
-        const cantMin = mapping.cantidad_min ? (parseInt2(r[mapping.cantidad_min]) ?? 1) : 1;
-        const fila = idx + 2;
-
-        if (!clave) return { fila, clave, descripcion, precio, precio_con_iva: precioConIva, existencia, iva_tasa: iva, fecha_vigencia: fecha, cantidad_min: cantMin, match: 'INVALID', motivo: 'Clave vacía' };
-        if (precio == null || precio < 0) return { fila, clave, descripcion, precio, precio_con_iva: precioConIva, existencia, iva_tasa: iva, fecha_vigencia: fecha, cantidad_min: cantMin, match: 'INVALID', motivo: 'Precio inválido' };
-
-        const prod = byClave.get(clave);
-        if (!prod) {
-          return { fila, clave, descripcion, precio, precio_con_iva: precioConIva, existencia, iva_tasa: iva, fecha_vigencia: fecha, cantidad_min: cantMin, match: 'NOT_FOUND' };
-        }
-        return {
-          fila, clave, descripcion, precio, precio_con_iva: precioConIva, existencia, iva_tasa: iva,
-          fecha_vigencia: fecha, cantidad_min: cantMin, match: 'OK', producto_id: prod.id,
-          precio_anterior: prevByProd.get(prod.id) ?? null,
-        };
-      });
-
-      setParsed(out);
+      setExistingKeys(map);
       setStep(4);
     } catch (e: any) {
-      toast.error('Error al procesar: ' + e.message);
+      toast.error('Error verificando catálogo: ' + e.message);
     } finally {
-      setPreviewLoading(false);
+      setVerifying(false);
     }
   }
 
-  function descargarNoEncontrados() {
-    const rows = parsed.filter(p => p.match === 'NOT_FOUND').map(p => ({
-      fila: p.fila, clave: p.clave, descripcion: p.descripcion, precio: p.precio, existencia: p.existencia,
-    }));
-    if (!rows.length) { toast.info('No hay productos no encontrados'); return; }
-    const ws = XLSX.utils.json_to_sheet(rows);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'no_encontrados');
-    XLSX.writeFile(wb, `no_encontrados_${fileName}`);
-  }
+  const nuevos = resolvedRows.filter(r => r.clave && !existingKeys.has(r.clave));
+  const encontrados = resolvedRows.filter(r => r.clave && existingKeys.has(r.clave));
 
-  // ---------- Step 5: importar ----------
-  async function importar() {
+  // ===== Step 5: commit =====
+  async function confirmar() {
     setCommitting(true);
     try {
       const { data: userData } = await supabase.auth.getUser();
       const userId = userData.user?.id ?? null;
 
-      // 1. Create carga record
+      // 1. Create carga
       const { data: cargaRow, error: cargaErr } = await supabase
         .from('lista_precio_cargas')
         .insert({
           proveedor_id: proveedorId,
           archivo_nombre: fileName,
-          fecha_vigencia_desde: vigenciaDesde,
-          fecha_vigencia_hasta: vigenciaHasta || null,
-          precio_incluye_iva: precioIncluyeIva,
-          iva_tasa_default: ivaTasaDefault,
-          reemplaza_carga_anterior: reemplazaAnterior,
+          fecha_vigencia_desde: new Date().toISOString().slice(0, 10),
+          precio_incluye_iva: false,
+          iva_tasa_default: 16,
+          reemplaza_carga_anterior: true,
           cargado_por: userId,
         } as any)
         .select('id')
@@ -245,91 +330,119 @@ export default function ListaPreciosUploader({ onDone }: { onDone?: () => void }
       if (cargaErr) throw cargaErr;
       const cargaId = (cargaRow as any).id;
 
-      // 2. Optionally auto-create missing productos
-      let autoCreados = 0;
-      let rows = [...parsed];
-      if (autoCrearFaltantes) {
-        const faltantes = rows.filter(r => r.match === 'NOT_FOUND' && r.descripcion);
-        if (faltantes.length) {
-          const inserts = faltantes.map(r => ({
-            sku: r.clave,
-            codigo_barras: /^\d{8,}$/.test(r.clave) ? r.clave : null,
-            nombre: r.descripcion || r.clave,
-            precio_base: 0,
-            estatus: 'N',
-            activo: true,
-          }));
-          // Chunk insert
-          for (let i = 0; i < inserts.length; i += 200) {
-            const slice = inserts.slice(i, i + 200);
-            const { data: created, error } = await supabase
-              .from('productos')
-              .insert(slice as any)
-              .select('id, sku, codigo_barras');
-            if (error) throw error;
-            for (const p of (created || []) as any[]) {
-              const key = p.codigo_barras || p.sku;
-              const target = rows.find(r => r.match === 'NOT_FOUND' && r.clave === key);
-              if (target) { target.match = 'OK'; target.producto_id = p.id; autoCreados++; }
-            }
+      // 2. Insert new productos (if accepted)
+      const keyToProd = new Map(existingKeys);
+      let nuevosCreados = 0;
+      if (acceptNew && nuevos.length) {
+        const inserts = nuevos.map(r => ({
+          sku: r.clave,
+          codigo_barras: /^\d{8,}$/.test(r.clave) ? r.clave : null,
+          nombre: r.descripcion,
+          descripcion: r.descripcion,
+          precio_base: 0,
+          estatus: 'N',
+          departamento: 'POR ASIGNAR',
+          clasificacion: 'DESCLASIFICADO',
+          activo: true,
+        }));
+        for (let i = 0; i < inserts.length; i += 200) {
+          const slice = inserts.slice(i, i + 200);
+          const { data: created, error } = await supabase
+            .from('productos')
+            .insert(slice as any)
+            .select('id, sku, codigo_barras');
+          if (error) throw error;
+          for (const p of (created || []) as any[]) {
+            const key = p.codigo_barras || p.sku;
+            if (key) keyToProd.set(String(key), p.id);
+            nuevosCreados++;
           }
         }
       }
 
-      // 3. Deactivate prior list
-      if (reemplazaAnterior) {
-        const yesterday = new Date(); yesterday.setDate(yesterday.getDate() - 1);
-        const { error: deactErr } = await supabase
-          .from('lista_precio_proveedor')
-          .update({ activo: false, fecha_vigencia_hasta: yesterday.toISOString().slice(0, 10) } as any)
-          .eq('proveedor_id', proveedorId)
-          .eq('activo', true);
-        if (deactErr) throw deactErr;
-      }
+      // 3. Deactivate prior list for this proveedor
+      const yesterday = new Date(); yesterday.setDate(yesterday.getDate() - 1);
+      await supabase
+        .from('lista_precio_proveedor')
+        .update({ activo: false, fecha_vigencia_hasta: yesterday.toISOString().slice(0, 10) } as any)
+        .eq('proveedor_id', proveedorId)
+        .eq('activo', true);
 
-      // 4. Insert valid rows
-      const validRows = rows.filter(r => r.match === 'OK' && r.producto_id);
-      const ivaPct = ivaTasaDefault / 100;
-      const toInsert = validRows.map(r => {
-        const precioNeto = precioIncluyeIva && r.precio != null ? r.precio / (1 + ivaPct) : r.precio;
-        const precioCon = r.precio_con_iva ?? (precioIncluyeIva ? r.precio : (r.precio != null ? r.precio * (1 + ivaPct) : null));
-        return {
+      // 4. Insert price rows
+      const hoy = new Date().toISOString().slice(0, 10);
+      const toInsert: any[] = [];
+      for (const r of resolvedRows) {
+        const pid = keyToProd.get(r.clave);
+        if (!pid || r.precio_neto == null) continue;
+        const ivaPct = (r.iva_pct ?? 16) / 100;
+        toInsert.push({
           proveedor_id: proveedorId,
-          producto_id: r.producto_id!,
-          precio: precioNeto,
-          precio_con_iva: precioCon,
+          producto_id: pid,
+          precio: r.precio_neto,
+          precio_con_iva: r.precio_neto * (1 + ivaPct),
           existencia_proveedor: r.existencia ?? 0,
-          cantidad_min: r.cantidad_min || 1,
-          fecha_vigencia_desde: r.fecha_vigencia || vigenciaDesde,
-          fecha_vigencia_hasta: vigenciaHasta || null,
+          cantidad_min: 1,
+          fecha_vigencia_desde: hoy,
           carga_id: cargaId,
           activo: true,
-        };
-      });
-
-      let inserted = 0;
+        });
+      }
+      let preciosInsertados = 0;
       for (let i = 0; i < toInsert.length; i += 500) {
         const slice = toInsert.slice(i, i + 500);
         const { error, count } = await supabase
           .from('lista_precio_proveedor')
           .insert(slice as any, { count: 'exact' });
         if (error) throw error;
-        inserted += count ?? slice.length;
+        preciosInsertados += count ?? slice.length;
       }
 
-      const omitidos = parsed.filter(r => r.match !== 'OK').length - autoCreados;
+      // 5. Insert ofertas
+      const ofertas: any[] = [];
+      for (const r of resolvedRows) {
+        const pid = keyToProd.get(r.clave);
+        if (!pid) continue;
+        if (r.precio_oferta != null && r.oferta_inicio && r.oferta_fin) {
+          ofertas.push({
+            proveedor_id: proveedorId,
+            producto_id: pid,
+            precio_oferta: r.precio_oferta,
+            fecha_inicio: r.oferta_inicio,
+            fecha_fin: r.oferta_fin,
+            activo: true,
+          });
+        }
+      }
+      let ofertasInsertadas = 0;
+      for (let i = 0; i < ofertas.length; i += 500) {
+        const slice = ofertas.slice(i, i + 500);
+        const { error, count } = await supabase.from('ofertas_proveedor').insert(slice as any, { count: 'exact' });
+        if (error) throw error;
+        ofertasInsertadas += count ?? slice.length;
+      }
 
-      // 5. Update carga counters
+      // 6. Insert corrugado
+      const corrugados = resolvedRows.filter(r => keyToProd.has(r.clave) && (r.piezas_corrugado ?? 0) > 0).map(r => ({
+        producto_id: keyToProd.get(r.clave)!,
+        piezas_por_corrugado: r.piezas_corrugado,
+      }));
+      if (corrugados.length) {
+        try {
+          await supabase.from('producto_corrugado').upsert(corrugados as any, { onConflict: 'producto_id' });
+        } catch { /* opcional */ }
+      }
+
+      // 7. Update counters
       await supabase.from('lista_precio_cargas').update({
-        productos_cargados: inserted,
-        productos_actualizados: validRows.filter(v => v.precio_anterior != null).length,
-        productos_omitidos: omitidos < 0 ? 0 : omitidos,
-        productos_autocreados: autoCreados,
+        productos_cargados: preciosInsertados,
+        productos_actualizados: encontrados.length,
+        productos_omitidos: rows.length - resolvedRows.length,
+        productos_autocreados: nuevosCreados,
       } as any).eq('id', cargaId);
 
-      setResumen({ insertados: inserted, reemplazados: validRows.filter(v => v.precio_anterior != null).length, omitidos: Math.max(0, omitidos), autocreados: autoCreados, cargaId });
-      setStep(6);
-      toast.success(`Lista cargada: ${inserted} precios`);
+      setResumen({ cargaId, precios: preciosInsertados, nuevos: nuevosCreados, ofertas: ofertasInsertadas });
+      setStep(5);
+      toast.success(`Lista cargada: ${preciosInsertados} precios`);
       onDone?.();
     } catch (e: any) {
       toast.error('Error: ' + e.message);
@@ -338,29 +451,29 @@ export default function ListaPreciosUploader({ onDone }: { onDone?: () => void }
     }
   }
 
-  function resetWizard() {
-    setStep(1); setFile(null); setFileName(''); setRawHeaders([]); setRawRows([]); setParsed([]); setResumen(null);
-    setMapping({ clave: '', descripcion: '', precio: '', precio_con_iva: '', existencia: '', iva: '', fecha_vigencia: '', cantidad_min: '' });
+  function reset() {
+    setStep(1); setFileName(''); setRows([]); setErrors([]); setDuplicateKeys([]);
+    setProveedorId(''); setProveedorMode('existing'); setPrevCarga(null); setConfirmReplace(false);
+    setExistingKeys(new Map()); setAcceptNew(true); setResumen(null);
   }
 
-  // ----- counts -----
-  const counts = {
-    ok: parsed.filter(p => p.match === 'OK').length,
-    notFound: parsed.filter(p => p.match === 'NOT_FOUND').length,
-    invalid: parsed.filter(p => p.match === 'INVALID').length,
-    changed: parsed.filter(p => p.match === 'OK' && p.precio_anterior != null && Math.abs((p.precio || 0) - (p.precio_anterior || 0)) > 0.001).length,
-  };
-
+  // ============= RENDER =============
   return (
     <div className="space-y-4">
       {/* Progress */}
       <div className="flex items-center gap-2 text-xs">
-        {[1, 2, 3, 4, 5, 6].map(n => (
+        {[
+          { n: 1, label: 'Archivo' },
+          { n: 2, label: 'Validación' },
+          { n: 3, label: 'Proveedor' },
+          { n: 4, label: 'Confirmar' },
+        ].map(({ n, label }) => (
           <div key={n} className={`flex items-center gap-1 ${step >= n ? 'text-primary font-semibold' : 'text-muted-foreground'}`}>
             <div className={`h-6 w-6 rounded-full flex items-center justify-center text-[10px] ${step > n ? 'bg-primary text-primary-foreground' : step === n ? 'bg-primary/20 border border-primary' : 'bg-muted'}`}>
               {step > n ? <Check className="h-3 w-3" /> : n}
             </div>
-            {n < 6 && <ChevronRight className="h-3 w-3" />}
+            <span>{label}</span>
+            {n < 4 && <ChevronRight className="h-3 w-3" />}
           </div>
         ))}
       </div>
@@ -369,211 +482,268 @@ export default function ListaPreciosUploader({ onDone }: { onDone?: () => void }
       {step === 1 && (
         <Card>
           <CardContent className="pt-6 space-y-4">
-            <h3 className="font-semibold">Paso 1: Seleccionar proveedor</h3>
-            <div className="flex gap-2">
-              <Select value={proveedorId} onValueChange={setProveedorId}>
-                <SelectTrigger className="flex-1"><SelectValue placeholder="Selecciona un proveedor activo" /></SelectTrigger>
-                <SelectContent>
-                  {proveedores.map(p => <SelectItem key={p.id} value={p.id}>{p.codigo ? `[${p.codigo}] ` : ''}{p.nombre}</SelectItem>)}
-                </SelectContent>
-              </Select>
-              <Button variant="outline" onClick={() => setNewProvOpen(true)}><Plus className="h-4 w-4 mr-1" />Nuevo</Button>
-            </div>
-            <div className="flex justify-end">
-              <Button disabled={!proveedorId} onClick={() => setStep(2)}>Siguiente <ChevronRight className="h-4 w-4 ml-1" /></Button>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* STEP 2: Upload + mapping */}
-      {step === 2 && (
-        <Card>
-          <CardContent className="pt-6 space-y-4">
-            <h3 className="font-semibold">Paso 2: Subir archivo y mapear columnas</h3>
-            <div className="flex gap-2">
-              <Button variant="outline" onClick={downloadPlantilla}><Download className="h-4 w-4 mr-2" />Plantilla</Button>
-              <Button onClick={() => fileRef.current?.click()}>
-                <Upload className="h-4 w-4 mr-2" />{fileName || 'Subir archivo .xlsx'}
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <h3 className="font-semibold flex items-center gap-2"><FileSpreadsheet className="h-4 w-4" />Paso 1 — Plantilla y archivo</h3>
+                <p className="text-sm text-muted-foreground">El archivo debe tener exactamente las columnas de la plantilla. No detectamos formatos automáticamente.</p>
+              </div>
+              <Button variant="outline" size="lg" onClick={downloadPlantilla}>
+                <Download className="h-4 w-4 mr-2" />Descargar plantilla
               </Button>
+            </div>
+
+            <div
+              onDragOver={e => { e.preventDefault(); setDragOver(true); }}
+              onDragLeave={() => setDragOver(false)}
+              onDrop={e => {
+                e.preventDefault(); setDragOver(false);
+                const f = e.dataTransfer.files?.[0]; if (f) leerArchivo(f);
+              }}
+              onClick={() => fileRef.current?.click()}
+              className={`border-2 border-dashed rounded-lg p-12 text-center cursor-pointer transition-colors ${dragOver ? 'border-primary bg-primary/5' : 'border-muted-foreground/25 hover:border-primary/50'}`}
+            >
+              <Upload className="h-10 w-10 mx-auto mb-3 text-muted-foreground" />
+              <p className="font-medium">Sube tu archivo aquí</p>
+              <p className="text-sm text-muted-foreground mt-1">Arrastra el .xlsx o haz clic para seleccionar</p>
               <input ref={fileRef} type="file" accept=".xlsx,.xls" className="hidden"
                 onChange={e => { const f = e.target.files?.[0]; if (f) leerArchivo(f); e.target.value = ''; }} />
             </div>
-            {rawHeaders.length > 0 && (
-              <div className="space-y-2">
-                <p className="text-sm text-muted-foreground">Detectamos {rawRows.length} filas y {rawHeaders.length} columnas. Confirma o ajusta el mapeo:</p>
-                <div className="grid grid-cols-2 gap-3">
-                  {STD_FIELDS.map(f => (
-                    <div key={f}>
-                      <Label className="text-xs">
-                        {f.replace('_', ' ')} {(f === 'clave' || f === 'precio') && <span className="text-red-600">*</span>}
-                      </Label>
-                      <Select value={mapping[f] || '__none__'} onValueChange={(v) => setMapping(m => ({ ...m, [f]: v === '__none__' ? '' : v }))}>
-                        <SelectTrigger><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="__none__">— (sin asignar)</SelectItem>
-                          {rawHeaders.map(h => <SelectItem key={h} value={h}>{h}</SelectItem>)}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-            <div className="flex justify-between">
-              <Button variant="outline" onClick={() => setStep(1)}>Atrás</Button>
-              <Button disabled={!mapping.clave || !mapping.precio} onClick={() => setStep(3)}>Siguiente</Button>
+
+            <div className="text-xs text-muted-foreground border-l-2 border-blue-500 pl-3">
+              <p className="font-semibold mb-1">Columnas requeridas:</p>
+              <p>{REQUIRED_HEADERS.join(' · ')}</p>
+              <p className="font-semibold mt-2 mb-1">Columnas opcionales:</p>
+              <p>{OPTIONAL_HEADERS.join(' · ')}</p>
             </div>
           </CardContent>
         </Card>
       )}
 
-      {/* STEP 3: Vigencia */}
+      {/* STEP 2 */}
+      {step === 2 && (
+        <Card>
+          <CardContent className="pt-6 space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="font-semibold">Paso 2 — Validación automática</h3>
+              <Button variant="ghost" size="sm" onClick={reset}><ArrowLeft className="h-4 w-4 mr-1" />Cambiar archivo</Button>
+            </div>
+            <p className="text-xs text-muted-foreground">Archivo: <span className="font-mono">{fileName}</span></p>
+
+            {errors.length > 0 ? (
+              <div className="space-y-3">
+                <div className="flex items-center gap-2 text-red-600">
+                  <XCircle className="h-5 w-5" />
+                  <span className="font-semibold">Validación falló — {errors.length} errores</span>
+                </div>
+                <div className="max-h-72 overflow-auto border rounded-md">
+                  <Table>
+                    <TableHeader><TableRow><TableHead>Línea</TableHead><TableHead>Campo</TableHead><TableHead>Mensaje</TableHead></TableRow></TableHeader>
+                    <TableBody>
+                      {errors.slice(0, 300).map((e, i) => (
+                        <TableRow key={i}><TableCell className="text-xs">{e.fila}</TableCell><TableCell className="text-xs font-mono">{e.campo}</TableCell><TableCell className="text-xs text-red-600">{e.mensaje}</TableCell></TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+                <div className="flex gap-2">
+                  <Button variant="outline" onClick={descargarErroresCSV}><Download className="h-4 w-4 mr-2" />Descargar errores (CSV)</Button>
+                  <Button variant="outline" onClick={reset}>Subir otro archivo</Button>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <div className="flex items-center gap-2 text-green-700">
+                  <CheckCircle2 className="h-5 w-5" />
+                  <span className="font-semibold">Archivo válido</span>
+                </div>
+                <div className="flex gap-2 flex-wrap text-sm">
+                  <Badge variant="outline" className="text-base py-1">{rows.length} productos detectados</Badge>
+                  <Badge variant="outline" className="text-base py-1">{validRowCount} con precio</Badge>
+                  <Badge variant="outline" className="text-base py-1">{withExistencia} con existencia</Badge>
+                  <Badge variant="outline" className="text-base py-1">{withCorrugado} con corrugado</Badge>
+                </div>
+
+                {duplicateKeys.length > 0 && (
+                  <div className="border border-yellow-400 bg-yellow-50 dark:bg-yellow-950/20 rounded-md p-3 space-y-2">
+                    <div className="flex items-center gap-2 text-yellow-800 dark:text-yellow-200">
+                      <AlertCircle className="h-4 w-4" />
+                      <span className="font-semibold">{duplicateKeys.length} claves duplicadas</span>
+                    </div>
+                    <p className="text-xs text-muted-foreground">Ejemplos: {duplicateKeys.slice(0, 6).join(', ')}{duplicateKeys.length > 6 ? '…' : ''}</p>
+                    <RadioGroup value={dupePolicy} onValueChange={v => setDupePolicy(v as DuplicatePolicy)} className="space-y-1">
+                      <div className="flex items-center space-x-2"><RadioGroupItem value="first" id="d1" /><Label htmlFor="d1" className="text-sm">Usar el primer precio encontrado</Label></div>
+                      <div className="flex items-center space-x-2"><RadioGroupItem value="cheapest" id="d2" /><Label htmlFor="d2" className="text-sm">Usar el precio MÁS BARATO</Label></div>
+                      <div className="flex items-center space-x-2"><RadioGroupItem value="cancel" id="d3" /><Label htmlFor="d3" className="text-sm">Cancelar y corregir el archivo</Label></div>
+                    </RadioGroup>
+                  </div>
+                )}
+
+                <div className="flex justify-between">
+                  <Button variant="outline" onClick={reset}><ArrowLeft className="h-4 w-4 mr-1" />Cambiar archivo</Button>
+                  <Button
+                    disabled={dupePolicy === 'cancel' && duplicateKeys.length > 0}
+                    onClick={() => setStep(3)}
+                  >Siguiente <ChevronRight className="h-4 w-4 ml-1" /></Button>
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* STEP 3 */}
       {step === 3 && (
         <Card>
           <CardContent className="pt-6 space-y-4">
-            <h3 className="font-semibold">Paso 3: Configurar vigencia y opciones</h3>
-            <div className="grid grid-cols-2 gap-4">
-              <div><Label>Vigencia desde *</Label><Input type="date" value={vigenciaDesde} onChange={e => setVigenciaDesde(e.target.value)} /></div>
-              <div><Label>Vigencia hasta (opcional)</Label><Input type="date" value={vigenciaHasta} onChange={e => setVigenciaHasta(e.target.value)} /></div>
-            </div>
-            <div className="space-y-3 border rounded-md p-3 bg-muted/30">
-              <div className="flex items-center justify-between">
-                <div>
-                  <Label>El precio del archivo INCLUYE IVA</Label>
-                  <p className="text-xs text-muted-foreground">Default: sin IVA (precio neto). Se calcula el precio con IVA automáticamente.</p>
+            <h3 className="font-semibold">Paso 3 — Identificar proveedor</h3>
+
+            <RadioGroup value={proveedorMode} onValueChange={v => setProveedorMode(v as any)} className="flex gap-6">
+              <div className="flex items-center space-x-2"><RadioGroupItem value="existing" id="pe" /><Label htmlFor="pe">Proveedor existente</Label></div>
+              <div className="flex items-center space-x-2"><RadioGroupItem value="new" id="pn" /><Label htmlFor="pn"><Plus className="h-3 w-3 inline mr-1" />Es un proveedor nuevo</Label></div>
+            </RadioGroup>
+
+            {proveedorMode === 'existing' && (
+              <div className="space-y-3">
+                <Input placeholder="Buscar proveedor por nombre o código…" value={proveedorSearch} onChange={e => setProveedorSearch(e.target.value)} />
+                <Select value={proveedorId} onValueChange={elegirProveedor}>
+                  <SelectTrigger><SelectValue placeholder="Selecciona un proveedor" /></SelectTrigger>
+                  <SelectContent>
+                    {proveedoresFiltrados.map(p => <SelectItem key={p.id} value={p.id}>{p.codigo ? `[${p.codigo}] ` : ''}{p.nombre}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+
+                {proveedorActual && (
+                  <div className="border rounded-md p-3 bg-muted/30 text-sm space-y-1">
+                    <p><span className="text-muted-foreground">Proveedor:</span> <strong>{proveedorActual.nombre}</strong> {proveedorActual.codigo && <span className="text-xs">[{proveedorActual.codigo}]</span>}</p>
+                    {prevCarga ? (
+                      <>
+                        <p className="text-xs text-muted-foreground">Última carga: {prevCarga.archivo} — {prevCarga.fecha} ({prevCarga.lineas} líneas)</p>
+                        <div className="border-l-2 border-orange-500 pl-2 mt-2 text-xs">
+                          <p>⚠️ Esta es la lista de <strong>{proveedorActual.nombre}</strong>. ¿Quieres ACTUALIZAR su lista de precios? Esto reemplazará las {prevCarga.lineas} líneas actuales.</p>
+                          <label className="flex items-center gap-2 mt-2">
+                            <Switch checked={confirmReplace} onCheckedChange={setConfirmReplace} />
+                            <span>Confirmo el reemplazo</span>
+                          </label>
+                        </div>
+                      </>
+                    ) : (
+                      <p className="text-xs text-muted-foreground">Sin cargas previas — esta será la primera lista.</p>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {proveedorMode === 'new' && (
+              <div className="grid grid-cols-2 gap-3">
+                <div className="col-span-2"><Label>Nombre del proveedor *</Label><Input value={newProv.nombre} onChange={e => setNewProv({ ...newProv, nombre: e.target.value, codigo: newProv.codigo || e.target.value.replace(/[^A-Za-z0-9]/g, '').slice(0, 6).toUpperCase() })} /></div>
+                <div><Label>Código corto</Label><Input value={newProv.codigo} onChange={e => setNewProv({ ...newProv, codigo: e.target.value.toUpperCase() })} /></div>
+                <div><Label>Tipo</Label>
+                  <Select value={newProv.tipo} onValueChange={v => setNewProv({ ...newProv, tipo: v })}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Farmacéutico">Farmacéutico</SelectItem>
+                      <SelectItem value="Material">Material</SelectItem>
+                      <SelectItem value="Equipo">Equipo</SelectItem>
+                      <SelectItem value="Otro">Otro</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
-                <Switch checked={precioIncluyeIva} onCheckedChange={setPrecioIncluyeIva} />
-              </div>
-              <div>
-                <Label>Tasa de IVA por default (%)</Label>
-                <Input type="number" min={0} max={100} value={ivaTasaDefault} onChange={e => setIvaTasaDefault(Number(e.target.value) || 0)} />
-              </div>
-              <div className="flex items-center justify-between">
-                <div>
-                  <Label>Reemplaza la lista anterior del proveedor</Label>
-                  <p className="text-xs text-muted-foreground">Si activo, desactiva TODOS los precios activos previos de este proveedor antes de cargar.</p>
+                <div><Label>Días de crédito</Label><Input type="number" value={newProv.plazo_pago_dias} onChange={e => setNewProv({ ...newProv, plazo_pago_dias: Number(e.target.value) })} /></div>
+                <div><Label>Lead time (días)</Label><Input type="number" value={newProv.lead_time_dias} onChange={e => setNewProv({ ...newProv, lead_time_dias: e.target.value })} /></div>
+                <div><Label>Monto mínimo de pedido</Label><Input type="number" value={newProv.monto_minimo_pedido} onChange={e => setNewProv({ ...newProv, monto_minimo_pedido: e.target.value })} /></div>
+                <div className="flex items-center gap-2 mt-6"><Switch checked={newProv.acepta_devoluciones} onCheckedChange={v => setNewProv({ ...newProv, acepta_devoluciones: v })} /><Label>Acepta devoluciones</Label></div>
+                <div className="col-span-2 flex justify-end">
+                  <Button onClick={crearProveedorNuevo} disabled={creatingProv || !newProv.nombre.trim()}>
+                    {creatingProv && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}Crear proveedor y continuar
+                  </Button>
                 </div>
-                <Switch checked={reemplazaAnterior} onCheckedChange={setReemplazaAnterior} />
               </div>
-              <div className="flex items-center justify-between">
-                <div>
-                  <Label>Auto-crear productos faltantes</Label>
-                  <p className="text-xs text-muted-foreground">Crea productos en catálogo si la clave no existe (estatus N - Nuevo).</p>
-                </div>
-                <Switch checked={autoCrearFaltantes} onCheckedChange={setAutoCrearFaltantes} />
-              </div>
-            </div>
-            <div className="flex justify-between">
-              <Button variant="outline" onClick={() => setStep(2)}>Atrás</Button>
-              <Button onClick={generarPreview} disabled={previewLoading}>
-                {previewLoading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                Generar vista previa
+            )}
+
+            <div className="flex justify-between pt-2">
+              <Button variant="outline" onClick={() => setStep(2)}><ArrowLeft className="h-4 w-4 mr-1" />Atrás</Button>
+              <Button
+                disabled={!proveedorId || (!!prevCarga && !confirmReplace) || verifying}
+                onClick={verificarCatalogo}
+              >
+                {verifying && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                Validar contra catálogo <ChevronRight className="h-4 w-4 ml-1" />
               </Button>
             </div>
           </CardContent>
         </Card>
       )}
 
-      {/* STEP 4: Preview */}
+      {/* STEP 4 */}
       {step === 4 && (
         <Card>
           <CardContent className="pt-6 space-y-4">
-            <h3 className="font-semibold">Paso 4: Vista previa para {proveedorActual?.nombre}</h3>
-            <div className="flex flex-wrap gap-2">
-              <Badge className="bg-green-600">Válidos: {counts.ok}</Badge>
-              <Badge variant="destructive">No encontrados: {counts.notFound}</Badge>
-              <Badge variant="outline">Inválidos: {counts.invalid}</Badge>
-              <Badge className="bg-blue-600">Precios cambiados: {counts.changed}</Badge>
-              <Badge variant="secondary">Total: {parsed.length}</Badge>
+            <h3 className="font-semibold">Paso 4 — Validación contra catálogo</h3>
+
+            <div className="grid md:grid-cols-3 gap-3">
+              <div className="border rounded-md p-3 bg-green-50 dark:bg-green-950/20">
+                <p className="text-green-800 dark:text-green-300 font-semibold">🟢 Encontrados</p>
+                <p className="text-2xl font-bold">{encontrados.length}</p>
+                <p className="text-xs text-muted-foreground">Se actualizan precio y existencia</p>
+              </div>
+              <div className="border rounded-md p-3 bg-yellow-50 dark:bg-yellow-950/20">
+                <p className="text-yellow-800 dark:text-yellow-200 font-semibold">🟡 Nuevos</p>
+                <p className="text-2xl font-bold">{nuevos.length}</p>
+                <p className="text-xs text-muted-foreground">No están en catálogo SANAMEX</p>
+              </div>
+              <div className="border rounded-md p-3 bg-red-50 dark:bg-red-950/20">
+                <p className="text-red-800 dark:text-red-300 font-semibold">🔴 Sin precio</p>
+                <p className="text-2xl font-bold">0</p>
+                <p className="text-xs text-muted-foreground">Bloqueante (ya validado)</p>
+              </div>
             </div>
-            {counts.notFound > 0 && (
-              <Button variant="outline" size="sm" onClick={descargarNoEncontrados}>
-                <Download className="h-4 w-4 mr-1" />Descargar no encontrados ({counts.notFound})
-              </Button>
-            )}
-            {counts.changed > 0 && (
-              <div className="border rounded-md max-h-64 overflow-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Clave</TableHead><TableHead>Precio anterior</TableHead><TableHead>Precio nuevo</TableHead><TableHead>Δ %</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {parsed.filter(p => p.match === 'OK' && p.precio_anterior != null && Math.abs((p.precio || 0) - (p.precio_anterior || 0)) > 0.001).slice(0, 100).map(p => {
-                      const prev = p.precio_anterior!;
-                      const diff = ((p.precio || 0) - prev) / prev * 100;
-                      return (
-                        <TableRow key={p.fila}>
-                          <TableCell className="font-mono text-xs">{p.clave}</TableCell>
-                          <TableCell>${prev.toFixed(2)}</TableCell>
-                          <TableCell className="font-semibold">${(p.precio || 0).toFixed(2)}</TableCell>
-                          <TableCell className={diff >= 0 ? 'text-red-600' : 'text-green-600'}>{diff >= 0 ? '+' : ''}{diff.toFixed(1)}%</TableCell>
-                        </TableRow>
-                      );
-                    })}
-                  </TableBody>
-                </Table>
+
+            {nuevos.length > 0 && (
+              <div className="border rounded-md p-3 space-y-2">
+                <p className="text-sm font-semibold">Productos NUEVOS — se agregan con estatus='N' (Nuevo), departamento='POR ASIGNAR'</p>
+                <div className="max-h-48 overflow-auto text-xs font-mono">
+                  {nuevos.slice(0, 10).map(r => <div key={r.clave}>{r.clave} — {r.descripcion}</div>)}
+                  {nuevos.length > 10 && <div className="text-muted-foreground">… y {nuevos.length - 10} más</div>}
+                </div>
+                <label className="flex items-center gap-2 pt-1">
+                  <Switch checked={acceptNew} onCheckedChange={setAcceptNew} />
+                  <span className="text-sm">Aceptar agregar los {nuevos.length} productos nuevos al catálogo</span>
+                </label>
               </div>
             )}
-            <div className="flex justify-between">
-              <Button variant="outline" onClick={() => setStep(3)}>Atrás</Button>
-              <Button disabled={counts.ok === 0 || committing} onClick={() => { setStep(5); importar(); }}>
-                Importar {counts.ok} productos válidos
+
+            <div className="flex justify-between pt-2">
+              <Button variant="outline" onClick={() => setStep(3)}><ArrowLeft className="h-4 w-4 mr-1" />Atrás</Button>
+              <Button onClick={confirmar} disabled={committing}>
+                {committing && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}Confirmar carga
               </Button>
             </div>
           </CardContent>
         </Card>
       )}
 
-      {/* STEP 5: Importing */}
-      {step === 5 && (
-        <Card>
-          <CardContent className="pt-6 flex flex-col items-center justify-center py-12">
-            <Loader2 className="h-10 w-10 animate-spin text-primary mb-3" />
-            <p className="text-sm text-muted-foreground">Importando lista de precios...</p>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* STEP 6: Done */}
-      {step === 6 && resumen && (
+      {/* STEP 5 — result */}
+      {step === 5 && resumen && (
         <Card>
           <CardContent className="pt-6 space-y-4">
             <div className="flex items-center gap-2 text-green-700">
-              <Check className="h-5 w-5" />
-              <h3 className="font-semibold">Importación completada</h3>
+              <CheckCircle2 className="h-6 w-6" />
+              <h3 className="font-semibold text-lg">Carga exitosa</h3>
             </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="p-3 bg-green-50 rounded-md"><p className="text-xs text-muted-foreground">Precios insertados</p><p className="text-2xl font-bold text-green-700">{resumen.insertados}</p></div>
-              <div className="p-3 bg-blue-50 rounded-md"><p className="text-xs text-muted-foreground">Reemplazaron precios previos</p><p className="text-2xl font-bold text-blue-700">{resumen.reemplazados}</p></div>
-              <div className="p-3 bg-amber-50 rounded-md"><p className="text-xs text-muted-foreground">Filas omitidas</p><p className="text-2xl font-bold text-amber-700">{resumen.omitidos}</p></div>
-              <div className="p-3 bg-purple-50 rounded-md"><p className="text-xs text-muted-foreground">Productos auto-creados</p><p className="text-2xl font-bold text-purple-700">{resumen.autocreados}</p></div>
-            </div>
-            <div className="flex justify-end gap-2">
-              <Button variant="outline" onClick={resetWizard}>Cargar otra lista</Button>
+            <ul className="text-sm space-y-1">
+              <li>✅ {resumen.precios} precios cargados</li>
+              <li>🆕 {resumen.nuevos} productos nuevos creados</li>
+              <li>🏷️ {resumen.ofertas} ofertas vigentes creadas</li>
+              <li className="text-xs text-muted-foreground font-mono">Carga ID: {resumen.cargaId.slice(0, 8)}…</li>
+            </ul>
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={() => { onDone?.(); }}>Ver listas cargadas</Button>
+              <Button onClick={reset}>Cargar otra lista</Button>
             </div>
           </CardContent>
         </Card>
       )}
-
-      {/* Nuevo proveedor dialog */}
-      <Dialog open={newProvOpen} onOpenChange={setNewProvOpen}>
-        <DialogContent>
-          <DialogHeader><DialogTitle>Nuevo proveedor</DialogTitle></DialogHeader>
-          <div className="space-y-3">
-            <div><Label>Código *</Label><Input value={newProv.codigo} onChange={e => setNewProv({ ...newProv, codigo: e.target.value.toUpperCase() })} placeholder="FANASA" /></div>
-            <div><Label>Nombre comercial *</Label><Input value={newProv.nombre} onChange={e => setNewProv({ ...newProv, nombre: e.target.value })} /></div>
-            <div><Label>Razón social</Label><Input value={newProv.razon_social} onChange={e => setNewProv({ ...newProv, razon_social: e.target.value })} /></div>
-            <div><Label>Días de crédito</Label><Input type="number" min={0} value={newProv.plazo_pago_dias} onChange={e => setNewProv({ ...newProv, plazo_pago_dias: Number(e.target.value) || 0 })} /></div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setNewProvOpen(false)}>Cancelar</Button>
-            <Button onClick={crearProveedor}>Crear y seleccionar</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }
