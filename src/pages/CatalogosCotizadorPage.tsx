@@ -5,6 +5,7 @@ import ProveedoresUploader from '@/components/cargas/ProveedoresUploader';
 import CorrugadoUploader from '@/components/cargas/CorrugadoUploader';
 import EstatusSucursalUploader from '@/components/cargas/EstatusSucursalUploader';
 import OfertasUploader from '@/components/cargas/OfertasUploader';
+import CotizadorConfigPanel from '@/components/cargas/CotizadorConfigPanel';
 
 export default function CatalogosCotizadorPage() {
   return (
