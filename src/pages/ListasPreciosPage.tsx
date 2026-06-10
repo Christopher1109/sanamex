@@ -7,8 +7,10 @@ import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Search, FileSpreadsheet, TrendingDown, TrendingUp } from 'lucide-react';
+import { Search, FileSpreadsheet, TrendingUp, History, Undo2, Loader2 } from 'lucide-react';
 import ListaPreciosUploader from '@/components/cargas/ListaPreciosUploader';
+import { useAuth } from '@/hooks/useAuth';
+import { toast } from 'sonner';
 
 type Item = {
   id: string;
@@ -24,8 +26,22 @@ type Item = {
   proveedor: { codigo: string | null; nombre: string } | null;
 };
 
+type Carga = {
+  id: string;
+  archivo_nombre: string;
+  created_at: string;
+  productos_cargados: number;
+  productos_actualizados: number;
+  productos_autocreados: number;
+  cargado_por: string | null;
+  proveedor: { codigo: string | null; nombre: string } | null;
+  cargado_por_profile?: { nombre: string | null } | null;
+};
+
 export default function ListasPreciosPage() {
-  const [tab, setTab] = useState<'ver' | 'cargar'>('ver');
+  const { userRole } = useAuth();
+  const isAdmin = userRole === 'admin' || userRole === 'super_admin';
+  const [tab, setTab] = useState<'ver' | 'cargar' | 'historial'>('ver');
   const [items, setItems] = useState<Item[]>([]);
   const [loading, setLoading] = useState(true);
   const [proveedores, setProveedores] = useState<{ id: string; codigo: string | null; nombre: string }[]>([]);
@@ -33,6 +49,38 @@ export default function ListasPreciosPage() {
   const [search, setSearch] = useState('');
   const [compareClave, setCompareClave] = useState<string | null>(null);
   const [compareRows, setCompareRows] = useState<Item[]>([]);
+  const [cargas, setCargas] = useState<Carga[]>([]);
+  const [loadingCargas, setLoadingCargas] = useState(false);
+  const [reverting, setReverting] = useState<string | null>(null);
+
+  async function loadCargas() {
+    setLoadingCargas(true);
+    const { data } = await supabase
+      .from('lista_precio_cargas')
+      .select('id, archivo_nombre, created_at, productos_cargados, productos_actualizados, productos_autocreados, cargado_por, proveedor:proveedores(codigo, nombre)')
+      .order('created_at', { ascending: false })
+      .limit(200);
+    setCargas((data as any[]) || []);
+    setLoadingCargas(false);
+  }
+
+  useEffect(() => { if (tab === 'historial') loadCargas(); }, [tab]);
+
+  async function revertir(cargaId: string) {
+    if (!confirm('¿Revertir esta carga? Se reactivará la lista anterior del proveedor.')) return;
+    setReverting(cargaId);
+    try {
+      const { data, error } = await supabase.rpc('revertir_carga_lista_precios', { p_carga_id: cargaId });
+      if (error) throw error;
+      const r = data as any;
+      toast.success(`Reversión completa: ${r.desactivados} desactivados, ${r.reactivados} reactivados`);
+      loadCargas(); load();
+    } catch (e: any) {
+      toast.error('Error: ' + e.message);
+    } finally {
+      setReverting(null);
+    }
+  }
 
   async function load() {
     setLoading(true);
@@ -83,6 +131,7 @@ export default function ListasPreciosPage() {
         <TabsList>
           <TabsTrigger value="ver">Ver listas vigentes</TabsTrigger>
           <TabsTrigger value="cargar">Cargar lista</TabsTrigger>
+          <TabsTrigger value="historial"><History className="h-3.5 w-3.5 mr-1" />Historial de cargas</TabsTrigger>
         </TabsList>
 
         <TabsContent value="ver" className="space-y-4">
@@ -187,6 +236,53 @@ export default function ListasPreciosPage() {
           <Card>
             <CardContent className="pt-6">
               <ListaPreciosUploader onDone={() => { load(); setTab('ver'); }} />
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="historial">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base flex items-center gap-2"><History className="h-4 w-4" />Historial de cargas</CardTitle>
+            </CardHeader>
+            <CardContent className="p-0">
+              <div className="max-h-[70vh] overflow-auto">
+                <Table>
+                  <TableHeader className="sticky top-0 bg-background z-10">
+                    <TableRow>
+                      <TableHead>Fecha</TableHead>
+                      <TableHead>Proveedor</TableHead>
+                      <TableHead>Archivo</TableHead>
+                      <TableHead className="text-right">Líneas</TableHead>
+                      <TableHead className="text-right">Actualizados</TableHead>
+                      <TableHead className="text-right">Nuevos</TableHead>
+                      <TableHead></TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {loadingCargas ? <TableRow><TableCell colSpan={7} className="text-center py-8">Cargando…</TableCell></TableRow>
+                      : cargas.length === 0 ? <TableRow><TableCell colSpan={7} className="text-center py-8 text-muted-foreground">Sin cargas registradas.</TableCell></TableRow>
+                      : cargas.map(c => (
+                        <TableRow key={c.id}>
+                          <TableCell className="text-xs">{new Date(c.created_at).toLocaleString()}</TableCell>
+                          <TableCell className="text-sm">{c.proveedor?.codigo ? `[${c.proveedor.codigo}] ` : ''}{c.proveedor?.nombre}</TableCell>
+                          <TableCell className="text-xs font-mono">{c.archivo_nombre}</TableCell>
+                          <TableCell className="text-right">{c.productos_cargados}</TableCell>
+                          <TableCell className="text-right">{c.productos_actualizados}</TableCell>
+                          <TableCell className="text-right">{c.productos_autocreados}</TableCell>
+                          <TableCell>
+                            {isAdmin && (
+                              <Button size="sm" variant="ghost" disabled={reverting === c.id} onClick={() => revertir(c.id)}>
+                                {reverting === c.id ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <Undo2 className="h-3 w-3 mr-1" />}
+                                Revertir
+                              </Button>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                  </TableBody>
+                </Table>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
