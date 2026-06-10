@@ -9,15 +9,19 @@ import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
-import { Send, PackageCheck, X, ClipboardList, ArrowLeft, Edit } from 'lucide-react';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Textarea } from '@/components/ui/textarea';
+import { Send, PackageCheck, X, ClipboardList, ArrowLeft, Check, ShieldCheck } from 'lucide-react';
 import { toast } from 'sonner';
 
 type OC = {
   id: string; folio: string; estado: string;
   fecha_creacion: string; fecha_envio: string | null; fecha_recepcion_real: string | null;
   subtotal: number; iva: number; total: number; notas: string | null;
+  creada_por: string | null;
   proveedor: { nombre: string; codigo: string | null } | null;
   sucursal_destino: { codigo: string; nombre: string } | null;
+  comprador?: { nombre: string | null; username: string | null } | null;
 };
 type Linea = {
   id: string; producto_id: string; cantidad_solicitada: number; cantidad_recibida: number;
@@ -26,9 +30,12 @@ type Linea = {
 };
 
 const ESTADO_COLOR: Record<string, string> = {
-  borrador: 'bg-slate-500', enviada: 'bg-blue-600', confirmada: 'bg-indigo-600',
+  borrador: 'bg-slate-500', pendiente_aprobacion: 'bg-amber-600',
+  enviada: 'bg-blue-600', confirmada: 'bg-indigo-600',
   parcial: 'bg-amber-600', recibida: 'bg-emerald-600', cancelada: 'bg-rose-600',
 };
+
+const ROLES_APROBADOR = ['gerente', 'admin', 'super_admin'];
 
 export default function OrdenesCompraPage() {
   const { user } = useAuth();
