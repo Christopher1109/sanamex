@@ -38,7 +38,8 @@ const ESTADO_COLOR: Record<string, string> = {
 const ROLES_APROBADOR = ['gerente', 'admin', 'super_admin'];
 
 export default function OrdenesCompraPage() {
-  const { user } = useAuth();
+  const { user, userRole } = useAuth();
+  const esAprobador = !!userRole && ROLES_APROBADOR.includes(userRole);
   const [ocs, setOcs] = useState<OC[]>([]);
   const [loading, setLoading] = useState(false);
   const [filtroEstado, setFiltroEstado] = useState<string>('all');
@@ -49,8 +50,37 @@ export default function OrdenesCompraPage() {
   const [recepciones, setRecepciones] = useState<Record<string, number>>({});
   const [almacenes, setAlmacenes] = useState<{ id: string; nombre: string; sucursal: string }[]>([]);
   const [almacenSel, setAlmacenSel] = useState<string>('');
+  const [tab, setTab] = useState<'todas' | 'aprobaciones'>('todas');
+  const [rechazoOpen, setRechazoOpen] = useState<OC | null>(null);
+  const [razonRechazo, setRazonRechazo] = useState('');
 
   useEffect(() => { load(); loadAlmacenes(); }, []);
+
+  async function aprobarOC(oc: OC) {
+    const { error } = await supabase.from('ordenes_compra').update({
+      estado: 'borrador',
+      aprobada_por: user?.id,
+      fecha_aprobacion: new Date().toISOString(),
+      razon_aprobacion: 'Aprobada',
+    } as any).eq('id', oc.id);
+    if (error) return toast.error(error.message);
+    toast.success(`${oc.folio} aprobada — comprador puede enviarla`);
+    load();
+  }
+
+  async function rechazarOC() {
+    if (!rechazoOpen || !razonRechazo.trim()) { toast.error('Razón obligatoria'); return; }
+    const { error } = await supabase.from('ordenes_compra').update({
+      estado: 'cancelada',
+      aprobada_por: user?.id,
+      fecha_aprobacion: new Date().toISOString(),
+      razon_aprobacion: razonRechazo.trim(),
+    } as any).eq('id', rechazoOpen.id);
+    if (error) return toast.error(error.message);
+    toast.success(`${rechazoOpen.folio} rechazada`);
+    setRechazoOpen(null); setRazonRechazo('');
+    load();
+  }
 
   async function load() {
     setLoading(true);
