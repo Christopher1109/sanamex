@@ -14,6 +14,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Calculator, Send, Search, Sparkles, AlertTriangle, RefreshCw, Download, ShoppingCart, Replace } from 'lucide-react';
 import { toast } from 'sonner';
+import { rpcPaginate } from '@/lib/rpcPaginate';
 
 const APROBACION_UMBRAL_DEFAULT = 50000;
 
