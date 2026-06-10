@@ -35,6 +35,8 @@ import ReporteVentasPresupuesto from './pages/ReporteVentasPresupuesto';
 import ListasPreciosPage from './pages/ListasPreciosPage';
 import ReporteSugeridos from './pages/ReporteSugeridos';
 import CatalogosCotizadorPage from './pages/CatalogosCotizadorPage';
+import CotizadorPage from './pages/CotizadorPage';
+import OrdenesCompraPage from './pages/OrdenesCompraPage';
 import Sidebar from './components/layout/Sidebar';
 import Header from './components/layout/Header';
 
@@ -99,6 +101,8 @@ const AppContent = () => {
               <Route path="/reporte-sugeridos" element={<ReporteSugeridos />} />
               <Route path="/listas-precios" element={<ListasPreciosPage />} />
               <Route path="/catalogos-cotizador" element={<CatalogosCotizadorPage />} />
+              <Route path="/cotizador" element={<CotizadorPage />} />
+              <Route path="/ordenes-compra" element={<OrdenesCompraPage />} />
               <Route path="/cuentas-por-pagar" element={<CuentasPorPagarPage />} />
               <Route path="/fiscal" element={<FiscalPage />} />
               <Route path="/cargas-masivas" element={<CargasMasivasPage />} />
