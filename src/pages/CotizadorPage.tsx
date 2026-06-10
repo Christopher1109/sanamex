@@ -48,6 +48,17 @@ export default function CotizadorPage() {
   const navigate = useNavigate();
   const { selectedSucursal } = useSucursal();
 
+  const SUCURSALES_OPCIONES = [
+    { code: '__all__', label: 'Consolidado (todas las sucursales)' },
+    { code: 'SV', label: 'SV — San Vicente' },
+    { code: 'ECA', label: 'ECA — Ecatepec' },
+    { code: 'F36', label: 'F36 — Izta-F36' },
+    { code: 'GH', label: 'GH — Izta-GH' },
+    { code: 'CEDIS', label: 'CEDIS — CEDIS Central' },
+  ];
+  const [sucursalLocal, setSucursalLocal] = useState<string>('__all__');
+  const sucursalLabel = SUCURSALES_OPCIONES.find(s => s.code === sucursalLocal)?.label.split(' — ').slice(-1)[0] || 'Consolidado';
+
   const [periodo, setPeriodo] = useState<7 | 14 | 30>(30);
   const [loading, setLoading] = useState(false);
   const [rows, setRows] = useState<Pendiente[]>([]);
