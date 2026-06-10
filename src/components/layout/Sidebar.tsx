@@ -144,7 +144,10 @@ const Sidebar = ({ userRole, onLogout }: SidebarProps) => {
                       isActive ? 'bg-sidebar-primary text-sidebar-primary-foreground' : 'text-sidebar-foreground hover:bg-sidebar-accent'
                     )}>
                     <item.icon className="h-5 w-5" />
-                    {item.label}
+                    <span className="flex-1">{item.label}</span>
+                    {item.path === '/ordenes-compra' && esAprobador && pendientesAprob > 0 && (
+                      <Badge variant="destructive" className="h-5 px-1.5 text-[10px]">{pendientesAprob}</Badge>
+                    )}
                   </Link>
                 );
               })}
