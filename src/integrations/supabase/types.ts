@@ -655,6 +655,30 @@ export type Database = {
           },
         ]
       }
+      cotizador_config: {
+        Row: {
+          activo: boolean | null
+          id: string
+          modificado_por: string | null
+          monto_aprobacion_oc: number
+          updated_at: string | null
+        }
+        Insert: {
+          activo?: boolean | null
+          id?: string
+          modificado_por?: string | null
+          monto_aprobacion_oc?: number
+          updated_at?: string | null
+        }
+        Update: {
+          activo?: boolean | null
+          id?: string
+          modificado_por?: string | null
+          monto_aprobacion_oc?: number
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       inventario: {
         Row: {
           almacen_id: string
@@ -1185,10 +1209,12 @@ export type Database = {
       }
       ordenes_compra: {
         Row: {
+          aprobada_por: string | null
           creada_por: string | null
           created_at: string | null
           enviada_por: string | null
           estado: string
+          fecha_aprobacion: string | null
           fecha_creacion: string | null
           fecha_envio: string | null
           fecha_recepcion_esperada: string | null
@@ -1198,6 +1224,7 @@ export type Database = {
           iva: number
           notas: string | null
           proveedor_id: string
+          razon_aprobacion: string | null
           recibida_por: string | null
           subtotal: number
           sucursal_destino_id: string | null
@@ -1205,10 +1232,12 @@ export type Database = {
           updated_at: string | null
         }
         Insert: {
+          aprobada_por?: string | null
           creada_por?: string | null
           created_at?: string | null
           enviada_por?: string | null
           estado?: string
+          fecha_aprobacion?: string | null
           fecha_creacion?: string | null
           fecha_envio?: string | null
           fecha_recepcion_esperada?: string | null
@@ -1218,6 +1247,7 @@ export type Database = {
           iva?: number
           notas?: string | null
           proveedor_id: string
+          razon_aprobacion?: string | null
           recibida_por?: string | null
           subtotal?: number
           sucursal_destino_id?: string | null
@@ -1225,10 +1255,12 @@ export type Database = {
           updated_at?: string | null
         }
         Update: {
+          aprobada_por?: string | null
           creada_por?: string | null
           created_at?: string | null
           enviada_por?: string | null
           estado?: string
+          fecha_aprobacion?: string | null
           fecha_creacion?: string | null
           fecha_envio?: string | null
           fecha_recepcion_esperada?: string | null
@@ -1238,6 +1270,7 @@ export type Database = {
           iva?: number
           notas?: string | null
           proveedor_id?: string
+          razon_aprobacion?: string | null
           recibida_por?: string | null
           subtotal?: number
           sucursal_destino_id?: string | null
