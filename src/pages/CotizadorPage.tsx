@@ -2,480 +2,553 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
+import { useSucursal } from '@/contexts/SucursalContext';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
-import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Calculator, Plus, Trash2, ShoppingCart, Send, Search, Sparkles, AlertTriangle } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Calculator, Send, Search, Sparkles, AlertTriangle, RefreshCw, Download, ShoppingCart, Replace } from 'lucide-react';
 import { toast } from 'sonner';
 
-type Reco = {
-  proveedor_id: string; proveedor_codigo: string; proveedor_nombre: string;
-  precio_unitario: number; precio_con_iva: number; existencia_proveedor: number;
-  dias_credito: number; lead_time_dias: number; acepta_devoluciones: boolean;
-  pago_contra_entrega: boolean; piezas_corrugado: number; cantidad_sugerida: number;
-  cantidad_disponible: number; monto_total: number; con_oferta: boolean;
-  score: number; ranking: number;
+const APROBACION_UMBRAL = 50000;
+
+type Pendiente = {
+  producto_id: string;
+  clave: string;
+  descripcion: string;
+  clasificacion: string | null;
+  departamento: string | null;
+  cantidad_sugerida: number;
+  ventas_periodo: number;
+  ddi_periodo: number;
+  comentario_resumen: string;
+  mejor_proveedor_id: string | null;
+  mejor_proveedor_nombre: string | null;
+  mejor_precio: number | null;
+  mejor_existencia: number | null;
+  proveedores_disponibles: number;
+  total_estimado: number;
 };
 
-type Producto = { id: string; clave: string; descripcion: string };
-type CarritoItem = {
-  id: string; producto_id: string; proveedor_id: string;
-  cantidad: number; precio_unitario: number;
-  producto?: { nombre: string; sku: string };
-  proveedor?: { nombre: string; codigo: string; monto_minimo_pedido: number; sucursal_id?: string };
+type Alternativa = {
+  proveedor_id: string; proveedor_codigo: string; proveedor_nombre: string;
+  precio_unitario: number; existencia_proveedor: number;
+  dias_credito: number; lead_time_dias: number;
+  piezas_corrugado: number; cantidad_sugerida: number; monto_total: number;
+  con_oferta: boolean; ranking: number;
 };
-type MasivoRow = { clave: string; cantidad: number; producto?: Producto; recos: Reco[]; sin_proveedor: boolean };
 
 export default function CotizadorPage() {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const { selectedSucursal } = useSucursal();
 
-  // Modo 1
-  const [busqueda, setBusqueda] = useState('');
-  const [productosEncontrados, setProductosEncontrados] = useState<Producto[]>([]);
-  const [productoSel, setProductoSel] = useState<Producto | null>(null);
-  const [cantidad, setCantidad] = useState<number>(1);
-  const [recos, setRecos] = useState<Reco[]>([]);
-  const [loadingRecos, setLoadingRecos] = useState(false);
+  const [periodo, setPeriodo] = useState<7 | 14 | 30>(30);
+  const [loading, setLoading] = useState(false);
+  const [rows, setRows] = useState<Pendiente[]>([]);
+  const [seleccion, setSeleccion] = useState<Record<string, { proveedor_id: string; cantidad: number; precio: number; descripcion: string; clave: string }>>({});
+  const [soloSinProv, setSoloSinProv] = useState(false);
+  const [filtroDepto, setFiltroDepto] = useState<string>('all');
+  const [filtroClasif, setFiltroClasif] = useState<string>('all');
+  const [filtroProv, setFiltroProv] = useState<string>('all');
 
-  // Modo 2
-  const [pegado, setPegado] = useState('');
-  const [masivoRows, setMasivoRows] = useState<MasivoRow[]>([]);
-  const [procesandoMasivo, setProcesandoMasivo] = useState(false);
-  const [detalleMasivo, setDetalleMasivo] = useState<MasivoRow | null>(null);
+  // Cambiar proveedor
+  const [cambiarFor, setCambiarFor] = useState<Pendiente | null>(null);
+  const [alternativas, setAlternativas] = useState<Alternativa[]>([]);
 
-  // Carrito
-  const [carrito, setCarrito] = useState<CarritoItem[]>([]);
-  const [carritoOpen, setCarritoOpen] = useState(false);
+  // Manual quote
+  const [manualOpen, setManualOpen] = useState(false);
 
-  // Modo 3: sugeridos vía sessionStorage
-  useEffect(() => {
-    const raw = sessionStorage.getItem('cotizador_sugeridos');
-    if (raw) {
-      try {
-        const arr = JSON.parse(raw) as { clave: string; cantidad: number }[];
-        sessionStorage.removeItem('cotizador_sugeridos');
-        setPegado(arr.map(r => `${r.clave}\t${r.cantidad}`).join('\n'));
-        toast.success(`${arr.length} productos cargados desde Sugeridos. Ve a la pestaña "Masivo".`);
-      } catch {}
-    }
-  }, []);
+  useEffect(() => { cargar(); /* eslint-disable-next-line */ }, [periodo, selectedSucursal?.codigo]);
 
-  useEffect(() => { loadCarrito(); }, []);
-
-  async function loadCarrito() {
-    if (!user) return;
-    const { data } = await supabase
-      .from('cotizaciones_carrito')
-      .select(`id, producto_id, proveedor_id, cantidad, precio_unitario,
-               producto:productos(nombre, sku),
-               proveedor:proveedores(nombre, codigo, monto_minimo_pedido)`)
-      .eq('usuario_id', user.id);
-    setCarrito((data || []) as any);
-  }
-
-  // ========== MODO 1 ==========
-  async function searchProductos() {
-    const q = busqueda.trim();
-    if (q.length < 2) return;
-    const { data } = await supabase
-      .from('productos')
-      .select('id, sku, codigo_barras, nombre, descripcion')
-      .or(`sku.ilike.%${q}%,codigo_barras.ilike.%${q}%,nombre.ilike.%${q}%,descripcion.ilike.%${q}%`)
-      .eq('activo', true)
-      .neq('estatus', 'K').neq('estatus', 'C')
-      .limit(20);
-    setProductosEncontrados((data || []).map((p: any) => ({
-      id: p.id, clave: p.codigo_barras || p.sku,
-      descripcion: p.descripcion || p.nombre,
-    })));
-  }
-
-  async function recomendar() {
-    if (!productoSel || cantidad <= 0) return;
-    setLoadingRecos(true); setRecos([]);
-    const { data, error } = await (supabase as any).rpc('recomendar_proveedor', {
-      p_producto_id: productoSel.id, p_cantidad_requerida: cantidad,
+  async function cargar() {
+    setLoading(true);
+    const { data, error } = await (supabase as any).rpc('productos_pendientes_compra', {
+      p_fecha_corte: null,
+      p_sucursal_codigo: selectedSucursal?.codigo ?? null,
+      p_periodo_referencia: periodo,
     });
-    setLoadingRecos(false);
+    setLoading(false);
     if (error) { toast.error(error.message); return; }
-    setRecos((data || []) as Reco[]);
-    if (!data?.length) toast.warning('Sin proveedores con lista de precios vigente para este producto.');
-  }
-
-  // ========== MODO 2 ==========
-  async function procesarMasivo() {
-    setProcesandoMasivo(true);
-    const lineas = pegado.split('\n').map(l => l.trim()).filter(Boolean).map(l => {
-      const parts = l.split(/[\t,;]+/).map(s => s.trim());
-      return { clave: parts[0], cantidad: parseInt(parts[1] || '1') || 1 };
+    const list = (data || []) as Pendiente[];
+    setRows(list);
+    // Pre-select rows with provider
+    const sel: typeof seleccion = {};
+    list.forEach(r => {
+      if (r.mejor_proveedor_id && r.mejor_precio) {
+        sel[r.producto_id] = {
+          proveedor_id: r.mejor_proveedor_id,
+          cantidad: r.cantidad_sugerida,
+          precio: Number(r.mejor_precio),
+          descripcion: r.descripcion,
+          clave: r.clave,
+        };
+      }
     });
-    if (!lineas.length) { setProcesandoMasivo(false); return; }
-    const claves = lineas.map(l => l.clave);
-    const { data: prods } = await supabase
-      .from('productos').select('id, sku, codigo_barras, nombre, descripcion')
-      .or(`sku.in.(${claves.map(c => `"${c}"`).join(',')}),codigo_barras.in.(${claves.map(c => `"${c}"`).join(',')})`)
-      .eq('activo', true);
-    const map: Record<string, Producto> = {};
-    (prods || []).forEach((p: any) => {
-      const prod = { id: p.id, clave: p.codigo_barras || p.sku, descripcion: p.descripcion || p.nombre };
-      if (p.sku) map[p.sku] = prod;
-      if (p.codigo_barras) map[p.codigo_barras] = prod;
+    setSeleccion(sel);
+  }
+
+  const deptos = useMemo(() => Array.from(new Set(rows.map(r => r.departamento).filter(Boolean))) as string[], [rows]);
+  const clasifs = useMemo(() => Array.from(new Set(rows.map(r => r.clasificacion).filter(Boolean))) as string[], [rows]);
+  const provs = useMemo(() => Array.from(new Set(rows.map(r => r.mejor_proveedor_nombre).filter(Boolean))) as string[], [rows]);
+
+  const rowsFiltradas = useMemo(() => rows.filter(r => {
+    if (soloSinProv && r.mejor_proveedor_id) return false;
+    if (filtroDepto !== 'all' && r.departamento !== filtroDepto) return false;
+    if (filtroClasif !== 'all' && r.clasificacion !== filtroClasif) return false;
+    if (filtroProv !== 'all' && r.mejor_proveedor_nombre !== filtroProv) return false;
+    return true;
+  }), [rows, soloSinProv, filtroDepto, filtroClasif, filtroProv]);
+
+  const resumen = useMemo(() => {
+    const conProv = rows.filter(r => r.mejor_proveedor_id);
+    const sinProv = rows.filter(r => !r.mejor_proveedor_id);
+    const inv = rows.reduce((s, r) => s + Number(r.total_estimado || 0), 0);
+    const seleccionados = Object.values(seleccion);
+    const totalSel = seleccionados.reduce((s, x) => s + x.cantidad * x.precio, 0);
+    const proveedoresUnicos = new Set(seleccionados.map(x => x.proveedor_id)).size;
+    return {
+      total: rows.length,
+      conProv: conProv.length,
+      sinProv: sinProv.length,
+      inv,
+      seleccionados: seleccionados.length,
+      totalSel,
+      proveedoresUnicos,
+    };
+  }, [rows, seleccion]);
+
+  function toggleRow(r: Pendiente, on: boolean) {
+    setSeleccion(prev => {
+      const n = { ...prev };
+      if (on && r.mejor_proveedor_id && r.mejor_precio) {
+        n[r.producto_id] = {
+          proveedor_id: r.mejor_proveedor_id,
+          cantidad: r.cantidad_sugerida,
+          precio: Number(r.mejor_precio),
+          descripcion: r.descripcion,
+          clave: r.clave,
+        };
+      } else {
+        delete n[r.producto_id];
+      }
+      return n;
     });
-
-    const rows: MasivoRow[] = [];
-    for (const l of lineas) {
-      const prod = map[l.clave];
-      if (!prod) { rows.push({ clave: l.clave, cantidad: l.cantidad, recos: [], sin_proveedor: true }); continue; }
-      const { data: r } = await (supabase as any).rpc('recomendar_proveedor', {
-        p_producto_id: prod.id, p_cantidad_requerida: l.cantidad,
-      });
-      rows.push({
-        clave: l.clave, cantidad: l.cantidad, producto: prod,
-        recos: (r || []) as Reco[], sin_proveedor: !r?.length,
-      });
-    }
-    setMasivoRows(rows);
-    setProcesandoMasivo(false);
-    toast.success(`${rows.length} productos procesados.`);
   }
 
-  // ========== CARRITO ==========
-  async function agregarAlCarrito(producto_id: string, r: Reco, cantidad_final: number) {
-    if (!user) return;
-    const { error } = await supabase.from('cotizaciones_carrito').upsert({
-      usuario_id: user.id, producto_id, proveedor_id: r.proveedor_id,
-      cantidad: cantidad_final, precio_unitario: r.precio_unitario,
-    }, { onConflict: 'usuario_id,producto_id,proveedor_id' });
-    if (error) { toast.error(error.message); return; }
-    toast.success('Agregado al carrito');
-    loadCarrito();
-  }
-
-  async function eliminarItem(id: string) {
-    await supabase.from('cotizaciones_carrito').delete().eq('id', id);
-    loadCarrito();
-  }
-
-  async function actualizarCantidadCarrito(id: string, cant: number) {
-    if (cant <= 0) return eliminarItem(id);
-    await supabase.from('cotizaciones_carrito').update({ cantidad: cant }).eq('id', id);
-    loadCarrito();
-  }
-
-  // Agrupar por proveedor
-  const carritoAgrupado = useMemo(() => {
-    const g: Record<string, { proveedor: any; items: CarritoItem[]; subtotal: number }> = {};
-    carrito.forEach(it => {
-      const k = it.proveedor_id;
-      if (!g[k]) g[k] = { proveedor: it.proveedor, items: [], subtotal: 0 };
-      g[k].items.push(it);
-      g[k].subtotal += it.cantidad * Number(it.precio_unitario);
+  async function abrirCambiarProv(r: Pendiente) {
+    setCambiarFor(r);
+    setAlternativas([]);
+    const { data } = await (supabase as any).rpc('recomendar_proveedor', {
+      p_producto_id: r.producto_id,
+      p_cantidad_requerida: 1, // mostrar todos los proveedores con cualquier stock
     });
-    return g;
-  }, [carrito]);
+    // mostramos todos aunque no tengan stock suficiente, ordenados por precio
+    setAlternativas((data || []) as Alternativa[]);
+  }
+
+  function elegirAlternativa(alt: Alternativa) {
+    if (!cambiarFor) return;
+    setSeleccion(prev => ({
+      ...prev,
+      [cambiarFor.producto_id]: {
+        proveedor_id: alt.proveedor_id,
+        cantidad: cambiarFor.cantidad_sugerida,
+        precio: Number(alt.precio_unitario),
+        descripcion: cambiarFor.descripcion,
+        clave: cambiarFor.clave,
+      },
+    }));
+    setCambiarFor(null);
+  }
+
+  function descargarSinProveedor() {
+    const sin = rows.filter(r => !r.mejor_proveedor_id);
+    const csv = ['Clave,Descripcion,Departamento,Clasificacion,Cantidad', ...sin.map(r =>
+      `"${r.clave}","${(r.descripcion || '').replace(/"/g, '""')}","${r.departamento || ''}","${r.clasificacion || ''}",${r.cantidad_sugerida}`
+    )].join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `sin_proveedor_${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+  }
 
   async function generarOCs() {
-    if (!user || !carrito.length) return;
+    if (!user) return;
+    const items = Object.entries(seleccion);
+    if (!items.length) { toast.error('Selecciona al menos un producto.'); return; }
+
+    // Cargar info de proveedores (monto minimo)
+    const provIds = Array.from(new Set(items.map(([, v]) => v.proveedor_id)));
+    const { data: provData } = await supabase.from('proveedores')
+      .select('id, nombre, monto_minimo_pedido').in('id', provIds);
+    const provMap = new Map((provData || []).map((p: any) => [p.id, p]));
+
+    // Agrupar por proveedor
+    const grupos: Record<string, { items: typeof items; subtotal: number }> = {};
+    items.forEach((entry) => {
+      const [, v] = entry;
+      if (!grupos[v.proveedor_id]) grupos[v.proveedor_id] = { items: [], subtotal: 0 };
+      grupos[v.proveedor_id].items.push(entry);
+      grupos[v.proveedor_id].subtotal += v.cantidad * v.precio;
+    });
+
+    // Avisos
+    const avisos: string[] = [];
+    Object.entries(grupos).forEach(([pid, g]) => {
+      const p: any = provMap.get(pid);
+      const min = Number(p?.monto_minimo_pedido || 0);
+      if (min > 0 && g.subtotal < min) {
+        avisos.push(`${p?.nombre}: $${g.subtotal.toFixed(2)} < mínimo $${min.toLocaleString()}`);
+      }
+      if (g.subtotal > APROBACION_UMBRAL) {
+        avisos.push(`${p?.nombre}: $${g.subtotal.toLocaleString()} > umbral $${APROBACION_UMBRAL.toLocaleString()} — requiere aprobación`);
+      }
+    });
+    if (avisos.length && !confirm(`Avisos:\n\n${avisos.join('\n')}\n\n¿Generar OCs de todos modos?`)) return;
+
     const { data: cedis } = await supabase
       .from('sucursales').select('id').eq('tipo', 'cedis').eq('activo', true).maybeSingle();
-    const sucursal_destino = (cedis as any)?.id ?? null;
+    const sucursal_destino = (cedis as any)?.id ?? selectedSucursal?.id ?? null;
 
     let creadas = 0;
-    for (const [proveedor_id, grupo] of Object.entries(carritoAgrupado)) {
+    for (const [proveedor_id, g] of Object.entries(grupos)) {
+      const requiereAprob = g.subtotal > APROBACION_UMBRAL;
       const { data: oc, error } = await supabase.from('ordenes_compra').insert({
         proveedor_id, sucursal_destino_id: sucursal_destino,
-        estado: 'borrador', creada_por: user.id,
-        notas: 'Generada desde el Cotizador',
+        estado: requiereAprob ? 'pendiente_aprobacion' : 'borrador',
+        creada_por: user.id,
+        notas: `Generada desde Cotizador (Sugeridos ${periodo}d)`,
       }).select('id').single();
-      if (error || !oc) { toast.error(`Error en ${grupo.proveedor?.nombre}: ${error?.message}`); continue; }
-      const lineas = grupo.items.map(it => ({
-        orden_id: (oc as any).id, producto_id: it.producto_id,
-        cantidad_solicitada: it.cantidad, precio_unitario: it.precio_unitario,
-        precio_con_iva: Number(it.precio_unitario) * 1.16,
+      if (error || !oc) { toast.error(`OC ${(provMap.get(proveedor_id) as any)?.nombre}: ${error?.message}`); continue; }
+      const lineas = g.items.map(([producto_id, v]) => ({
+        orden_id: (oc as any).id,
+        producto_id,
+        cantidad_solicitada: v.cantidad,
+        precio_unitario: v.precio,
+        precio_con_iva: v.precio * 1.16,
       }));
       const { error: e2 } = await supabase.from('orden_compra_lineas').insert(lineas);
-      if (e2) { toast.error(`Líneas OC: ${e2.message}`); continue; }
+      if (e2) { toast.error(`Líneas: ${e2.message}`); continue; }
       creadas++;
     }
     if (creadas) {
-      await supabase.from('cotizaciones_carrito').delete().eq('usuario_id', user.id);
-      toast.success(`${creadas} órdenes de compra creadas en borrador.`);
-      loadCarrito();
-      setCarritoOpen(false);
+      toast.success(`${creadas} OC creadas.`);
       navigate('/ordenes-compra');
     }
   }
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-3">
         <div className="flex items-center gap-3">
           <Calculator className="h-7 w-7 text-primary" />
           <div>
-            <h1 className="text-2xl font-bold">Cotizador</h1>
-            <p className="text-sm text-muted-foreground">Recomendación de proveedor por SKU según precio, existencia, crédito, lead time y devoluciones.</p>
+            <h1 className="text-2xl font-bold">Cotizador — Productos pendientes de compra</h1>
+            <p className="text-sm text-muted-foreground">Filtro por existencia + sort por precio. Una OC por proveedor.</p>
           </div>
         </div>
-        <Sheet open={carritoOpen} onOpenChange={setCarritoOpen}>
-          <SheetTrigger asChild>
-            <Button variant="outline" className="gap-2">
-              <ShoppingCart className="h-4 w-4" />
-              Carrito ({carrito.length})
-            </Button>
-          </SheetTrigger>
-          <SheetContent className="w-[480px] sm:w-[560px] overflow-y-auto">
-            <SheetHeader><SheetTitle>Carrito de cotización</SheetTitle></SheetHeader>
-            <div className="mt-4 space-y-4">
-              {!carrito.length && <p className="text-sm text-muted-foreground">Carrito vacío.</p>}
-              {Object.entries(carritoAgrupado).map(([pid, g]) => {
-                const min = Number(g.proveedor?.monto_minimo_pedido || 0);
-                const cumpleMin = g.subtotal >= min || min === 0;
-                return (
-                  <Card key={pid} className="p-3 space-y-2">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="font-semibold text-sm">{g.proveedor?.nombre}</p>
-                        <p className="text-xs text-muted-foreground">{g.proveedor?.codigo}</p>
-                      </div>
-                      <p className="font-bold">${g.subtotal.toLocaleString('es-MX', { minimumFractionDigits: 2 })}</p>
-                    </div>
-                    {!cumpleMin && (
-                      <div className="flex items-center gap-2 rounded bg-amber-50 dark:bg-amber-950/30 p-2 text-xs text-amber-900 dark:text-amber-200">
-                        <AlertTriangle className="h-4 w-4 shrink-0" />
-                        Aviso: por debajo del monto mínimo (${min.toLocaleString()}).
-                      </div>
-                    )}
-                    {g.items.map(it => (
-                      <div key={it.id} className="flex items-center gap-2 text-xs border-t pt-2">
-                        <div className="flex-1 truncate">
-                          <p className="font-medium truncate">{it.producto?.nombre}</p>
-                          <p className="text-muted-foreground">{it.producto?.sku} · ${Number(it.precio_unitario).toFixed(2)}</p>
-                        </div>
-                        <Input type="number" className="h-7 w-20 text-xs" value={it.cantidad}
-                          onChange={e => actualizarCantidadCarrito(it.id, parseInt(e.target.value || '0'))} />
-                        <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => eliminarItem(it.id)}>
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </Button>
-                      </div>
-                    ))}
-                  </Card>
-                );
-              })}
-              {carrito.length > 0 && (
-                <Button className="w-full gap-2" onClick={generarOCs}>
-                  <Send className="h-4 w-4" /> Generar Órdenes de Compra
-                </Button>
-              )}
-            </div>
-          </SheetContent>
-        </Sheet>
+        <div className="flex gap-2 items-center">
+          <Select value={String(periodo)} onValueChange={(v) => setPeriodo(parseInt(v) as 7 | 14 | 30)}>
+            <SelectTrigger className="w-32"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="7">7 días</SelectItem>
+              <SelectItem value="14">14 días</SelectItem>
+              <SelectItem value="30">30 días</SelectItem>
+            </SelectContent>
+          </Select>
+          <Button variant="outline" onClick={cargar} disabled={loading} className="gap-2">
+            <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} /> Refrescar
+          </Button>
+          <Dialog open={manualOpen} onOpenChange={setManualOpen}>
+            <DialogTrigger asChild>
+              <Button variant="secondary" className="gap-2"><Search className="h-4 w-4" /> Cotizar manual</Button>
+            </DialogTrigger>
+            <CotizarManualDialog onClose={() => setManualOpen(false)} onAdd={(prod, alt) => {
+              setRows(prev => [{
+                producto_id: prod.id,
+                clave: prod.clave,
+                descripcion: prod.descripcion,
+                clasificacion: null, departamento: null,
+                cantidad_sugerida: alt.cantidad_sugerida,
+                ventas_periodo: 0, ddi_periodo: 0, comentario_resumen: 'Manual',
+                mejor_proveedor_id: alt.proveedor_id,
+                mejor_proveedor_nombre: alt.proveedor_nombre,
+                mejor_precio: alt.precio_unitario,
+                mejor_existencia: alt.existencia_proveedor,
+                proveedores_disponibles: 1,
+                total_estimado: alt.monto_total,
+              }, ...prev]);
+              setSeleccion(prev => ({
+                ...prev,
+                [prod.id]: {
+                  proveedor_id: alt.proveedor_id,
+                  cantidad: alt.cantidad_sugerida,
+                  precio: Number(alt.precio_unitario),
+                  descripcion: prod.descripcion,
+                  clave: prod.clave,
+                },
+              }));
+              setManualOpen(false);
+            }} />
+          </Dialog>
+        </div>
       </div>
 
-      <Tabs defaultValue="uno">
-        <TabsList>
-          <TabsTrigger value="uno">1 producto</TabsTrigger>
-          <TabsTrigger value="masivo">Masivo / Sugeridos</TabsTrigger>
-        </TabsList>
+      <Card className="p-3 bg-blue-50 dark:bg-blue-950/30 border-blue-200 dark:border-blue-900">
+        <p className="text-sm">
+          📊 <strong>{resumen.total}</strong> productos necesitan compra según Sugeridos (período {periodo} días).
+          Inversión estimada: <strong>${resumen.inv.toLocaleString('es-MX', { minimumFractionDigits: 2 })}</strong>
+        </p>
+      </Card>
 
-        <TabsContent value="uno" className="space-y-4 mt-4">
-          <Card className="p-4 space-y-3">
-            <div className="flex gap-2">
-              <Input placeholder="Buscar por clave, descripción o SKU…" value={busqueda}
-                onChange={e => setBusqueda(e.target.value)}
-                onKeyDown={e => { if (e.key === 'Enter') searchProductos(); }} />
-              <Button onClick={searchProductos} className="gap-2"><Search className="h-4 w-4" /> Buscar</Button>
-            </div>
-            {productosEncontrados.length > 0 && !productoSel && (
-              <div className="max-h-48 overflow-auto border rounded">
-                {productosEncontrados.map(p => (
-                  <button key={p.id} className="w-full text-left p-2 hover:bg-accent border-b last:border-0"
-                    onClick={() => { setProductoSel(p); setProductosEncontrados([]); setBusqueda(''); }}>
-                    <span className="font-mono text-xs">{p.clave}</span> — <span className="text-sm">{p.descripcion}</span>
-                  </button>
-                ))}
-              </div>
-            )}
-            {productoSel && (
-              <div className="flex items-end gap-3">
-                <div className="flex-1">
-                  <Label className="text-xs">Producto</Label>
-                  <p className="font-medium text-sm">{productoSel.clave} — {productoSel.descripcion}</p>
-                </div>
-                <div className="w-32">
-                  <Label className="text-xs">Cantidad</Label>
-                  <Input type="number" value={cantidad} onChange={e => setCantidad(parseInt(e.target.value || '0'))} />
-                </div>
-                <Button onClick={recomendar} disabled={loadingRecos} className="gap-2">
-                  <Sparkles className="h-4 w-4" /> Recomendar
-                </Button>
-                <Button variant="ghost" onClick={() => setProductoSel(null)}>Cambiar</Button>
-              </div>
-            )}
-          </Card>
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+        <Card className="p-3"><p className="text-xs text-muted-foreground">A comprar</p><p className="text-xl font-bold">{resumen.total}</p></Card>
+        <Card className="p-3"><p className="text-xs text-muted-foreground">Con proveedor</p><p className="text-xl font-bold text-emerald-600">{resumen.conProv}</p></Card>
+        <Card className="p-3 flex items-start justify-between">
+          <div><p className="text-xs text-muted-foreground">Sin proveedor con stock</p><p className="text-xl font-bold text-rose-600">{resumen.sinProv}</p></div>
+          {resumen.sinProv > 0 && <Button size="sm" variant="ghost" onClick={descargarSinProveedor}><Download className="h-3.5 w-3.5" /></Button>}
+        </Card>
+        <Card className="p-3"><p className="text-xs text-muted-foreground">Inversión estimada</p><p className="text-xl font-bold">${resumen.inv.toLocaleString('es-MX', { maximumFractionDigits: 0 })}</p></Card>
+        <Card className="p-3"><p className="text-xs text-muted-foreground">OCs a generar</p><p className="text-xl font-bold">{resumen.proveedoresUnicos}</p></Card>
+      </div>
 
-          {recos.length > 0 && (
-            <Card className="p-0 overflow-hidden">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>#</TableHead>
-                    <TableHead>Proveedor</TableHead>
-                    <TableHead className="text-right">Precio</TableHead>
-                    <TableHead className="text-right">Existencia</TableHead>
-                    <TableHead className="text-right">Crédito</TableHead>
-                    <TableHead className="text-right">Lead</TableHead>
-                    <TableHead className="text-right">Corrugado</TableHead>
-                    <TableHead className="text-right">Sugerido</TableHead>
-                    <TableHead className="text-right">Total</TableHead>
-                    <TableHead className="text-right">Score</TableHead>
-                    <TableHead></TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {recos.map(r => (
-                    <TableRow key={r.proveedor_id} className={r.ranking === 1 ? 'bg-emerald-50 dark:bg-emerald-950/30' : ''}>
-                      <TableCell>
-                        {r.ranking === 1 ? <Badge className="bg-emerald-600">★ #1</Badge> : `#${r.ranking}`}
-                      </TableCell>
-                      <TableCell>
-                        <div className="font-medium">{r.proveedor_nombre}</div>
-                        <div className="text-xs text-muted-foreground">{r.proveedor_codigo}
-                          {r.con_oferta && <Badge variant="secondary" className="ml-1">Oferta</Badge>}
-                          {r.acepta_devoluciones && <Badge variant="outline" className="ml-1">Dev</Badge>}
-                        </div>
-                      </TableCell>
-                      <TableCell className="text-right tabular-nums">${Number(r.precio_unitario).toFixed(2)}</TableCell>
-                      <TableCell className="text-right tabular-nums">{r.existencia_proveedor}</TableCell>
-                      <TableCell className="text-right tabular-nums">{r.dias_credito}d</TableCell>
-                      <TableCell className="text-right tabular-nums">{r.lead_time_dias}d</TableCell>
-                      <TableCell className="text-right tabular-nums">{r.piezas_corrugado}</TableCell>
-                      <TableCell className="text-right tabular-nums font-semibold">{r.cantidad_sugerida}</TableCell>
-                      <TableCell className="text-right tabular-nums">${Number(r.monto_total).toLocaleString('es-MX', { minimumFractionDigits: 2 })}</TableCell>
-                      <TableCell className="text-right tabular-nums">{Number(r.score).toFixed(1)}</TableCell>
-                      <TableCell>
-                        <Button size="sm" onClick={() => productoSel && agregarAlCarrito(productoSel.id, r, r.cantidad_sugerida)}>
-                          <Plus className="h-3.5 w-3.5 mr-1" />Agregar
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </Card>
+      <Card className="p-3 flex flex-wrap gap-3 items-end">
+        <div>
+          <Label className="text-xs">Departamento</Label>
+          <Select value={filtroDepto} onValueChange={setFiltroDepto}>
+            <SelectTrigger className="w-48"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos</SelectItem>
+              {deptos.map(d => <SelectItem key={d} value={d}>{d}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        </div>
+        <div>
+          <Label className="text-xs">Clasificación</Label>
+          <Select value={filtroClasif} onValueChange={setFiltroClasif}>
+            <SelectTrigger className="w-32"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todas</SelectItem>
+              {clasifs.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        </div>
+        <div>
+          <Label className="text-xs">Proveedor</Label>
+          <Select value={filtroProv} onValueChange={setFiltroProv}>
+            <SelectTrigger className="w-56"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos</SelectItem>
+              {provs.map(p => <SelectItem key={p} value={p}>{p}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        </div>
+        <label className="flex items-center gap-2 text-sm">
+          <Checkbox checked={soloSinProv} onCheckedChange={(v) => setSoloSinProv(!!v)} />
+          Solo sin proveedor
+        </label>
+      </Card>
+
+      <Card className="p-0 overflow-hidden">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead className="w-10"></TableHead>
+              <TableHead>Clave</TableHead>
+              <TableHead>Descripción</TableHead>
+              <TableHead className="text-right">Cantidad</TableHead>
+              <TableHead>Mejor proveedor</TableHead>
+              <TableHead className="text-right">Precio U.</TableHead>
+              <TableHead className="text-right">Total</TableHead>
+              <TableHead className="text-right">Prov. disp.</TableHead>
+              <TableHead></TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {loading && <TableRow><TableCell colSpan={9} className="text-center py-6 text-muted-foreground">Cargando…</TableCell></TableRow>}
+            {!loading && !rowsFiltradas.length && <TableRow><TableCell colSpan={9} className="text-center py-6 text-muted-foreground">Sin productos pendientes.</TableCell></TableRow>}
+            {rowsFiltradas.map(r => {
+              const sin = !r.mejor_proveedor_id;
+              const checked = !!seleccion[r.producto_id];
+              return (
+                <TableRow key={r.producto_id} className={sin ? 'bg-rose-50 dark:bg-rose-950/30' : ''}>
+                  <TableCell>
+                    <Checkbox checked={checked} onCheckedChange={(v) => toggleRow(r, !!v)} disabled={sin} />
+                  </TableCell>
+                  <TableCell className="font-mono text-xs">{r.clave}</TableCell>
+                  <TableCell className="text-xs max-w-[300px] truncate">{r.descripcion}
+                    <div className="text-[10px] text-muted-foreground">{r.departamento} {r.clasificacion && `· ${r.clasificacion}`}</div>
+                  </TableCell>
+                  <TableCell className="text-right tabular-nums">{r.cantidad_sugerida}</TableCell>
+                  <TableCell>
+                    {sin
+                      ? <Badge variant="destructive">Sin proveedor con stock</Badge>
+                      : <span className="text-sm">{r.mejor_proveedor_nombre}</span>}
+                  </TableCell>
+                  <TableCell className="text-right tabular-nums">{r.mejor_precio ? `$${Number(r.mejor_precio).toFixed(2)}` : '—'}</TableCell>
+                  <TableCell className="text-right tabular-nums font-semibold">{r.total_estimado ? `$${Number(r.total_estimado).toLocaleString('es-MX', { minimumFractionDigits: 2 })}` : '—'}</TableCell>
+                  <TableCell className="text-right tabular-nums">{r.proveedores_disponibles}</TableCell>
+                  <TableCell>
+                    <Button size="sm" variant="outline" onClick={() => abrirCambiarProv(r)} className="gap-1">
+                      <Replace className="h-3.5 w-3.5" />
+                      {sin ? 'Ver alternativas' : 'Cambiar'}
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              );
+            })}
+          </TableBody>
+        </Table>
+      </Card>
+
+      {/* Footer fijo */}
+      <div className="sticky bottom-0 z-10 bg-background border-t -mx-4 px-4 py-3 flex flex-wrap items-center justify-between gap-3">
+        <div className="text-sm">
+          <ShoppingCart className="inline h-4 w-4 mr-1" />
+          <strong>{resumen.seleccionados}</strong> productos seleccionados ·
+          Total: <strong>${resumen.totalSel.toLocaleString('es-MX', { minimumFractionDigits: 2 })}</strong>
+          {resumen.totalSel > APROBACION_UMBRAL && (
+            <span className="ml-2 text-amber-600"><AlertTriangle className="inline h-3.5 w-3.5" /> requiere aprobación</span>
           )}
-        </TabsContent>
+        </div>
+        <Button onClick={generarOCs} disabled={!resumen.seleccionados} className="gap-2">
+          <Send className="h-4 w-4" /> Generar OCs ({resumen.proveedoresUnicos} proveedores)
+        </Button>
+      </div>
 
-        <TabsContent value="masivo" className="space-y-4 mt-4">
-          <Card className="p-4 space-y-3">
-            <Label className="text-xs">Pega lista (clave + cantidad, separados por tabulación, coma o punto y coma)</Label>
-            <Textarea rows={8} value={pegado} onChange={e => setPegado(e.target.value)}
-              placeholder={'7502208894557\t100\n7501234567890,50'} className="font-mono text-xs" />
-            <Button onClick={procesarMasivo} disabled={procesandoMasivo} className="gap-2">
-              <Sparkles className="h-4 w-4" /> {procesandoMasivo ? 'Procesando…' : 'Procesar y recomendar'}
-            </Button>
-          </Card>
-
-          {masivoRows.length > 0 && (
-            <Card className="p-0 overflow-hidden">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Clave</TableHead>
-                    <TableHead>Descripción</TableHead>
-                    <TableHead className="text-right">Cant.</TableHead>
-                    <TableHead>Mejor proveedor</TableHead>
-                    <TableHead className="text-right">Precio</TableHead>
-                    <TableHead className="text-right">Total</TableHead>
-                    <TableHead className="text-right">Score</TableHead>
-                    <TableHead></TableHead>
+      {/* Modal cambiar/alternativas */}
+      <Dialog open={!!cambiarFor} onOpenChange={(o) => !o && setCambiarFor(null)}>
+        <DialogContent className="max-w-4xl">
+          <DialogHeader>
+            <DialogTitle>{cambiarFor?.clave} — proveedores disponibles</DialogTitle>
+          </DialogHeader>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>#</TableHead><TableHead>Proveedor</TableHead>
+                <TableHead className="text-right">Precio</TableHead>
+                <TableHead className="text-right">Existencia</TableHead>
+                <TableHead className="text-right">Crédito</TableHead>
+                <TableHead className="text-right">Lead</TableHead>
+                <TableHead></TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {!alternativas.length && <TableRow><TableCell colSpan={7} className="text-center py-4 text-muted-foreground">Sin proveedores en lista de precios.</TableCell></TableRow>}
+              {alternativas.map(a => {
+                const cumple = a.existencia_proveedor >= (cambiarFor?.cantidad_sugerida || 0);
+                return (
+                  <TableRow key={a.proveedor_id} className={!cumple ? 'opacity-60' : ''}>
+                    <TableCell>#{a.ranking}</TableCell>
+                    <TableCell>{a.proveedor_nombre} {a.con_oferta && <Badge variant="secondary" className="ml-1">Oferta</Badge>}</TableCell>
+                    <TableCell className="text-right">${Number(a.precio_unitario).toFixed(2)}</TableCell>
+                    <TableCell className="text-right">
+                      {a.existencia_proveedor}
+                      {!cumple && <Badge variant="destructive" className="ml-1 text-[10px]">parcial</Badge>}
+                    </TableCell>
+                    <TableCell className="text-right">{a.dias_credito}d</TableCell>
+                    <TableCell className="text-right">{a.lead_time_dias}d</TableCell>
+                    <TableCell><Button size="sm" onClick={() => elegirAlternativa(a)}>Elegir</Button></TableCell>
                   </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {masivoRows.map((row, i) => {
-                    const top = row.recos[0];
-                    return (
-                      <TableRow key={i} className={row.sin_proveedor ? 'bg-rose-50 dark:bg-rose-950/30' : ''}>
-                        <TableCell className="font-mono text-xs">{row.clave}</TableCell>
-                        <TableCell className="text-xs max-w-[260px] truncate">
-                          {row.producto?.descripcion || <span className="text-rose-600">Producto no encontrado</span>}
-                        </TableCell>
-                        <TableCell className="text-right tabular-nums">{row.cantidad}</TableCell>
-                        <TableCell>
-                          {row.sin_proveedor
-                            ? <Badge variant="destructive">Sin proveedor</Badge>
-                            : <span className="text-sm">{top?.proveedor_nombre}</span>}
-                        </TableCell>
-                        <TableCell className="text-right tabular-nums">{top ? `$${Number(top.precio_unitario).toFixed(2)}` : '—'}</TableCell>
-                        <TableCell className="text-right tabular-nums">{top ? `$${Number(top.monto_total).toLocaleString('es-MX', { minimumFractionDigits: 2 })}` : '—'}</TableCell>
-                        <TableCell className="text-right tabular-nums">{top ? Number(top.score).toFixed(1) : '—'}</TableCell>
-                        <TableCell>
-                          <div className="flex gap-1">
-                            {top && row.producto && (
-                              <Button size="sm" onClick={() => agregarAlCarrito(row.producto!.id, top, top.cantidad_sugerida)}>
-                                <Plus className="h-3.5 w-3.5" />
-                              </Button>
-                            )}
-                            {row.recos.length > 1 && (
-                              <Button size="sm" variant="outline" onClick={() => setDetalleMasivo(row)}>Detalles</Button>
-                            )}
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
-            </Card>
-          )}
-
-          <Dialog open={!!detalleMasivo} onOpenChange={() => setDetalleMasivo(null)}>
-            <DialogContent className="max-w-4xl">
-              <DialogHeader>
-                <DialogTitle>{detalleMasivo?.clave} — alternativas</DialogTitle>
-              </DialogHeader>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>#</TableHead><TableHead>Proveedor</TableHead>
-                    <TableHead className="text-right">Precio</TableHead>
-                    <TableHead className="text-right">Existencia</TableHead>
-                    <TableHead className="text-right">Crédito</TableHead>
-                    <TableHead className="text-right">Lead</TableHead>
-                    <TableHead className="text-right">Score</TableHead>
-                    <TableHead></TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {detalleMasivo?.recos.map(r => (
-                    <TableRow key={r.proveedor_id}>
-                      <TableCell>#{r.ranking}</TableCell>
-                      <TableCell>{r.proveedor_nombre}</TableCell>
-                      <TableCell className="text-right">${Number(r.precio_unitario).toFixed(2)}</TableCell>
-                      <TableCell className="text-right">{r.existencia_proveedor}</TableCell>
-                      <TableCell className="text-right">{r.dias_credito}d</TableCell>
-                      <TableCell className="text-right">{r.lead_time_dias}d</TableCell>
-                      <TableCell className="text-right">{Number(r.score).toFixed(1)}</TableCell>
-                      <TableCell>
-                        <Button size="sm" onClick={() => detalleMasivo?.producto && agregarAlCarrito(detalleMasivo.producto.id, r, r.cantidad_sugerida)}>
-                          <Plus className="h-3.5 w-3.5" />
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </DialogContent>
-          </Dialog>
-        </TabsContent>
-      </Tabs>
+                );
+              })}
+            </TableBody>
+          </Table>
+        </DialogContent>
+      </Dialog>
     </div>
+  );
+}
+
+// === Submódulo: cotizar producto manual ===
+function CotizarManualDialog({ onAdd, onClose }: {
+  onAdd: (prod: { id: string; clave: string; descripcion: string }, alt: Alternativa) => void;
+  onClose: () => void;
+}) {
+  const [q, setQ] = useState('');
+  const [hits, setHits] = useState<{ id: string; clave: string; descripcion: string }[]>([]);
+  const [sel, setSel] = useState<{ id: string; clave: string; descripcion: string } | null>(null);
+  const [cant, setCant] = useState(1);
+  const [alts, setAlts] = useState<Alternativa[]>([]);
+
+  async function buscar() {
+    if (q.trim().length < 2) return;
+    const { data } = await supabase
+      .from('productos')
+      .select('id, sku, codigo_barras, nombre, descripcion')
+      .or(`sku.ilike.%${q}%,codigo_barras.ilike.%${q}%,nombre.ilike.%${q}%,descripcion.ilike.%${q}%`)
+      .eq('activo', true).limit(20);
+    setHits((data || []).map((p: any) => ({
+      id: p.id, clave: p.codigo_barras || p.sku, descripcion: p.descripcion || p.nombre,
+    })));
+  }
+
+  async function recomendar() {
+    if (!sel) return;
+    const { data } = await (supabase as any).rpc('recomendar_proveedor', {
+      p_producto_id: sel.id, p_cantidad_requerida: cant,
+    });
+    setAlts((data || []) as Alternativa[]);
+    if (!data?.length) toast.warning('Sin proveedores con stock suficiente.');
+  }
+
+  return (
+    <DialogContent className="max-w-3xl">
+      <DialogHeader><DialogTitle>Cotizar producto manual</DialogTitle></DialogHeader>
+      <div className="space-y-3">
+        <div className="flex gap-2">
+          <Input placeholder="Buscar SKU / código / descripción…" value={q}
+            onChange={e => setQ(e.target.value)} onKeyDown={e => e.key === 'Enter' && buscar()} />
+          <Button onClick={buscar}><Search className="h-4 w-4" /></Button>
+        </div>
+        {hits.length > 0 && !sel && (
+          <div className="max-h-48 overflow-auto border rounded">
+            {hits.map(p => (
+              <button key={p.id} className="w-full text-left p-2 hover:bg-accent border-b last:border-0"
+                onClick={() => { setSel(p); setHits([]); }}>
+                <span className="font-mono text-xs">{p.clave}</span> — <span className="text-sm">{p.descripcion}</span>
+              </button>
+            ))}
+          </div>
+        )}
+        {sel && (
+          <div className="flex items-end gap-2">
+            <div className="flex-1"><Label className="text-xs">Producto</Label><p className="text-sm">{sel.clave} — {sel.descripcion}</p></div>
+            <div className="w-28"><Label className="text-xs">Cantidad</Label><Input type="number" value={cant} onChange={e => setCant(parseInt(e.target.value || '0'))} /></div>
+            <Button onClick={recomendar}><Sparkles className="h-4 w-4 mr-1" />Recomendar</Button>
+            <Button variant="ghost" onClick={() => { setSel(null); setAlts([]); }}>Cambiar</Button>
+          </div>
+        )}
+        {alts.length > 0 && sel && (
+          <Table>
+            <TableHeader><TableRow>
+              <TableHead>#</TableHead><TableHead>Proveedor</TableHead>
+              <TableHead className="text-right">Precio</TableHead>
+              <TableHead className="text-right">Existencia</TableHead>
+              <TableHead></TableHead>
+            </TableRow></TableHeader>
+            <TableBody>
+              {alts.map(a => (
+                <TableRow key={a.proveedor_id}>
+                  <TableCell>#{a.ranking}</TableCell>
+                  <TableCell>{a.proveedor_nombre}</TableCell>
+                  <TableCell className="text-right">${Number(a.precio_unitario).toFixed(2)}</TableCell>
+                  <TableCell className="text-right">{a.existencia_proveedor}</TableCell>
+                  <TableCell><Button size="sm" onClick={() => onAdd(sel, a)}>Agregar</Button></TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        )}
+        <div className="flex justify-end"><Button variant="ghost" onClick={onClose}>Cerrar</Button></div>
+      </div>
+    </DialogContent>
   );
 }
