@@ -293,6 +293,8 @@ export default function OrdenesCompraPage() {
     );
   }
 
+  const pendientesAprob = ocs.filter(o => o.estado === 'pendiente_aprobacion');
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
@@ -305,50 +307,119 @@ export default function OrdenesCompraPage() {
         </div>
       </div>
 
-      <Card className="p-3 flex gap-3 items-end">
-        <div className="flex-1">
-          <Label className="text-xs">Buscar folio o proveedor</Label>
-          <Input value={busqueda} onChange={e => setBusqueda(e.target.value)} placeholder="OC-2026-… o nombre" />
-        </div>
-        <div className="w-48">
-          <Label className="text-xs">Estado</Label>
-          <Select value={filtroEstado} onValueChange={setFiltroEstado}>
-            <SelectTrigger><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Todos</SelectItem>
-              {['borrador','pendiente_aprobacion','enviada','confirmada','parcial','recibida','cancelada'].map(e =>
-                <SelectItem key={e} value={e}>{e}</SelectItem>)}
-            </SelectContent>
-          </Select>
-        </div>
-      </Card>
+      <Tabs value={tab} onValueChange={(v) => setTab(v as any)}>
+        <TabsList>
+          <TabsTrigger value="todas">Todas</TabsTrigger>
+          {esAprobador && (
+            <TabsTrigger value="aprobaciones" className="gap-2">
+              <ShieldCheck className="h-4 w-4" /> Aprobaciones pendientes
+              {pendientesAprob.length > 0 && <Badge variant="destructive" className="ml-1">{pendientesAprob.length}</Badge>}
+            </TabsTrigger>
+          )}
+        </TabsList>
 
-      <Card className="p-0 overflow-hidden">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Folio</TableHead><TableHead>Proveedor</TableHead>
-              <TableHead>Destino</TableHead><TableHead>Estado</TableHead>
-              <TableHead>Fecha</TableHead>
-              <TableHead className="text-right">Total</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {loading && <TableRow><TableCell colSpan={6} className="text-center p-6">Cargando…</TableCell></TableRow>}
-            {!loading && !filtradas.length && <TableRow><TableCell colSpan={6} className="text-center p-6 text-muted-foreground">Sin órdenes de compra.</TableCell></TableRow>}
-            {filtradas.map(oc => (
-              <TableRow key={oc.id} className="cursor-pointer hover:bg-accent" onClick={() => abrirDetalle(oc)}>
-                <TableCell className="font-mono font-medium">{oc.folio}</TableCell>
-                <TableCell>{oc.proveedor?.nombre}</TableCell>
-                <TableCell>{oc.sucursal_destino?.codigo || '—'}</TableCell>
-                <TableCell><Badge className={ESTADO_COLOR[oc.estado]}>{oc.estado}</Badge></TableCell>
-                <TableCell className="text-xs">{oc.fecha_creacion}</TableCell>
-                <TableCell className="text-right tabular-nums">${Number(oc.total).toLocaleString('es-MX', { minimumFractionDigits: 2 })}</TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </Card>
+        <TabsContent value="todas" className="space-y-4">
+          <Card className="p-3 flex gap-3 items-end">
+            <div className="flex-1">
+              <Label className="text-xs">Buscar folio o proveedor</Label>
+              <Input value={busqueda} onChange={e => setBusqueda(e.target.value)} placeholder="OC-2026-… o nombre" />
+            </div>
+            <div className="w-48">
+              <Label className="text-xs">Estado</Label>
+              <Select value={filtroEstado} onValueChange={setFiltroEstado}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos</SelectItem>
+                  {['borrador','pendiente_aprobacion','enviada','confirmada','parcial','recibida','cancelada'].map(e =>
+                    <SelectItem key={e} value={e}>{e}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+          </Card>
+
+          <Card className="p-0 overflow-hidden">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Folio</TableHead><TableHead>Proveedor</TableHead>
+                  <TableHead>Destino</TableHead><TableHead>Estado</TableHead>
+                  <TableHead>Fecha</TableHead>
+                  <TableHead className="text-right">Total</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {loading && <TableRow><TableCell colSpan={6} className="text-center p-6">Cargando…</TableCell></TableRow>}
+                {!loading && !filtradas.length && <TableRow><TableCell colSpan={6} className="text-center p-6 text-muted-foreground">Sin órdenes de compra.</TableCell></TableRow>}
+                {filtradas.map(oc => (
+                  <TableRow key={oc.id} className="cursor-pointer hover:bg-accent" onClick={() => abrirDetalle(oc)}>
+                    <TableCell className="font-mono font-medium">{oc.folio}</TableCell>
+                    <TableCell>{oc.proveedor?.nombre}</TableCell>
+                    <TableCell>{oc.sucursal_destino?.codigo || '—'}</TableCell>
+                    <TableCell><Badge className={ESTADO_COLOR[oc.estado]}>{oc.estado}</Badge></TableCell>
+                    <TableCell className="text-xs">{oc.fecha_creacion}</TableCell>
+                    <TableCell className="text-right tabular-nums">${Number(oc.total).toLocaleString('es-MX', { minimumFractionDigits: 2 })}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </Card>
+        </TabsContent>
+
+        {esAprobador && (
+          <TabsContent value="aprobaciones">
+            <Card className="p-0 overflow-hidden">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Folio</TableHead><TableHead>Proveedor</TableHead>
+                    <TableHead>Fecha</TableHead>
+                    <TableHead className="text-right">Monto</TableHead>
+                    <TableHead className="text-right">Acciones</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {!pendientesAprob.length && <TableRow><TableCell colSpan={5} className="text-center p-6 text-muted-foreground">No hay OCs pendientes de aprobación.</TableCell></TableRow>}
+                  {pendientesAprob.map(oc => (
+                    <TableRow key={oc.id}>
+                      <TableCell className="font-mono font-medium">{oc.folio}</TableCell>
+                      <TableCell>{oc.proveedor?.nombre}</TableCell>
+                      <TableCell className="text-xs">{oc.fecha_creacion}</TableCell>
+                      <TableCell className="text-right tabular-nums font-semibold">
+                        ${Number(oc.total).toLocaleString('es-MX', { minimumFractionDigits: 2 })}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex gap-2 justify-end">
+                          <Button size="sm" variant="outline" onClick={() => abrirDetalle(oc)}>Ver detalle</Button>
+                          <Button size="sm" className="gap-1 bg-emerald-600 hover:bg-emerald-700" onClick={() => aprobarOC(oc)}>
+                            <Check className="h-3.5 w-3.5" /> Aprobar
+                          </Button>
+                          <Button size="sm" variant="destructive" className="gap-1" onClick={() => setRechazoOpen(oc)}>
+                            <X className="h-3.5 w-3.5" /> Rechazar
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </Card>
+          </TabsContent>
+        )}
+      </Tabs>
+
+      <Dialog open={!!rechazoOpen} onOpenChange={(o) => { if (!o) { setRechazoOpen(null); setRazonRechazo(''); } }}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Rechazar {rechazoOpen?.folio}</DialogTitle></DialogHeader>
+          <div className="space-y-2">
+            <Label>Razón del rechazo (obligatoria)</Label>
+            <Textarea value={razonRechazo} onChange={e => setRazonRechazo(e.target.value)} rows={4} placeholder="Ej. Monto excede presupuesto trimestral, proveedor en revisión…" />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setRechazoOpen(null); setRazonRechazo(''); }}>Cancelar</Button>
+            <Button variant="destructive" onClick={rechazarOC}>Confirmar rechazo</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
