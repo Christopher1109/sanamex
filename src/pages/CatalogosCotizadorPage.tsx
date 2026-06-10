@@ -21,6 +21,7 @@ export default function CatalogosCotizadorPage() {
           <TabsTrigger value="corrugado">Corrugado</TabsTrigger>
           <TabsTrigger value="estatus">Estatus por sucursal</TabsTrigger>
           <TabsTrigger value="ofertas">Ofertas vigentes</TabsTrigger>
+          <TabsTrigger value="config">Configuración</TabsTrigger>
         </TabsList>
 
         <TabsContent value="proveedores">
