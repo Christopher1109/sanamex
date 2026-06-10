@@ -239,6 +239,53 @@ export default function ListasPreciosPage() {
             </CardContent>
           </Card>
         </TabsContent>
+
+        <TabsContent value="historial">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base flex items-center gap-2"><History className="h-4 w-4" />Historial de cargas</CardTitle>
+            </CardHeader>
+            <CardContent className="p-0">
+              <div className="max-h-[70vh] overflow-auto">
+                <Table>
+                  <TableHeader className="sticky top-0 bg-background z-10">
+                    <TableRow>
+                      <TableHead>Fecha</TableHead>
+                      <TableHead>Proveedor</TableHead>
+                      <TableHead>Archivo</TableHead>
+                      <TableHead className="text-right">Líneas</TableHead>
+                      <TableHead className="text-right">Actualizados</TableHead>
+                      <TableHead className="text-right">Nuevos</TableHead>
+                      <TableHead></TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {loadingCargas ? <TableRow><TableCell colSpan={7} className="text-center py-8">Cargando…</TableCell></TableRow>
+                      : cargas.length === 0 ? <TableRow><TableCell colSpan={7} className="text-center py-8 text-muted-foreground">Sin cargas registradas.</TableCell></TableRow>
+                      : cargas.map(c => (
+                        <TableRow key={c.id}>
+                          <TableCell className="text-xs">{new Date(c.created_at).toLocaleString()}</TableCell>
+                          <TableCell className="text-sm">{c.proveedor?.codigo ? `[${c.proveedor.codigo}] ` : ''}{c.proveedor?.nombre}</TableCell>
+                          <TableCell className="text-xs font-mono">{c.archivo_nombre}</TableCell>
+                          <TableCell className="text-right">{c.productos_cargados}</TableCell>
+                          <TableCell className="text-right">{c.productos_actualizados}</TableCell>
+                          <TableCell className="text-right">{c.productos_autocreados}</TableCell>
+                          <TableCell>
+                            {isAdmin && (
+                              <Button size="sm" variant="ghost" disabled={reverting === c.id} onClick={() => revertir(c.id)}>
+                                {reverting === c.id ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <Undo2 className="h-3 w-3 mr-1" />}
+                                Revertir
+                              </Button>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                  </TableBody>
+                </Table>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
       </Tabs>
     </div>
   );
