@@ -15,7 +15,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Calculator, Send, Search, Sparkles, AlertTriangle, RefreshCw, Download, ShoppingCart, Replace } from 'lucide-react';
 import { toast } from 'sonner';
 
-const APROBACION_UMBRAL = 50000;
+const APROBACION_UMBRAL_DEFAULT = 50000;
 
 type Pendiente = {
   producto_id: string;
