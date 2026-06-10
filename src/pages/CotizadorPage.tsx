@@ -65,10 +65,19 @@ export default function CotizadorPage() {
   const [manualOpen, setManualOpen] = useState(false);
 
   const [umbralAprob, setUmbralAprob] = useState<number>(APROBACION_UMBRAL_DEFAULT);
+  const [fechaEfectiva, setFechaEfectiva] = useState<string | null>(null);
 
   useEffect(() => {
     (supabase as any).from('cotizador_config').select('monto_aprobacion_oc').eq('activo', true).maybeSingle()
       .then(({ data }: any) => { if (data?.monto_aprobacion_oc) setUmbralAprob(Number(data.monto_aprobacion_oc)); });
+    (supabase as any).from('ventas').select('fecha').eq('estado', 'completada')
+      .order('fecha', { ascending: false }).limit(1).maybeSingle()
+      .then(({ data }: any) => {
+        if (!data?.fecha) return;
+        const f = String(data.fecha).slice(0, 10);
+        const diff = (Date.now() - new Date(f).getTime()) / 86400000;
+        if (diff > 7) setFechaEfectiva(f);
+      });
   }, []);
 
   useEffect(() => { cargar(); /* eslint-disable-next-line */ }, [periodo, selectedSucursal?.codigo]);
@@ -253,6 +262,11 @@ export default function CotizadorPage() {
 
   return (
     <div className="space-y-4">
+      {fechaEfectiva && (
+        <div className="rounded-md border border-blue-300 bg-blue-50 text-blue-900 px-3 py-2 text-sm">
+          ℹ Mostrando datos al <strong>{fechaEfectiva}</strong> (última venta cargada). Para datos en vivo, importa ventas más recientes.
+        </div>
+      )}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div className="flex items-center gap-3">
           <Calculator className="h-7 w-7 text-primary" />
