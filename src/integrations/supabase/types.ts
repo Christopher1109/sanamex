@@ -3072,6 +3072,10 @@ export type Database = {
           venta_sem_ant: number
         }[]
       }
+      revertir_carga_lista_precios: {
+        Args: { p_carga_id: string }
+        Returns: Json
+      }
       sugerido_min_max: {
         Args: { p_clasificacion: string }
         Returns: {
@@ -3093,6 +3097,16 @@ export type Database = {
           venta_id: string
         }[]
       }
+      verificar_productos_lista: {
+        Args: { p_claves: string[] }
+        Returns: {
+          clave: string
+          descripcion_actual: string
+          estatus_actual: string
+          existe: boolean
+          producto_id: string
+        }[]
+      }
     }
     Enums: {
       app_role:
@@ -3108,6 +3122,7 @@ export type Database = {
         | "auditoria"
         | "almacen_ventas"
         | "ventas"
+        | "compras"
       estado_traspaso: "pendiente" | "aprobado" | "rechazado" | "completado"
       genero: "masculino" | "femenino"
       tipo_actividad:
@@ -3263,6 +3278,7 @@ export const Constants = {
         "auditoria",
         "almacen_ventas",
         "ventas",
+        "compras",
       ],
       estado_traspaso: ["pendiente", "aprobado", "rechazado", "completado"],
       genero: ["masculino", "femenino"],
