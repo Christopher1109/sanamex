@@ -214,8 +214,8 @@ export default function CotizadorPage() {
       if (min > 0 && g.subtotal < min) {
         avisos.push(`${p?.nombre}: $${g.subtotal.toFixed(2)} < mínimo $${min.toLocaleString()}`);
       }
-      if (g.subtotal > APROBACION_UMBRAL) {
-        avisos.push(`${p?.nombre}: $${g.subtotal.toLocaleString()} > umbral $${APROBACION_UMBRAL.toLocaleString()} — requiere aprobación`);
+      if (g.subtotal > umbralAprob) {
+        avisos.push(`${p?.nombre}: $${g.subtotal.toLocaleString()} > umbral $${umbralAprob.toLocaleString()} — requiere aprobación`);
       }
     });
     if (avisos.length && !confirm(`Avisos:\n\n${avisos.join('\n')}\n\n¿Generar OCs de todos modos?`)) return;
@@ -226,12 +226,12 @@ export default function CotizadorPage() {
 
     let creadas = 0;
     for (const [proveedor_id, g] of Object.entries(grupos)) {
-      const requiereAprob = g.subtotal > APROBACION_UMBRAL;
+      const requiereAprob = g.subtotal > umbralAprob;
       const { data: oc, error } = await supabase.from('ordenes_compra').insert({
         proveedor_id, sucursal_destino_id: sucursal_destino,
         estado: 'borrador',
         creada_por: user.id,
-        notas: `Generada desde Cotizador (Sugeridos ${periodo}d)${requiereAprob ? ' · REQUIERE APROBACIÓN (>$' + APROBACION_UMBRAL.toLocaleString() + ')' : ''}`,
+        notas: `Generada desde Cotizador (Sugeridos ${periodo}d)${requiereAprob ? ' · REQUIERE APROBACIÓN (>$' + umbralAprob.toLocaleString() + ')' : ''}`,
       }).select('id').single();
       if (error || !oc) { toast.error(`OC ${(provMap.get(proveedor_id) as any)?.nombre}: ${error?.message}`); continue; }
       const lineas = g.items.map(([producto_id, v]) => ({
@@ -421,7 +421,7 @@ export default function CotizadorPage() {
           <ShoppingCart className="inline h-4 w-4 mr-1" />
           <strong>{resumen.seleccionados}</strong> productos seleccionados ·
           Total: <strong>${resumen.totalSel.toLocaleString('es-MX', { minimumFractionDigits: 2 })}</strong>
-          {resumen.totalSel > APROBACION_UMBRAL && (
+          {resumen.totalSel > umbralAprob && (
             <span className="ml-2 text-amber-600"><AlertTriangle className="inline h-3.5 w-3.5" /> requiere aprobación</span>
           )}
         </div>
