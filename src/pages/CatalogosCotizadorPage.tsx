@@ -48,6 +48,12 @@ export default function CatalogosCotizadorPage() {
             <CardContent><OfertasUploader /></CardContent>
           </Card>
         </TabsContent>
+        <TabsContent value="config">
+          <Card>
+            <CardHeader><CardTitle className="text-base">Configuración del Cotizador</CardTitle></CardHeader>
+            <CardContent><CotizadorConfigPanel /></CardContent>
+          </Card>
+        </TabsContent>
       </Tabs>
     </div>
   );
