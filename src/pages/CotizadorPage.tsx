@@ -61,8 +61,12 @@ export default function CotizadorPage() {
   const [cambiarFor, setCambiarFor] = useState<Pendiente | null>(null);
   const [alternativas, setAlternativas] = useState<Alternativa[]>([]);
 
-  // Manual quote
-  const [manualOpen, setManualOpen] = useState(false);
+  const [umbralAprob, setUmbralAprob] = useState<number>(APROBACION_UMBRAL_DEFAULT);
+
+  useEffect(() => {
+    (supabase as any).from('cotizador_config').select('monto_aprobacion_oc').eq('activo', true).maybeSingle()
+      .then(({ data }: any) => { if (data?.monto_aprobacion_oc) setUmbralAprob(Number(data.monto_aprobacion_oc)); });
+  }, []);
 
   useEffect(() => { cargar(); /* eslint-disable-next-line */ }, [periodo, selectedSucursal?.codigo]);
 
