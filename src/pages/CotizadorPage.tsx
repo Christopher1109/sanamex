@@ -61,6 +61,9 @@ export default function CotizadorPage() {
   const [cambiarFor, setCambiarFor] = useState<Pendiente | null>(null);
   const [alternativas, setAlternativas] = useState<Alternativa[]>([]);
 
+  // Manual quote
+  const [manualOpen, setManualOpen] = useState(false);
+
   const [umbralAprob, setUmbralAprob] = useState<number>(APROBACION_UMBRAL_DEFAULT);
 
   useEffect(() => {
