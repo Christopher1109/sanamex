@@ -131,6 +131,7 @@ export default function ListasPreciosPage() {
         <TabsList>
           <TabsTrigger value="ver">Ver listas vigentes</TabsTrigger>
           <TabsTrigger value="cargar">Cargar lista</TabsTrigger>
+          <TabsTrigger value="historial"><History className="h-3.5 w-3.5 mr-1" />Historial de cargas</TabsTrigger>
         </TabsList>
 
         <TabsContent value="ver" className="space-y-4">
