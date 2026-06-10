@@ -316,7 +316,7 @@ export default function OrdenesCompraPage() {
             <SelectTrigger><SelectValue /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">Todos</SelectItem>
-              {['borrador','enviada','confirmada','parcial','recibida','cancelada'].map(e =>
+              {['borrador','pendiente_aprobacion','enviada','confirmada','parcial','recibida','cancelada'].map(e =>
                 <SelectItem key={e} value={e}>{e}</SelectItem>)}
             </SelectContent>
           </Select>
