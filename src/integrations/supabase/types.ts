@@ -434,6 +434,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "compras_proveedor_id_fkey"
+            columns: ["proveedor_id"]
+            isOneToOne: false
+            referencedRelation: "vista_fill_rate_proveedores"
+            referencedColumns: ["proveedor_id"]
+          },
+          {
             foreignKeyName: "compras_sucursal_id_fkey"
             columns: ["sucursal_id"]
             isOneToOne: false
@@ -593,6 +600,97 @@ export type Database = {
           },
         ]
       }
+      cotizaciones_carrito: {
+        Row: {
+          agregado_at: string | null
+          cantidad: number
+          id: string
+          notas: string | null
+          precio_unitario: number
+          producto_id: string
+          proveedor_id: string
+          usuario_id: string
+        }
+        Insert: {
+          agregado_at?: string | null
+          cantidad: number
+          id?: string
+          notas?: string | null
+          precio_unitario: number
+          producto_id: string
+          proveedor_id: string
+          usuario_id: string
+        }
+        Update: {
+          agregado_at?: string | null
+          cantidad?: number
+          id?: string
+          notas?: string | null
+          precio_unitario?: number
+          producto_id?: string
+          proveedor_id?: string
+          usuario_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cotizaciones_carrito_producto_id_fkey"
+            columns: ["producto_id"]
+            isOneToOne: false
+            referencedRelation: "productos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cotizaciones_carrito_proveedor_id_fkey"
+            columns: ["proveedor_id"]
+            isOneToOne: false
+            referencedRelation: "proveedores"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cotizaciones_carrito_proveedor_id_fkey"
+            columns: ["proveedor_id"]
+            isOneToOne: false
+            referencedRelation: "vista_fill_rate_proveedores"
+            referencedColumns: ["proveedor_id"]
+          },
+        ]
+      }
+      cotizador_pesos: {
+        Row: {
+          activo: boolean | null
+          id: string
+          modificado_por: string | null
+          peso_credito: number
+          peso_devoluciones: number
+          peso_existencia: number
+          peso_lead_time: number
+          peso_precio: number
+          updated_at: string | null
+        }
+        Insert: {
+          activo?: boolean | null
+          id?: string
+          modificado_por?: string | null
+          peso_credito?: number
+          peso_devoluciones?: number
+          peso_existencia?: number
+          peso_lead_time?: number
+          peso_precio?: number
+          updated_at?: string | null
+        }
+        Update: {
+          activo?: boolean | null
+          id?: string
+          modificado_por?: string | null
+          peso_credito?: number
+          peso_devoluciones?: number
+          peso_existencia?: number
+          peso_lead_time?: number
+          peso_precio?: number
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       inventario: {
         Row: {
           almacen_id: string
@@ -692,6 +790,13 @@ export type Database = {
             referencedRelation: "proveedores"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "lista_precio_cargas_proveedor_id_fkey"
+            columns: ["proveedor_id"]
+            isOneToOne: false
+            referencedRelation: "vista_fill_rate_proveedores"
+            referencedColumns: ["proveedor_id"]
+          },
         ]
       }
       lista_precio_proveedor: {
@@ -762,6 +867,13 @@ export type Database = {
             referencedRelation: "proveedores"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "lista_precio_proveedor_proveedor_id_fkey"
+            columns: ["proveedor_id"]
+            isOneToOne: false
+            referencedRelation: "vista_fill_rate_proveedores"
+            referencedColumns: ["proveedor_id"]
+          },
         ]
       }
       lotes: {
@@ -815,6 +927,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "proveedores"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lotes_proveedor_id_fkey"
+            columns: ["proveedor_id"]
+            isOneToOne: false
+            referencedRelation: "vista_fill_rate_proveedores"
+            referencedColumns: ["proveedor_id"]
           },
         ]
       }
@@ -1035,6 +1154,152 @@ export type Database = {
             columns: ["proveedor_id"]
             isOneToOne: false
             referencedRelation: "proveedores"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ofertas_proveedor_proveedor_id_fkey"
+            columns: ["proveedor_id"]
+            isOneToOne: false
+            referencedRelation: "vista_fill_rate_proveedores"
+            referencedColumns: ["proveedor_id"]
+          },
+        ]
+      }
+      orden_compra_lineas: {
+        Row: {
+          cantidad_recibida: number
+          cantidad_solicitada: number
+          created_at: string | null
+          id: string
+          notas_linea: string | null
+          orden_id: string
+          precio_con_iva: number | null
+          precio_unitario: number
+          producto_id: string
+          subtotal: number | null
+        }
+        Insert: {
+          cantidad_recibida?: number
+          cantidad_solicitada: number
+          created_at?: string | null
+          id?: string
+          notas_linea?: string | null
+          orden_id: string
+          precio_con_iva?: number | null
+          precio_unitario: number
+          producto_id: string
+          subtotal?: number | null
+        }
+        Update: {
+          cantidad_recibida?: number
+          cantidad_solicitada?: number
+          created_at?: string | null
+          id?: string
+          notas_linea?: string | null
+          orden_id?: string
+          precio_con_iva?: number | null
+          precio_unitario?: number
+          producto_id?: string
+          subtotal?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "orden_compra_lineas_orden_id_fkey"
+            columns: ["orden_id"]
+            isOneToOne: false
+            referencedRelation: "ordenes_compra"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "orden_compra_lineas_producto_id_fkey"
+            columns: ["producto_id"]
+            isOneToOne: false
+            referencedRelation: "productos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ordenes_compra: {
+        Row: {
+          creada_por: string | null
+          created_at: string | null
+          enviada_por: string | null
+          estado: string
+          fecha_creacion: string | null
+          fecha_envio: string | null
+          fecha_recepcion_esperada: string | null
+          fecha_recepcion_real: string | null
+          folio: string
+          id: string
+          iva: number
+          notas: string | null
+          proveedor_id: string
+          recibida_por: string | null
+          subtotal: number
+          sucursal_destino_id: string | null
+          total: number
+          updated_at: string | null
+        }
+        Insert: {
+          creada_por?: string | null
+          created_at?: string | null
+          enviada_por?: string | null
+          estado?: string
+          fecha_creacion?: string | null
+          fecha_envio?: string | null
+          fecha_recepcion_esperada?: string | null
+          fecha_recepcion_real?: string | null
+          folio?: string
+          id?: string
+          iva?: number
+          notas?: string | null
+          proveedor_id: string
+          recibida_por?: string | null
+          subtotal?: number
+          sucursal_destino_id?: string | null
+          total?: number
+          updated_at?: string | null
+        }
+        Update: {
+          creada_por?: string | null
+          created_at?: string | null
+          enviada_por?: string | null
+          estado?: string
+          fecha_creacion?: string | null
+          fecha_envio?: string | null
+          fecha_recepcion_esperada?: string | null
+          fecha_recepcion_real?: string | null
+          folio?: string
+          id?: string
+          iva?: number
+          notas?: string | null
+          proveedor_id?: string
+          recibida_por?: string | null
+          subtotal?: number
+          sucursal_destino_id?: string | null
+          total?: number
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ordenes_compra_proveedor_id_fkey"
+            columns: ["proveedor_id"]
+            isOneToOne: false
+            referencedRelation: "proveedores"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ordenes_compra_proveedor_id_fkey"
+            columns: ["proveedor_id"]
+            isOneToOne: false
+            referencedRelation: "vista_fill_rate_proveedores"
+            referencedColumns: ["proveedor_id"]
+          },
+          {
+            foreignKeyName: "ordenes_compra_sucursal_destino_id_fkey"
+            columns: ["sucursal_destino_id"]
+            isOneToOne: false
+            referencedRelation: "sucursales"
             referencedColumns: ["id"]
           },
         ]
@@ -1283,6 +1548,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "proveedores"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "producto_corrugado_proveedor_id_fkey"
+            columns: ["proveedor_id"]
+            isOneToOne: false
+            referencedRelation: "vista_fill_rate_proveedores"
+            referencedColumns: ["proveedor_id"]
           },
         ]
       }
@@ -2365,7 +2637,20 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      vista_fill_rate_proveedores: {
+        Row: {
+          fill_rate_pct: number | null
+          lead_time_promedio_real: number | null
+          proveedor_codigo: string | null
+          proveedor_id: string | null
+          proveedor_nombre: string | null
+          total_lineas: number | null
+          total_ocs: number | null
+          total_recibido: number | null
+          total_solicitado: number | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
       clasificacion_abc_productos: {
@@ -2388,6 +2673,7 @@ export type Database = {
           varianza_tiempo: number
         }[]
       }
+      generar_folio_oc: { Args: never; Returns: string }
       has_permission: {
         Args: { _modulo: string; _submodulo?: string; _user_id: string }
         Returns: boolean
@@ -2482,6 +2768,37 @@ export type Database = {
       recalc_costo_promedio: {
         Args: { _producto_id: string }
         Returns: undefined
+      }
+      recalc_total_oc: { Args: { p_orden_id: string }; Returns: undefined }
+      recibir_oc: {
+        Args: { p_almacen_id: string; p_orden_id: string; p_recepciones: Json }
+        Returns: Json
+      }
+      recomendar_proveedor: {
+        Args: {
+          p_cantidad_requerida: number
+          p_fecha?: string
+          p_producto_id: string
+        }
+        Returns: {
+          acepta_devoluciones: boolean
+          cantidad_disponible: number
+          cantidad_sugerida: number
+          con_oferta: boolean
+          dias_credito: number
+          existencia_proveedor: number
+          lead_time_dias: number
+          monto_total: number
+          pago_contra_entrega: boolean
+          piezas_corrugado: number
+          precio_con_iva: number
+          precio_unitario: number
+          proveedor_codigo: string
+          proveedor_id: string
+          proveedor_nombre: string
+          ranking: number
+          score: number
+        }[]
       }
       rentabilidad_por_lote: {
         Args: {
