@@ -222,9 +222,9 @@ export default function CotizadorPage() {
       const requiereAprob = g.subtotal > APROBACION_UMBRAL;
       const { data: oc, error } = await supabase.from('ordenes_compra').insert({
         proveedor_id, sucursal_destino_id: sucursal_destino,
-        estado: requiereAprob ? 'pendiente_aprobacion' : 'borrador',
+        estado: 'borrador',
         creada_por: user.id,
-        notas: `Generada desde Cotizador (Sugeridos ${periodo}d)`,
+        notas: `Generada desde Cotizador (Sugeridos ${periodo}d)${requiereAprob ? ' · REQUIERE APROBACIÓN (>$' + APROBACION_UMBRAL.toLocaleString() + ')' : ''}`,
       }).select('id').single();
       if (error || !oc) { toast.error(`OC ${(provMap.get(proveedor_id) as any)?.nombre}: ${error?.message}`); continue; }
       const lineas = g.items.map(([producto_id, v]) => ({
