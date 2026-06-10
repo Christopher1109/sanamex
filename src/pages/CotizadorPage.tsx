@@ -91,13 +91,13 @@ export default function CotizadorPage() {
       });
   }, []);
 
-  useEffect(() => { cargar(); /* eslint-disable-next-line */ }, [periodo, selectedSucursal?.codigo]);
+  useEffect(() => { cargar(); /* eslint-disable-next-line */ }, [periodo, sucursalLocal]);
 
   async function cargar() {
     setLoading(true);
     const { data, error } = await (supabase as any).rpc('productos_pendientes_compra', {
       p_fecha_corte: null,
-      p_sucursal_codigo: selectedSucursal?.codigo ?? null,
+      p_sucursal_codigo: sucursalLocal === '__all__' ? null : sucursalLocal,
       p_periodo_referencia: periodo,
     });
     setLoading(false);
