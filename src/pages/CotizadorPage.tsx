@@ -118,6 +118,11 @@ export default function CotizadorPage() {
       }
     });
     setSeleccion(sel);
+    } catch (e: any) {
+      toast.error(e.message || 'Error al cargar pendientes');
+    } finally {
+      setLoading(false);
+    }
   }
 
   const deptos = useMemo(() => Array.from(new Set(rows.map(r => r.departamento).filter(Boolean))) as string[], [rows]);
