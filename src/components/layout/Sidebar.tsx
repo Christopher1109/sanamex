@@ -76,7 +76,6 @@ const Sidebar = ({ userRole, onLogout }: SidebarProps) => {
     { path: '/clientes', icon: Users, label: 'Clientes', roles: [...MGMT,'ventas'], category: 'Catálogos' },
     // Operaciones
     { path: '/compras', icon: ShoppingCart, label: 'Compras', roles: OPS, category: 'Operaciones' },
-    { path: '/cotizador', icon: Sparkles, label: 'Cotizador', roles: MGMT, category: 'Operaciones' },
     { path: '/ordenes-compra', icon: ClipboardList, label: 'Órdenes de Compra', roles: OPS, category: 'Operaciones' },
     { path: '/pedidos', icon: PackageCheck, label: 'Ventas', roles: SALES, category: 'Operaciones' },
     { path: '/pos', icon: Monitor, label: 'Punto de Venta', roles: SALES, category: 'Operaciones' },
@@ -91,9 +90,9 @@ const Sidebar = ({ userRole, onLogout }: SidebarProps) => {
     { path: '/rentabilidad-lotes', icon: DollarSign, label: 'Rentabilidad por Lote', roles: MGMT, category: 'Análisis' },
     { path: '/reporte-sanamex', icon: FileSpreadsheet, label: 'Ventas e Inventario SANAMEX', roles: MGMT, category: 'Análisis' },
     { path: '/reporte-inventario-general', icon: FileSpreadsheet, label: 'Reporte Inventario General', roles: MGMT, category: 'Análisis' },
-   { path: '/reporte-ventas-presupuesto', icon: FileSpreadsheet, label: 'Reporte Ventas y Presupuesto', roles: MGMT, category: 'Análisis' },
-   { path: '/reporte-sugeridos', icon: FileSpreadsheet, label: 'Reporte Sugeridos', roles: MGMT, category: 'Análisis' },
-    { path: '/reportes', icon: FileSpreadsheet, label: 'Reportes', roles: AUDIT, category: 'Análisis' },
+    { path: '/reporte-ventas-presupuesto', icon: FileSpreadsheet, label: 'Reporte Ventas y Presupuesto', roles: MGMT, category: 'Análisis' },
+    { path: '/reporte-sugeridos', icon: FileSpreadsheet, label: 'Reporte Sugeridos', roles: MGMT, category: 'Análisis' },
+    { path: '/cotizador', icon: Sparkles, label: 'Cotizador', roles: MGMT, category: 'Análisis' },
     // Finanzas
     { path: '/cuentas-por-pagar', icon: Wallet, label: 'Cuentas por Pagar', roles: MGMT, category: 'Finanzas' },
     { path: '/fiscal', icon: Receipt, label: 'Facturación (CFDI)', roles: MGMT, category: 'Fiscal' },

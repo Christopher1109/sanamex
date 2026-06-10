@@ -48,6 +48,17 @@ export default function CotizadorPage() {
   const navigate = useNavigate();
   const { selectedSucursal } = useSucursal();
 
+  const SUCURSALES_OPCIONES = [
+    { code: '__all__', label: 'Consolidado (todas las sucursales)' },
+    { code: 'SV', label: 'SV — San Vicente' },
+    { code: 'ECA', label: 'ECA — Ecatepec' },
+    { code: 'F36', label: 'F36 — Izta-F36' },
+    { code: 'GH', label: 'GH — Izta-GH' },
+    { code: 'CEDIS', label: 'CEDIS — CEDIS Central' },
+  ];
+  const [sucursalLocal, setSucursalLocal] = useState<string>('__all__');
+  const sucursalLabel = SUCURSALES_OPCIONES.find(s => s.code === sucursalLocal)?.label.split(' — ').slice(-1)[0] || 'Consolidado';
+
   const [periodo, setPeriodo] = useState<7 | 14 | 30>(30);
   const [loading, setLoading] = useState(false);
   const [rows, setRows] = useState<Pendiente[]>([]);
@@ -80,13 +91,13 @@ export default function CotizadorPage() {
       });
   }, []);
 
-  useEffect(() => { cargar(); /* eslint-disable-next-line */ }, [periodo, selectedSucursal?.codigo]);
+  useEffect(() => { cargar(); /* eslint-disable-next-line */ }, [periodo, sucursalLocal]);
 
   async function cargar() {
     setLoading(true);
     const { data, error } = await (supabase as any).rpc('productos_pendientes_compra', {
       p_fecha_corte: null,
-      p_sucursal_codigo: selectedSucursal?.codigo ?? null,
+      p_sucursal_codigo: sucursalLocal === '__all__' ? null : sucursalLocal,
       p_periodo_referencia: periodo,
     });
     setLoading(false);
@@ -262,11 +273,10 @@ export default function CotizadorPage() {
 
   return (
     <div className="space-y-4">
-      {fechaEfectiva && (
-        <div className="rounded-md border border-blue-300 bg-blue-50 text-blue-900 px-3 py-2 text-sm">
-          ℹ Mostrando datos al <strong>{fechaEfectiva}</strong> (última venta cargada). Para datos en vivo, importa ventas más recientes.
-        </div>
-      )}
+      <div className="rounded-md border border-blue-300 bg-blue-50 text-blue-900 px-3 py-2 text-sm">
+        ℹ <strong>{rows.length}</strong> productos necesitan compra según Sugeridos ({sucursalLabel}, período {periodo} días)
+        {fechaEfectiva && <> · datos al <strong>{fechaEfectiva}</strong></>}
+      </div>
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div className="flex items-center gap-3">
           <Calculator className="h-7 w-7 text-primary" />
@@ -275,7 +285,13 @@ export default function CotizadorPage() {
             <p className="text-sm text-muted-foreground">Filtro por existencia + sort por precio. Una OC por proveedor.</p>
           </div>
         </div>
-        <div className="flex gap-2 items-center">
+        <div className="flex gap-2 items-center flex-wrap">
+          <Select value={sucursalLocal} onValueChange={setSucursalLocal}>
+            <SelectTrigger className="w-64"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              {SUCURSALES_OPCIONES.map(s => <SelectItem key={s.code} value={s.code}>{s.label}</SelectItem>)}
+            </SelectContent>
+          </Select>
           <Select value={String(periodo)} onValueChange={(v) => setPeriodo(parseInt(v) as 7 | 14 | 30)}>
             <SelectTrigger className="w-32"><SelectValue /></SelectTrigger>
             <SelectContent>
