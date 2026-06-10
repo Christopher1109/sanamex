@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import { UserRole } from '@/types';
@@ -9,7 +10,9 @@ import {
   Monitor, CloudOff, Shield, Sparkles, Upload, Receipt, Bell, Wallet, TrendingUp, DollarSign
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { SucursalSelector } from '@/components/SucursalSelector';
+import { supabase } from '@/integrations/supabase/client';
 
 interface SidebarProps {
   userRole: UserRole;
