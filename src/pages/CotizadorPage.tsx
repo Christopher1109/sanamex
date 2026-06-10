@@ -96,15 +96,14 @@ export default function CotizadorPage() {
 
   async function cargar() {
     setLoading(true);
-    const { data, error } = await (supabase as any).rpc('productos_pendientes_compra', {
-      p_fecha_corte: null,
-      p_sucursal_codigo: sucursalLocal === '__all__' ? null : sucursalLocal,
-      p_periodo_referencia: periodo,
-    });
-    setLoading(false);
-    if (error) { toast.error(error.message); return; }
-    const list = (data || []) as Pendiente[];
-    setRows(list);
+    try {
+      const data = await rpcPaginate<Pendiente>('productos_pendientes_compra', {
+        p_fecha_corte: null,
+        p_sucursal_codigo: sucursalLocal === '__all__' ? null : sucursalLocal,
+        p_periodo_referencia: periodo,
+      });
+      const list = data as Pendiente[];
+      setRows(list);
     // Pre-select rows with provider
     const sel: typeof seleccion = {};
     list.forEach(r => {
