@@ -65,10 +65,19 @@ export default function CotizadorPage() {
   const [manualOpen, setManualOpen] = useState(false);
 
   const [umbralAprob, setUmbralAprob] = useState<number>(APROBACION_UMBRAL_DEFAULT);
+  const [fechaEfectiva, setFechaEfectiva] = useState<string | null>(null);
 
   useEffect(() => {
     (supabase as any).from('cotizador_config').select('monto_aprobacion_oc').eq('activo', true).maybeSingle()
       .then(({ data }: any) => { if (data?.monto_aprobacion_oc) setUmbralAprob(Number(data.monto_aprobacion_oc)); });
+    (supabase as any).from('ventas').select('fecha').eq('estado', 'completada')
+      .order('fecha', { ascending: false }).limit(1).maybeSingle()
+      .then(({ data }: any) => {
+        if (!data?.fecha) return;
+        const f = String(data.fecha).slice(0, 10);
+        const diff = (Date.now() - new Date(f).getTime()) / 86400000;
+        if (diff > 7) setFechaEfectiva(f);
+      });
   }, []);
 
   useEffect(() => { cargar(); /* eslint-disable-next-line */ }, [periodo, selectedSucursal?.codigo]);
