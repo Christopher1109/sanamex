@@ -29,6 +29,23 @@ interface MenuItem {
 
 const Sidebar = ({ userRole, onLogout }: SidebarProps) => {
   const location = useLocation();
+  const [pendientesAprob, setPendientesAprob] = useState(0);
+  const esAprobador = ['gerente','admin','super_admin'].includes(userRole);
+
+  useEffect(() => {
+    if (!esAprobador) return;
+    let active = true;
+    const fetchCount = async () => {
+      const { count } = await supabase
+        .from('ordenes_compra')
+        .select('id', { count: 'exact', head: true })
+        .eq('estado', 'pendiente_aprobacion');
+      if (active) setPendientesAprob(count ?? 0);
+    };
+    fetchCount();
+    const t = setInterval(fetchCount, 30000);
+    return () => { active = false; clearInterval(t); };
+  }, [esAprobador]);
 
   const roleLabels: Record<UserRole, string> = {
     super_admin: 'Super Administrador',
