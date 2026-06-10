@@ -273,11 +273,10 @@ export default function CotizadorPage() {
 
   return (
     <div className="space-y-4">
-      {fechaEfectiva && (
-        <div className="rounded-md border border-blue-300 bg-blue-50 text-blue-900 px-3 py-2 text-sm">
-          ℹ Mostrando datos al <strong>{fechaEfectiva}</strong> (última venta cargada). Para datos en vivo, importa ventas más recientes.
-        </div>
-      )}
+      <div className="rounded-md border border-blue-300 bg-blue-50 text-blue-900 px-3 py-2 text-sm">
+        ℹ <strong>{rows.length}</strong> productos necesitan compra según Sugeridos ({sucursalLabel}, período {periodo} días)
+        {fechaEfectiva && <> · datos al <strong>{fechaEfectiva}</strong></>}
+      </div>
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div className="flex items-center gap-3">
           <Calculator className="h-7 w-7 text-primary" />
@@ -286,7 +285,13 @@ export default function CotizadorPage() {
             <p className="text-sm text-muted-foreground">Filtro por existencia + sort por precio. Una OC por proveedor.</p>
           </div>
         </div>
-        <div className="flex gap-2 items-center">
+        <div className="flex gap-2 items-center flex-wrap">
+          <Select value={sucursalLocal} onValueChange={setSucursalLocal}>
+            <SelectTrigger className="w-64"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              {SUCURSALES_OPCIONES.map(s => <SelectItem key={s.code} value={s.code}>{s.label}</SelectItem>)}
+            </SelectContent>
+          </Select>
           <Select value={String(periodo)} onValueChange={(v) => setPeriodo(parseInt(v) as 7 | 14 | 30)}>
             <SelectTrigger className="w-32"><SelectValue /></SelectTrigger>
             <SelectContent>
