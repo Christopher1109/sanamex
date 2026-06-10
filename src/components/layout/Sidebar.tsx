@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import { UserRole } from '@/types';
@@ -9,7 +10,9 @@ import {
   Monitor, CloudOff, Shield, Sparkles, Upload, Receipt, Bell, Wallet, TrendingUp, DollarSign
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { SucursalSelector } from '@/components/SucursalSelector';
+import { supabase } from '@/integrations/supabase/client';
 
 interface SidebarProps {
   userRole: UserRole;
@@ -26,6 +29,23 @@ interface MenuItem {
 
 const Sidebar = ({ userRole, onLogout }: SidebarProps) => {
   const location = useLocation();
+  const [pendientesAprob, setPendientesAprob] = useState(0);
+  const esAprobador = ['gerente','admin','super_admin'].includes(userRole);
+
+  useEffect(() => {
+    if (!esAprobador) return;
+    let active = true;
+    const fetchCount = async () => {
+      const { count } = await supabase
+        .from('ordenes_compra')
+        .select('id', { count: 'exact', head: true })
+        .eq('estado', 'pendiente_aprobacion');
+      if (active) setPendientesAprob(count ?? 0);
+    };
+    fetchCount();
+    const t = setInterval(fetchCount, 30000);
+    return () => { active = false; clearInterval(t); };
+  }, [esAprobador]);
 
   const roleLabels: Record<UserRole, string> = {
     super_admin: 'Super Administrador',
@@ -124,7 +144,10 @@ const Sidebar = ({ userRole, onLogout }: SidebarProps) => {
                       isActive ? 'bg-sidebar-primary text-sidebar-primary-foreground' : 'text-sidebar-foreground hover:bg-sidebar-accent'
                     )}>
                     <item.icon className="h-5 w-5" />
-                    {item.label}
+                    <span className="flex-1">{item.label}</span>
+                    {item.path === '/ordenes-compra' && esAprobador && pendientesAprob > 0 && (
+                      <Badge variant="destructive" className="h-5 px-1.5 text-[10px]">{pendientesAprob}</Badge>
+                    )}
                   </Link>
                 );
               })}

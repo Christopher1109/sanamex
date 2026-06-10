@@ -5,6 +5,7 @@ import ProveedoresUploader from '@/components/cargas/ProveedoresUploader';
 import CorrugadoUploader from '@/components/cargas/CorrugadoUploader';
 import EstatusSucursalUploader from '@/components/cargas/EstatusSucursalUploader';
 import OfertasUploader from '@/components/cargas/OfertasUploader';
+import CotizadorConfigPanel from '@/components/cargas/CotizadorConfigPanel';
 
 export default function CatalogosCotizadorPage() {
   return (
@@ -20,6 +21,7 @@ export default function CatalogosCotizadorPage() {
           <TabsTrigger value="corrugado">Corrugado</TabsTrigger>
           <TabsTrigger value="estatus">Estatus por sucursal</TabsTrigger>
           <TabsTrigger value="ofertas">Ofertas vigentes</TabsTrigger>
+          <TabsTrigger value="config">Configuración</TabsTrigger>
         </TabsList>
 
         <TabsContent value="proveedores">
@@ -44,6 +46,12 @@ export default function CatalogosCotizadorPage() {
           <Card>
             <CardHeader><CardTitle className="text-base">Cargar ofertas vigentes</CardTitle></CardHeader>
             <CardContent><OfertasUploader /></CardContent>
+          </Card>
+        </TabsContent>
+        <TabsContent value="config">
+          <Card>
+            <CardHeader><CardTitle className="text-base">Configuración del Cotizador</CardTitle></CardHeader>
+            <CardContent><CotizadorConfigPanel /></CardContent>
           </Card>
         </TabsContent>
       </Tabs>
