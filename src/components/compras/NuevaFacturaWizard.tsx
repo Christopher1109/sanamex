@@ -77,9 +77,9 @@ const NuevaFacturaWizard = ({ open, onOpenChange, onSaved }: Props) => {
       const text = await file.text();
       const parsed = parseCfdiXml(text);
       setCfdi(parsed);
+      setOrigen('xml');
       setFolioFactura([parsed.serie, parsed.folio].filter(Boolean).join('-') || parsed.folio || '');
       if (parsed.fecha) setFechaFactura(parsed.fecha);
-      // Pre-cargar líneas desde conceptos
       setLineas(parsed.conceptos.map(c => ({
         clave_origen: c.clave,
         descripcion_origen: c.descripcion,
@@ -91,17 +91,23 @@ const NuevaFacturaWizard = ({ open, onOpenChange, onSaved }: Props) => {
         numero_lote: '',
         fecha_caducidad: '',
       })));
-      // Auto-seleccionar proveedor por RFC si existe
       if (parsed.rfcEmisor) {
         const { data } = await supabase.from('proveedores')
           .select('id').ilike('rfc', parsed.rfcEmisor).limit(1);
         if (data && data[0]) setProveedorId(data[0].id);
       }
       toast.success(`CFDI parseado: ${parsed.conceptos.length} conceptos`);
+      setPaso(2); // auto-avance
     } catch (e: any) {
       toast.error(`Error parseando XML: ${e.message}`);
       setCfdi(null); setXmlFile(null);
     }
+  };
+
+  const elegirManual = () => {
+    setOrigen('manual');
+    setLineas([]);
+    setPaso(2);
   };
 
   // -------- Paso 3: match híbrido ----------
@@ -167,9 +173,15 @@ const NuevaFacturaWizard = ({ open, onOpenChange, onSaved }: Props) => {
 
     setSaving(true);
     try {
-      const { data: alm } = await supabase.from('almacenes')
-        .select('id').eq('sucursal_id', selectedSucursal.id).eq('activo', true).limit(1);
-      if (!alm?.[0]) throw new Error('No hay almacén activo en la sucursal');
+      const { data: alm, error: almErr } = await supabase.from('almacenes')
+        .select('id, activo').eq('sucursal_id', selectedSucursal.id).order('activo', { ascending: false }).limit(1);
+      if (almErr) throw almErr;
+      if (!alm?.[0]) {
+        throw new Error(`No hay almacén configurado para la sucursal "${selectedSucursal.nombre}". Contacta al admin.`);
+      }
+      if (!alm[0].activo) {
+        throw new Error(`El almacén de la sucursal "${selectedSucursal.nombre}" está inactivo. Contacta al admin.`);
+      }
 
       // Subir XML al storage si aplica
       let xml_url: string | null = null;
@@ -226,52 +238,37 @@ const NuevaFacturaWizard = ({ open, onOpenChange, onSaved }: Props) => {
         {paso === 1 && (
           <div className="space-y-4">
             <p className="text-sm text-muted-foreground">¿Cómo quieres capturar esta compra?</p>
+            <input
+              ref={fileRef}
+              type="file"
+              accept=".xml,application/xml,text/xml"
+              className="hidden"
+              onChange={(e) => { const f = e.target.files?.[0]; if (f) handleXmlFile(f); e.target.value = ''; }}
+            />
             <div className="grid grid-cols-2 gap-4">
               <Card
-                className={`cursor-pointer hover:border-primary transition ${origen === 'xml' ? 'border-primary' : ''}`}
-                onClick={() => setOrigen('xml')}
+                className="cursor-pointer hover:border-primary hover:shadow-md transition"
+                onClick={() => fileRef.current?.click()}
               >
                 <CardContent className="p-6 text-center space-y-2">
                   <FileText className="h-10 w-10 mx-auto text-primary" />
                   <h3 className="font-semibold">Subir XML (CFDI)</h3>
                   <p className="text-xs text-muted-foreground">Recomendado. Auto-llena proveedor, folio, fecha y conceptos.</p>
+                  <p className="text-[10px] text-muted-foreground">Click para seleccionar archivo</p>
                 </CardContent>
               </Card>
               <Card
-                className={`cursor-pointer hover:border-primary transition ${origen === 'manual' ? 'border-primary' : ''}`}
-                onClick={() => setOrigen('manual')}
+                className="cursor-pointer hover:border-primary hover:shadow-md transition"
+                onClick={elegirManual}
               >
                 <CardContent className="p-6 text-center space-y-2">
                   <Upload className="h-10 w-10 mx-auto text-primary" />
                   <h3 className="font-semibold">Captura manual</h3>
                   <p className="text-xs text-muted-foreground">Para facturas sin XML o ajustes manuales.</p>
+                  <p className="text-[10px] text-muted-foreground">Click para continuar →</p>
                 </CardContent>
               </Card>
             </div>
-
-            {origen === 'xml' && (
-              <div className="space-y-2 border rounded-lg p-4 bg-muted/30">
-                <Label>Archivo XML</Label>
-                <input
-                  ref={fileRef}
-                  type="file"
-                  accept=".xml,application/xml,text/xml"
-                  className="hidden"
-                  onChange={(e) => { const f = e.target.files?.[0]; if (f) handleXmlFile(f); }}
-                />
-                <Button variant="outline" onClick={() => fileRef.current?.click()}>
-                  <Upload className="h-4 w-4 mr-2" /> {xmlFile ? xmlFile.name : 'Seleccionar XML'}
-                </Button>
-                {cfdi && (
-                  <div className="text-xs space-y-1 mt-2">
-                    <p><strong>Emisor:</strong> {cfdi.nombreEmisor} ({cfdi.rfcEmisor})</p>
-                    <p><strong>Folio:</strong> {folioFactura} · <strong>Fecha:</strong> {cfdi.fecha}</p>
-                    <p><strong>Total CFDI:</strong> ${cfdi.total.toFixed(2)} · <strong>Conceptos:</strong> {cfdi.conceptos.length}</p>
-                    {cfdi.uuid && <p className="text-muted-foreground">UUID: {cfdi.uuid}</p>}
-                  </div>
-                )}
-              </div>
-            )}
           </div>
         )}
 
@@ -461,13 +458,11 @@ const NuevaFacturaWizard = ({ open, onOpenChange, onSaved }: Props) => {
           <Button variant="outline" onClick={() => paso > 1 ? setPaso(paso - 1) : onOpenChange(false)}>
             {paso > 1 ? <><ArrowLeft className="h-4 w-4 mr-1" /> Atrás</> : 'Cancelar'}
           </Button>
-          {paso < 4 ? (
+          {paso === 1 ? (
+            <span className="text-xs text-muted-foreground self-center">Elige una opción arriba para continuar</span>
+          ) : paso < 4 ? (
             <Button onClick={async () => {
-              if (paso === 1) {
-                if (!origen) { toast.error('Elige una opción'); return; }
-                if (origen === 'xml' && !cfdi) { toast.error('Sube un XML válido'); return; }
-                setPaso(2);
-              } else if (paso === 2) {
+              if (paso === 2) {
                 if (!proveedorId) { toast.error('Selecciona proveedor'); return; }
                 setPaso(3);
                 if (origen === 'xml' && lineas.some(l => !l.producto_id)) {
