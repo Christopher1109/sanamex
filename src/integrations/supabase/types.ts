@@ -761,6 +761,138 @@ export type Database = {
           },
         ]
       }
+      devolucion_proveedor_lineas: {
+        Row: {
+          cantidad: number
+          costo_unitario: number
+          created_at: string | null
+          devolucion_id: string
+          id: string
+          importe: number
+          lote_id: string
+          producto_id: string
+        }
+        Insert: {
+          cantidad: number
+          costo_unitario?: number
+          created_at?: string | null
+          devolucion_id: string
+          id?: string
+          importe?: number
+          lote_id: string
+          producto_id: string
+        }
+        Update: {
+          cantidad?: number
+          costo_unitario?: number
+          created_at?: string | null
+          devolucion_id?: string
+          id?: string
+          importe?: number
+          lote_id?: string
+          producto_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "devolucion_proveedor_lineas_devolucion_id_fkey"
+            columns: ["devolucion_id"]
+            isOneToOne: false
+            referencedRelation: "devoluciones_proveedor"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "devolucion_proveedor_lineas_lote_id_fkey"
+            columns: ["lote_id"]
+            isOneToOne: false
+            referencedRelation: "lotes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "devolucion_proveedor_lineas_producto_id_fkey"
+            columns: ["producto_id"]
+            isOneToOne: false
+            referencedRelation: "productos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      devoluciones_proveedor: {
+        Row: {
+          almacen_id: string
+          created_at: string | null
+          created_by: string | null
+          estado: string
+          fecha: string
+          id: string
+          motivo: string
+          notas: string | null
+          numero_devolucion: string | null
+          proveedor_id: string
+          sucursal_id: string
+          total: number
+          updated_at: string | null
+        }
+        Insert: {
+          almacen_id: string
+          created_at?: string | null
+          created_by?: string | null
+          estado?: string
+          fecha?: string
+          id?: string
+          motivo: string
+          notas?: string | null
+          numero_devolucion?: string | null
+          proveedor_id: string
+          sucursal_id: string
+          total?: number
+          updated_at?: string | null
+        }
+        Update: {
+          almacen_id?: string
+          created_at?: string | null
+          created_by?: string | null
+          estado?: string
+          fecha?: string
+          id?: string
+          motivo?: string
+          notas?: string | null
+          numero_devolucion?: string | null
+          proveedor_id?: string
+          sucursal_id?: string
+          total?: number
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "devoluciones_proveedor_almacen_id_fkey"
+            columns: ["almacen_id"]
+            isOneToOne: false
+            referencedRelation: "almacenes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "devoluciones_proveedor_proveedor_id_fkey"
+            columns: ["proveedor_id"]
+            isOneToOne: false
+            referencedRelation: "proveedores"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "devoluciones_proveedor_proveedor_id_fkey"
+            columns: ["proveedor_id"]
+            isOneToOne: false
+            referencedRelation: "vista_fill_rate_proveedores"
+            referencedColumns: ["proveedor_id"]
+          },
+          {
+            foreignKeyName: "devoluciones_proveedor_sucursal_id_fkey"
+            columns: ["sucursal_id"]
+            isOneToOne: false
+            referencedRelation: "sucursales"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       inventario: {
         Row: {
           almacen_id: string
@@ -2388,10 +2520,16 @@ export type Database = {
           almacen_origen_id: string
           created_at: string | null
           estado: string
+          fecha_envio: string | null
+          fecha_recepcion: string | null
           id: string
+          motivo_cancelacion: string | null
           notas: string | null
+          numero_traspaso: string | null
           recibido_por: string | null
           solicitado_por: string | null
+          sucursal_destino_id: string | null
+          sucursal_origen_id: string | null
           updated_at: string | null
         }
         Insert: {
@@ -2399,10 +2537,16 @@ export type Database = {
           almacen_origen_id: string
           created_at?: string | null
           estado?: string
+          fecha_envio?: string | null
+          fecha_recepcion?: string | null
           id?: string
+          motivo_cancelacion?: string | null
           notas?: string | null
+          numero_traspaso?: string | null
           recibido_por?: string | null
           solicitado_por?: string | null
+          sucursal_destino_id?: string | null
+          sucursal_origen_id?: string | null
           updated_at?: string | null
         }
         Update: {
@@ -2410,10 +2554,16 @@ export type Database = {
           almacen_origen_id?: string
           created_at?: string | null
           estado?: string
+          fecha_envio?: string | null
+          fecha_recepcion?: string | null
           id?: string
+          motivo_cancelacion?: string | null
           notas?: string | null
+          numero_traspaso?: string | null
           recibido_por?: string | null
           solicitado_por?: string | null
+          sucursal_destino_id?: string | null
+          sucursal_origen_id?: string | null
           updated_at?: string | null
         }
         Relationships: [
@@ -2429,6 +2579,20 @@ export type Database = {
             columns: ["almacen_origen_id"]
             isOneToOne: false
             referencedRelation: "almacenes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "traspasos_sucursal_destino_id_fkey"
+            columns: ["sucursal_destino_id"]
+            isOneToOne: false
+            referencedRelation: "sucursales"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "traspasos_sucursal_origen_id_fkey"
+            columns: ["sucursal_origen_id"]
+            isOneToOne: false
+            referencedRelation: "sucursales"
             referencedColumns: ["id"]
           },
         ]
@@ -2732,9 +2896,24 @@ export type Database = {
       }
     }
     Functions: {
+      cancelar_traspaso: {
+        Args: { p_motivo: string; p_traspaso_id: string }
+        Returns: Json
+      }
       clasificacion_abc_productos: {
         Args: { p_dias_ventana?: number }
         Returns: undefined
+      }
+      enviar_traspaso: {
+        Args: {
+          p_almacen_destino_id: string
+          p_almacen_origen_id: string
+          p_lineas: Json
+          p_notas?: string
+          p_sucursal_destino_id: string
+          p_sucursal_origen_id: string
+        }
+        Returns: Json
       }
       fill_rate_proveedores: {
         Args: { p_desde?: string; p_hasta?: string }
@@ -2753,7 +2932,9 @@ export type Database = {
         }[]
       }
       generar_folio_compra: { Args: never; Returns: string }
+      generar_folio_devolucion: { Args: never; Returns: string }
       generar_folio_oc: { Args: never; Returns: string }
+      generar_folio_traspaso: { Args: never; Returns: string }
       has_permission: {
         Args: { _modulo: string; _submodulo?: string; _user_id: string }
         Returns: boolean
@@ -2878,6 +3059,7 @@ export type Database = {
         Args: { p_almacen_id: string; p_orden_id: string; p_recepciones: Json }
         Returns: Json
       }
+      recibir_traspaso: { Args: { p_traspaso_id: string }; Returns: Json }
       recomendar_proveedor: {
         Args: {
           p_cantidad_requerida: number
@@ -2916,6 +3098,17 @@ export type Database = {
           p_sucursal_id: string
           p_uuid_cfdi?: string
           p_xml_url?: string
+        }
+        Returns: Json
+      }
+      registrar_devolucion_proveedor: {
+        Args: {
+          p_almacen_id: string
+          p_lineas: Json
+          p_motivo: string
+          p_notas?: string
+          p_proveedor_id: string
+          p_sucursal_id: string
         }
         Returns: Json
       }
