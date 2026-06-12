@@ -173,9 +173,15 @@ const NuevaFacturaWizard = ({ open, onOpenChange, onSaved }: Props) => {
 
     setSaving(true);
     try {
-      const { data: alm } = await supabase.from('almacenes')
-        .select('id').eq('sucursal_id', selectedSucursal.id).eq('activo', true).limit(1);
-      if (!alm?.[0]) throw new Error('No hay almacén activo en la sucursal');
+      const { data: alm, error: almErr } = await supabase.from('almacenes')
+        .select('id, activo').eq('sucursal_id', selectedSucursal.id).order('activo', { ascending: false }).limit(1);
+      if (almErr) throw almErr;
+      if (!alm?.[0]) {
+        throw new Error(`No hay almacén configurado para la sucursal "${selectedSucursal.nombre}". Contacta al admin.`);
+      }
+      if (!alm[0].activo) {
+        throw new Error(`El almacén de la sucursal "${selectedSucursal.nombre}" está inactivo. Contacta al admin.`);
+      }
 
       // Subir XML al storage si aplica
       let xml_url: string | null = null;
