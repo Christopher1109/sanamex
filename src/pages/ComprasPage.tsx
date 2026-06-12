@@ -13,6 +13,8 @@ import { Textarea } from '@/components/ui/textarea';
 import { Plus, Eye, PackageCheck, CreditCard, ChevronRight, Upload, ImageIcon, CheckCircle2, Lock } from 'lucide-react';
 import { toast } from 'sonner';
 import ProductSearchInput from '@/components/ProductSearchInput';
+import NuevaFacturaWizard from '@/components/compras/NuevaFacturaWizard';
+import { FileText } from 'lucide-react';
 
 const estadoConfig: Record<string, { color: string; label: string }> = {
   ordenada: { color: 'secondary', label: 'Ordenada' },
@@ -28,6 +30,7 @@ const ComprasPage = () => {
   const [compras, setCompras] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreate, setShowCreate] = useState(false);
+  const [showWizard, setShowWizard] = useState(false);
   const [showRecepcion, setShowRecepcion] = useState<any>(null);
   const [showDetail, setShowDetail] = useState<any>(null);
   const [lineasDetail, setLineasDetail] = useState<any[]>([]);
@@ -314,8 +317,13 @@ const ComprasPage = () => {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div><h1 className="text-2xl font-bold">Compras</h1><p className="text-muted-foreground">{selectedSucursal?.nombre}</p></div>
-        <Button onClick={openCreate}><Plus className="h-4 w-4 mr-2" />Nueva Orden de Compra</Button>
+        <div className="flex gap-2">
+          <Button onClick={() => setShowWizard(true)}><FileText className="h-4 w-4 mr-2" />Nueva Factura (XML / Manual)</Button>
+          <Button variant="outline" onClick={openCreate}><Plus className="h-4 w-4 mr-2" />Nueva OC</Button>
+        </div>
       </div>
+
+      <NuevaFacturaWizard open={showWizard} onOpenChange={setShowWizard} onSaved={load} />
 
       <Card>
         <CardContent className="p-4">

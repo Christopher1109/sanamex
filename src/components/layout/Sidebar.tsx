@@ -7,7 +7,8 @@ import {
   Warehouse, ArrowLeftRight, ClipboardList,
   Store, ShoppingCart,
   PackageCheck, AlertTriangle, AlertCircle, History, FileSpreadsheet,
-  Monitor, CloudOff, Shield, Sparkles, Upload, Receipt, Bell, Wallet, TrendingUp, DollarSign
+  Monitor, CloudOff, Shield, Sparkles, Upload, Receipt, Bell, Wallet, TrendingUp, DollarSign,
+  Undo2, Search
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -69,7 +70,7 @@ const Sidebar = ({ userRole, onLogout }: SidebarProps) => {
   const menuItems: MenuItem[] = [
     { path: '/dashboard', icon: LayoutDashboard, label: 'Dashboard', roles: ALL, category: 'Principal' },
     // Catálogos
-    { path: '/productos', icon: Package, label: 'Productos', roles: ['super_admin','admin','gerente','subgerente','almacen','almacen_ventas'], category: 'Catálogos' },
+    { path: '/productos', icon: Package, label: 'Artículos', roles: ['super_admin','admin','gerente','subgerente','almacen','almacen_ventas'], category: 'Catálogos' },
     { path: '/proveedores', icon: Store, label: 'Proveedores', roles: MGMT, category: 'Catálogos' },
     { path: '/catalogos-cotizador', icon: Upload, label: 'Catálogos Cotizador', roles: MGMT, category: 'Catálogos' },
     { path: '/listas-precios', icon: DollarSign, label: 'Listas de Precios', roles: MGMT, category: 'Catálogos' },
@@ -80,6 +81,12 @@ const Sidebar = ({ userRole, onLogout }: SidebarProps) => {
     { path: '/pedidos', icon: PackageCheck, label: 'Ventas', roles: SALES, category: 'Operaciones' },
     { path: '/pos', icon: Monitor, label: 'Punto de Venta', roles: SALES, category: 'Operaciones' },
     { path: '/traspasos', icon: ArrowLeftRight, label: 'Traspasos', roles: OPS, category: 'Operaciones' },
+    { path: '/devoluciones-proveedor', icon: Undo2, label: 'Devoluciones a Proveedor', roles: OPS, category: 'Operaciones' },
+    // Consultas
+    { path: '/consultas/articulos', icon: Search, label: 'Movimientos de Artículo', roles: [...OPS,'auditoria'], category: 'Consultas' },
+    { path: '/consultas/traspasos-salida', icon: ArrowLeftRight, label: 'Traspasos Salida', roles: [...OPS,'auditoria'], category: 'Consultas' },
+    { path: '/consultas/traspasos-entrada', icon: ArrowLeftRight, label: 'Traspasos Entrada', roles: [...OPS,'auditoria'], category: 'Consultas' },
+    { path: '/consultas/compras', icon: ShoppingCart, label: 'Compras Históricas', roles: [...OPS,'auditoria'], category: 'Consultas' },
     // Inventario
     { path: '/inventario', icon: Warehouse, label: 'Inventario', roles: ['super_admin','admin','gerente','subgerente','almacen','almacen_ventas'], category: 'Inventario' },
     { path: '/kardex', icon: ClipboardList, label: 'Kardex', roles: [...OPS,'auditoria','auditoria'], category: 'Inventario' },

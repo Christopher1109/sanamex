@@ -360,63 +360,81 @@ export type Database = {
           comprobante_pago_url: string | null
           creado_por: string | null
           created_at: string | null
+          dias_credito: number | null
           estado: string
           fecha_factura: string | null
           fecha_pago_limite: string | null
           fecha_pago_real: string | null
+          folio_factura: string | null
           id: string
           impuestos: number
+          metodo_pago: string | null
           notas: string | null
           notas_pago: string | null
           numero_compra: string
           pagada: boolean
           proveedor_id: string
+          rfc_emisor: string | null
           subtotal: number
           sucursal_id: string
           total: number
           updated_at: string | null
+          uuid_cfdi: string | null
+          xml_url: string | null
         }
         Insert: {
           almacen_id?: string | null
           comprobante_pago_url?: string | null
           creado_por?: string | null
           created_at?: string | null
+          dias_credito?: number | null
           estado?: string
           fecha_factura?: string | null
           fecha_pago_limite?: string | null
           fecha_pago_real?: string | null
+          folio_factura?: string | null
           id?: string
           impuestos?: number
+          metodo_pago?: string | null
           notas?: string | null
           notas_pago?: string | null
           numero_compra: string
           pagada?: boolean
           proveedor_id: string
+          rfc_emisor?: string | null
           subtotal?: number
           sucursal_id: string
           total?: number
           updated_at?: string | null
+          uuid_cfdi?: string | null
+          xml_url?: string | null
         }
         Update: {
           almacen_id?: string | null
           comprobante_pago_url?: string | null
           creado_por?: string | null
           created_at?: string | null
+          dias_credito?: number | null
           estado?: string
           fecha_factura?: string | null
           fecha_pago_limite?: string | null
           fecha_pago_real?: string | null
+          folio_factura?: string | null
           id?: string
           impuestos?: number
+          metodo_pago?: string | null
           notas?: string | null
           notas_pago?: string | null
           numero_compra?: string
           pagada?: boolean
           proveedor_id?: string
+          rfc_emisor?: string | null
           subtotal?: number
           sucursal_id?: string
           total?: number
           updated_at?: string | null
+          uuid_cfdi?: string | null
+          xml_url?: string | null
         }
         Relationships: [
           {
@@ -678,6 +696,70 @@ export type Database = {
           updated_at?: string | null
         }
         Relationships: []
+      }
+      cuentas_por_pagar: {
+        Row: {
+          compra_id: string | null
+          created_at: string
+          estado: string
+          fecha_emision: string
+          fecha_vencimiento: string
+          id: string
+          monto: number
+          monto_pagado: number
+          notas: string | null
+          proveedor_id: string
+          updated_at: string
+        }
+        Insert: {
+          compra_id?: string | null
+          created_at?: string
+          estado?: string
+          fecha_emision?: string
+          fecha_vencimiento: string
+          id?: string
+          monto: number
+          monto_pagado?: number
+          notas?: string | null
+          proveedor_id: string
+          updated_at?: string
+        }
+        Update: {
+          compra_id?: string | null
+          created_at?: string
+          estado?: string
+          fecha_emision?: string
+          fecha_vencimiento?: string
+          id?: string
+          monto?: number
+          monto_pagado?: number
+          notas?: string | null
+          proveedor_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cuentas_por_pagar_compra_id_fkey"
+            columns: ["compra_id"]
+            isOneToOne: false
+            referencedRelation: "compras"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cuentas_por_pagar_proveedor_id_fkey"
+            columns: ["proveedor_id"]
+            isOneToOne: false
+            referencedRelation: "proveedores"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cuentas_por_pagar_proveedor_id_fkey"
+            columns: ["proveedor_id"]
+            isOneToOne: false
+            referencedRelation: "vista_fill_rate_proveedores"
+            referencedColumns: ["proveedor_id"]
+          },
+        ]
       }
       inventario: {
         Row: {
@@ -2670,6 +2752,7 @@ export type Database = {
           varianza_tiempo: number
         }[]
       }
+      generar_folio_compra: { Args: never; Returns: string }
       generar_folio_oc: { Args: never; Returns: string }
       has_permission: {
         Args: { _modulo: string; _submodulo?: string; _user_id: string }
@@ -2818,6 +2901,23 @@ export type Database = {
           proveedor_nombre: string
           ranking: number
         }[]
+      }
+      registrar_compra: {
+        Args: {
+          p_almacen_id: string
+          p_dias_credito?: number
+          p_fecha_factura?: string
+          p_folio_factura?: string
+          p_lineas: Json
+          p_metodo_pago?: string
+          p_notas?: string
+          p_proveedor_id: string
+          p_rfc_emisor?: string
+          p_sucursal_id: string
+          p_uuid_cfdi?: string
+          p_xml_url?: string
+        }
+        Returns: Json
       }
       rentabilidad_por_lote: {
         Args: {
