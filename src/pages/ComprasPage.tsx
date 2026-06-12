@@ -30,6 +30,7 @@ const ComprasPage = () => {
   const [compras, setCompras] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreate, setShowCreate] = useState(false);
+  const [showWizard, setShowWizard] = useState(false);
   const [showRecepcion, setShowRecepcion] = useState<any>(null);
   const [showDetail, setShowDetail] = useState<any>(null);
   const [lineasDetail, setLineasDetail] = useState<any[]>([]);
