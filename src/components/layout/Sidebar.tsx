@@ -72,34 +72,21 @@ const Sidebar = ({ userRole, onLogout }: SidebarProps) => {
     // Catálogos
     { path: '/productos', icon: Package, label: 'Artículos', roles: ['super_admin','admin','gerente','subgerente','almacen','almacen_ventas'], category: 'Catálogos' },
     { path: '/proveedores', icon: Store, label: 'Proveedores', roles: MGMT, category: 'Catálogos' },
-    { path: '/catalogos-cotizador', icon: Upload, label: 'Catálogos Cotizador', roles: MGMT, category: 'Catálogos' },
     { path: '/listas-precios', icon: DollarSign, label: 'Listas de Precios', roles: MGMT, category: 'Catálogos' },
     { path: '/clientes', icon: Users, label: 'Clientes', roles: [...MGMT,'ventas'], category: 'Catálogos' },
     // Operaciones
     { path: '/compras', icon: ShoppingCart, label: 'Compras', roles: OPS, category: 'Operaciones' },
-    { path: '/ordenes-compra', icon: ClipboardList, label: 'Órdenes de Compra', roles: OPS, category: 'Operaciones' },
     { path: '/pedidos', icon: PackageCheck, label: 'Ventas', roles: SALES, category: 'Operaciones' },
     { path: '/pos', icon: Monitor, label: 'Punto de Venta', roles: SALES, category: 'Operaciones' },
     { path: '/traspasos', icon: ArrowLeftRight, label: 'Traspasos', roles: OPS, category: 'Operaciones' },
     { path: '/devoluciones-proveedor', icon: Undo2, label: 'Devoluciones a Proveedor', roles: OPS, category: 'Operaciones' },
-    // Consultas
-    { path: '/consultas/articulos', icon: Search, label: 'Movimientos de Artículo', roles: [...OPS,'auditoria'], category: 'Consultas' },
-    { path: '/consultas/traspasos-salida', icon: ArrowLeftRight, label: 'Traspasos Salida', roles: [...OPS,'auditoria'], category: 'Consultas' },
-    { path: '/consultas/traspasos-entrada', icon: ArrowLeftRight, label: 'Traspasos Entrada', roles: [...OPS,'auditoria'], category: 'Consultas' },
-    { path: '/consultas/compras', icon: ShoppingCart, label: 'Compras Históricas', roles: [...OPS,'auditoria'], category: 'Consultas' },
     // Inventario
     { path: '/inventario', icon: Warehouse, label: 'Inventario', roles: ['super_admin','admin','gerente','subgerente','almacen','almacen_ventas'], category: 'Inventario' },
-    { path: '/kardex', icon: ClipboardList, label: 'Kardex', roles: [...OPS,'auditoria','auditoria'], category: 'Inventario' },
-    { path: '/mermas', icon: AlertTriangle, label: 'Mermas', roles: [...OPS,'auditoria','auditoria'], category: 'Inventario' },
-    { path: '/caducidades', icon: AlertCircle, label: 'Caducidades', roles: [...OPS,'auditoria','auditoria'], category: 'Inventario' },
+    { path: '/caducidades', icon: AlertCircle, label: 'Caducidades', roles: [...OPS,'auditoria'], category: 'Inventario' },
     // Análisis
     { path: '/rotacion', icon: TrendingUp, label: 'Inteligencia de Rotación', roles: MGMT, category: 'Análisis' },
     { path: '/rentabilidad-lotes', icon: DollarSign, label: 'Rentabilidad por Lote', roles: MGMT, category: 'Análisis' },
-    { path: '/reporte-sanamex', icon: FileSpreadsheet, label: 'Ventas e Inventario SANAMEX', roles: MGMT, category: 'Análisis' },
-    { path: '/reporte-inventario-general', icon: FileSpreadsheet, label: 'Reporte Inventario General', roles: MGMT, category: 'Análisis' },
-    { path: '/reporte-ventas-presupuesto', icon: FileSpreadsheet, label: 'Reporte Ventas y Presupuesto', roles: MGMT, category: 'Análisis' },
-    { path: '/reporte-sugeridos', icon: FileSpreadsheet, label: 'Reporte Sugeridos', roles: MGMT, category: 'Análisis' },
-    { path: '/cotizador', icon: Sparkles, label: 'Cotizador', roles: MGMT, category: 'Análisis' },
+    { path: '/reportes', icon: FileSpreadsheet, label: 'Reportes', roles: MGMT, category: 'Análisis' },
     // Finanzas
     { path: '/cuentas-por-pagar', icon: Wallet, label: 'Cuentas por Pagar', roles: MGMT, category: 'Finanzas' },
     { path: '/fiscal', icon: Receipt, label: 'Facturación (CFDI)', roles: MGMT, category: 'Fiscal' },
