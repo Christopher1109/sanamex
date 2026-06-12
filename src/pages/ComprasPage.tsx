@@ -317,8 +317,13 @@ const ComprasPage = () => {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div><h1 className="text-2xl font-bold">Compras</h1><p className="text-muted-foreground">{selectedSucursal?.nombre}</p></div>
-        <Button onClick={openCreate}><Plus className="h-4 w-4 mr-2" />Nueva Orden de Compra</Button>
+        <div className="flex gap-2">
+          <Button onClick={() => setShowWizard(true)}><FileText className="h-4 w-4 mr-2" />Nueva Factura (XML / Manual)</Button>
+          <Button variant="outline" onClick={openCreate}><Plus className="h-4 w-4 mr-2" />Nueva OC</Button>
+        </div>
       </div>
+
+      <NuevaFacturaWizard open={showWizard} onOpenChange={setShowWizard} onSaved={load} />
 
       <Card>
         <CardContent className="p-4">
