@@ -13,6 +13,8 @@ import { Textarea } from '@/components/ui/textarea';
 import { Plus, Eye, PackageCheck, CreditCard, ChevronRight, Upload, ImageIcon, CheckCircle2, Lock } from 'lucide-react';
 import { toast } from 'sonner';
 import ProductSearchInput from '@/components/ProductSearchInput';
+import NuevaFacturaWizard from '@/components/compras/NuevaFacturaWizard';
+import { FileText } from 'lucide-react';
 
 const estadoConfig: Record<string, { color: string; label: string }> = {
   ordenada: { color: 'secondary', label: 'Ordenada' },
