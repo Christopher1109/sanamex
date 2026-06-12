@@ -232,52 +232,37 @@ const NuevaFacturaWizard = ({ open, onOpenChange, onSaved }: Props) => {
         {paso === 1 && (
           <div className="space-y-4">
             <p className="text-sm text-muted-foreground">¿Cómo quieres capturar esta compra?</p>
+            <input
+              ref={fileRef}
+              type="file"
+              accept=".xml,application/xml,text/xml"
+              className="hidden"
+              onChange={(e) => { const f = e.target.files?.[0]; if (f) handleXmlFile(f); e.target.value = ''; }}
+            />
             <div className="grid grid-cols-2 gap-4">
               <Card
-                className={`cursor-pointer hover:border-primary transition ${origen === 'xml' ? 'border-primary' : ''}`}
-                onClick={() => setOrigen('xml')}
+                className="cursor-pointer hover:border-primary hover:shadow-md transition"
+                onClick={() => fileRef.current?.click()}
               >
                 <CardContent className="p-6 text-center space-y-2">
                   <FileText className="h-10 w-10 mx-auto text-primary" />
                   <h3 className="font-semibold">Subir XML (CFDI)</h3>
                   <p className="text-xs text-muted-foreground">Recomendado. Auto-llena proveedor, folio, fecha y conceptos.</p>
+                  <p className="text-[10px] text-muted-foreground">Click para seleccionar archivo</p>
                 </CardContent>
               </Card>
               <Card
-                className={`cursor-pointer hover:border-primary transition ${origen === 'manual' ? 'border-primary' : ''}`}
-                onClick={() => setOrigen('manual')}
+                className="cursor-pointer hover:border-primary hover:shadow-md transition"
+                onClick={elegirManual}
               >
                 <CardContent className="p-6 text-center space-y-2">
                   <Upload className="h-10 w-10 mx-auto text-primary" />
                   <h3 className="font-semibold">Captura manual</h3>
                   <p className="text-xs text-muted-foreground">Para facturas sin XML o ajustes manuales.</p>
+                  <p className="text-[10px] text-muted-foreground">Click para continuar →</p>
                 </CardContent>
               </Card>
             </div>
-
-            {origen === 'xml' && (
-              <div className="space-y-2 border rounded-lg p-4 bg-muted/30">
-                <Label>Archivo XML</Label>
-                <input
-                  ref={fileRef}
-                  type="file"
-                  accept=".xml,application/xml,text/xml"
-                  className="hidden"
-                  onChange={(e) => { const f = e.target.files?.[0]; if (f) handleXmlFile(f); }}
-                />
-                <Button variant="outline" onClick={() => fileRef.current?.click()}>
-                  <Upload className="h-4 w-4 mr-2" /> {xmlFile ? xmlFile.name : 'Seleccionar XML'}
-                </Button>
-                {cfdi && (
-                  <div className="text-xs space-y-1 mt-2">
-                    <p><strong>Emisor:</strong> {cfdi.nombreEmisor} ({cfdi.rfcEmisor})</p>
-                    <p><strong>Folio:</strong> {folioFactura} · <strong>Fecha:</strong> {cfdi.fecha}</p>
-                    <p><strong>Total CFDI:</strong> ${cfdi.total.toFixed(2)} · <strong>Conceptos:</strong> {cfdi.conceptos.length}</p>
-                    {cfdi.uuid && <p className="text-muted-foreground">UUID: {cfdi.uuid}</p>}
-                  </div>
-                )}
-              </div>
-            )}
           </div>
         )}
 
