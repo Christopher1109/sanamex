@@ -39,6 +39,11 @@ import CotizadorPage from './pages/CotizadorPage';
 import OrdenesCompraPage from './pages/OrdenesCompraPage';
 import StubPage from './pages/StubPage';
 import DevolucionesProveedorPage from './pages/DevolucionesProveedorPage';
+import CotizadorHubPage from './pages/CotizadorHubPage';
+import ComprasHubPage from './pages/ComprasHubPage';
+import TraspasosHubPage from './pages/TraspasosHubPage';
+import InventarioHubPage from './pages/InventarioHubPage';
+import ReportesHubPage from './pages/ReportesHubPage';
 import Sidebar from './components/layout/Sidebar';
 import Header from './components/layout/Header';
 
