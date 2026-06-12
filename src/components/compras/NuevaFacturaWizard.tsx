@@ -458,13 +458,11 @@ const NuevaFacturaWizard = ({ open, onOpenChange, onSaved }: Props) => {
           <Button variant="outline" onClick={() => paso > 1 ? setPaso(paso - 1) : onOpenChange(false)}>
             {paso > 1 ? <><ArrowLeft className="h-4 w-4 mr-1" /> Atrás</> : 'Cancelar'}
           </Button>
-          {paso < 4 ? (
+          {paso === 1 ? (
+            <span className="text-xs text-muted-foreground self-center">Elige una opción arriba para continuar</span>
+          ) : paso < 4 ? (
             <Button onClick={async () => {
-              if (paso === 1) {
-                if (!origen) { toast.error('Elige una opción'); return; }
-                if (origen === 'xml' && !cfdi) { toast.error('Sube un XML válido'); return; }
-                setPaso(2);
-              } else if (paso === 2) {
+              if (paso === 2) {
                 if (!proveedorId) { toast.error('Selecciona proveedor'); return; }
                 setPaso(3);
                 if (origen === 'xml' && lineas.some(l => !l.producto_id)) {
