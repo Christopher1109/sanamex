@@ -1,11 +1,11 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import { UserRole } from '@/types';
 import {
   LayoutDashboard, Package, LogOut, Warehouse, ArrowLeftRight, ShoppingCart,
   Monitor, Sparkles, Receipt, Undo2, Settings, BarChart3, BookOpen,
-  ChevronDown, ChevronRight, PanelLeftClose, PanelLeftOpen, DollarSign,
+  PanelLeftClose, PanelLeftOpen, DollarSign,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -43,12 +43,6 @@ const Sidebar = ({ userRole, onLogout }: SidebarProps) => {
     return localStorage.getItem('sidebar:collapsed') === '1';
   });
   useEffect(() => { localStorage.setItem('sidebar:collapsed', collapsed ? '1' : '0'); }, [collapsed]);
-
-  // Group open state
-  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>(() => {
-    try { return JSON.parse(localStorage.getItem('sidebar:groups') || '{}'); } catch { return {}; }
-  });
-  useEffect(() => { localStorage.setItem('sidebar:groups', JSON.stringify(openGroups)); }, [openGroups]);
 
   useEffect(() => {
     if (!esAprobador) return;
@@ -129,29 +123,13 @@ const Sidebar = ({ userRole, onLogout }: SidebarProps) => {
     .map(g => ({ ...g, items: g.items.filter(i => i.roles.includes(userRole)) }))
     .filter(g => g.items.length > 0);
 
-  // Auto-expand group containing active route on mount/route change
   const activePath = location.pathname;
-  useEffect(() => {
-    const match = visibleGroups.find(g => g.items.some(i => activePath.startsWith(i.path)));
-    if (match && !openGroups[match.key]) {
-      setOpenGroups(prev => ({ ...prev, [match.key]: true }));
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activePath]);
-
   const isItemActive = (path: string) => activePath === path || activePath.startsWith(path + '/');
 
   const badgeFor = (key?: 'oc' | 'traspasos') => {
     if (key === 'oc' && esAprobador && pendientesAprob > 0) return pendientesAprob;
     if (key === 'traspasos' && traspasosPendientes > 0) return traspasosPendientes;
     return null;
-  };
-
-  // Initialize default open: 'principal' always; group with active route
-  const isGroupOpen = (g: Group) => {
-    if (collapsed) return true; // not used; collapsed renders icons only
-    if (g.items.some(i => isItemActive(i.path))) return true;
-    return openGroups[g.key] ?? (g.key === 'principal' || g.key === 'operaciones');
   };
 
   // ICON-COLLAPSED rendering
@@ -200,7 +178,7 @@ const Sidebar = ({ userRole, onLogout }: SidebarProps) => {
     );
   }
 
-  // EXPANDED rendering
+  // EXPANDED rendering — flat groups, always open
   return (
     <div className="flex h-screen w-64 flex-col bg-sidebar text-sidebar-foreground border-r border-sidebar-border">
       <div className="sticky top-0 z-10 border-b border-sidebar-border bg-sidebar">
@@ -220,63 +198,30 @@ const Sidebar = ({ userRole, onLogout }: SidebarProps) => {
       </div>
 
       <div className="flex-1 overflow-y-auto px-2 py-3">
-        <nav className="space-y-0.5">
-          {visibleGroups.map(g => {
-            const open = isGroupOpen(g);
-            const single = g.items.length === 1 && g.key !== 'principal';
-            // Single-item group: render as a flat item, no chevron, but keep the group label
-            if (g.key === 'principal') {
-              // No header for principal
-              return (
-                <div key={g.key} className="mb-2">
-                  {g.items.map(item => {
-                    const active = isItemActive(item.path);
-                    const badge = badgeFor(item.badgeKey);
-                    return (
-                      <Link key={item.path} to={item.path} className={cn(
-                        'flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
-                        active ? 'bg-sidebar-primary text-sidebar-primary-foreground' : 'hover:bg-sidebar-accent'
-                      )}>
-                        <item.icon className="h-5 w-5" />
-                        <span className="flex-1">{item.label}</span>
-                        {badge && <Badge variant="destructive" className="h-5 px-1.5 text-[10px]">{badge}</Badge>}
-                      </Link>
-                    );
-                  })}
-                </div>
-              );
-            }
-
-            return (
-              <div key={g.key} className="mb-1">
-                <button
-                  onClick={() => setOpenGroups(prev => ({ ...prev, [g.key]: !open }))}
-                  className="flex w-full items-center justify-between px-3 py-1.5 text-[11px] font-semibold text-sidebar-foreground/60 uppercase tracking-wider hover:text-sidebar-foreground"
-                >
-                  <span>{g.label}</span>
-                  {open ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
-                </button>
-                {open && (
-                  <div className="space-y-0.5">
-                    {g.items.map(item => {
-                      const active = isItemActive(item.path);
-                      const badge = badgeFor(item.badgeKey);
-                      return (
-                        <Link key={item.path} to={item.path} className={cn(
-                          'flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
-                          active ? 'bg-sidebar-primary text-sidebar-primary-foreground' : 'hover:bg-sidebar-accent'
-                        )}>
-                          <item.icon className="h-5 w-5" />
-                          <span className="flex-1">{item.label}</span>
-                          {badge && <Badge variant="destructive" className="h-5 px-1.5 text-[10px]">{badge}</Badge>}
-                        </Link>
-                      );
-                    })}
-                  </div>
-                )}
+        <nav className="space-y-4">
+          {visibleGroups.map(g => (
+            <div key={g.key}>
+              <p className="px-3 py-1 text-[11px] font-semibold text-sidebar-foreground/60 uppercase tracking-wider">
+                {g.label}
+              </p>
+              <div className="space-y-0.5">
+                {g.items.map(item => {
+                  const active = isItemActive(item.path);
+                  const badge = badgeFor(item.badgeKey);
+                  return (
+                    <Link key={item.path} to={item.path} className={cn(
+                      'flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
+                      active ? 'bg-sidebar-primary text-sidebar-primary-foreground' : 'hover:bg-sidebar-accent'
+                    )}>
+                      <item.icon className="h-5 w-5" />
+                      <span className="flex-1">{item.label}</span>
+                      {badge && <Badge variant="destructive" className="h-5 px-1.5 text-[10px]">{badge}</Badge>}
+                    </Link>
+                  );
+                })}
               </div>
-            );
-          })}
+            </div>
+          ))}
         </nav>
       </div>
 
