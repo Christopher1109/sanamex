@@ -77,9 +77,9 @@ const NuevaFacturaWizard = ({ open, onOpenChange, onSaved }: Props) => {
       const text = await file.text();
       const parsed = parseCfdiXml(text);
       setCfdi(parsed);
+      setOrigen('xml');
       setFolioFactura([parsed.serie, parsed.folio].filter(Boolean).join('-') || parsed.folio || '');
       if (parsed.fecha) setFechaFactura(parsed.fecha);
-      // Pre-cargar líneas desde conceptos
       setLineas(parsed.conceptos.map(c => ({
         clave_origen: c.clave,
         descripcion_origen: c.descripcion,
@@ -91,17 +91,23 @@ const NuevaFacturaWizard = ({ open, onOpenChange, onSaved }: Props) => {
         numero_lote: '',
         fecha_caducidad: '',
       })));
-      // Auto-seleccionar proveedor por RFC si existe
       if (parsed.rfcEmisor) {
         const { data } = await supabase.from('proveedores')
           .select('id').ilike('rfc', parsed.rfcEmisor).limit(1);
         if (data && data[0]) setProveedorId(data[0].id);
       }
       toast.success(`CFDI parseado: ${parsed.conceptos.length} conceptos`);
+      setPaso(2); // auto-avance
     } catch (e: any) {
       toast.error(`Error parseando XML: ${e.message}`);
       setCfdi(null); setXmlFile(null);
     }
+  };
+
+  const elegirManual = () => {
+    setOrigen('manual');
+    setLineas([]);
+    setPaso(2);
   };
 
   // -------- Paso 3: match híbrido ----------
