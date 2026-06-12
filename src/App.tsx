@@ -38,6 +38,7 @@ import CatalogosCotizadorPage from './pages/CatalogosCotizadorPage';
 import CotizadorPage from './pages/CotizadorPage';
 import OrdenesCompraPage from './pages/OrdenesCompraPage';
 import StubPage from './pages/StubPage';
+import DevolucionesProveedorPage from './pages/DevolucionesProveedorPage';
 import Sidebar from './components/layout/Sidebar';
 import Header from './components/layout/Header';
 
