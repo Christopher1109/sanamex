@@ -373,8 +373,12 @@ const NuevaFacturaWizard = ({ open, onOpenChange, onSaved }: Props) => {
                         <div className="space-y-1">
                           <div className="text-xs text-muted-foreground">{l.clave_origen} — {l.descripcion_origen}</div>
                           <ProductSearchInput
+                            products={productos}
                             value={l.producto_id || ''}
-                            onChange={(prodId, prod) => setMatchManual(i, prodId ? { id: prodId, nombre: prod?.nombre || '' } : null)}
+                            onSelect={(prodId) => {
+                              const p = productos.find(x => x.id === prodId);
+                              setMatchManual(i, p ? { id: p.id, nombre: p.nombre } : null);
+                            }}
                             placeholder={l.producto_id ? l.producto_nombre || '' : 'Buscar producto en catálogo…'}
                           />
                         </div>
