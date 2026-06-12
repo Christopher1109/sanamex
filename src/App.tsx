@@ -37,6 +37,7 @@ import ReporteSugeridos from './pages/ReporteSugeridos';
 import CatalogosCotizadorPage from './pages/CatalogosCotizadorPage';
 import CotizadorPage from './pages/CotizadorPage';
 import OrdenesCompraPage from './pages/OrdenesCompraPage';
+import StubPage from './pages/StubPage';
 import Sidebar from './components/layout/Sidebar';
 import Header from './components/layout/Header';
 
