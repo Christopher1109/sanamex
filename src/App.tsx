@@ -39,6 +39,11 @@ import CotizadorPage from './pages/CotizadorPage';
 import OrdenesCompraPage from './pages/OrdenesCompraPage';
 import StubPage from './pages/StubPage';
 import DevolucionesProveedorPage from './pages/DevolucionesProveedorPage';
+import CotizadorHubPage from './pages/CotizadorHubPage';
+import ComprasHubPage from './pages/ComprasHubPage';
+import TraspasosHubPage from './pages/TraspasosHubPage';
+import InventarioHubPage from './pages/InventarioHubPage';
+import ReportesHubPage from './pages/ReportesHubPage';
 import Sidebar from './components/layout/Sidebar';
 import Header from './components/layout/Header';
 
@@ -81,15 +86,15 @@ const AppContent = () => {
               <Route path="/productos" element={<Productos />} />
               <Route path="/proveedores" element={<ProveedoresPage />} />
               <Route path="/clientes" element={<ClientesPage />} />
-              <Route path="/inventario" element={<InventarioPage />} />
+              <Route path="/inventario" element={<InventarioHubPage />} />
               <Route path="/kardex" element={<Kardex />} />
-              <Route path="/traspasos" element={<TraspasosPage />} />
+              <Route path="/traspasos" element={<TraspasosHubPage />} />
               <Route path="/ajustes" element={<AjustesMermasPage />} />
               <Route path="/mermas" element={<MermasPage />} />
               <Route path="/caducidades" element={<CaducidadesPage />} />
               <Route path="/pedidos" element={<PedidosPage />} />
-              <Route path="/compras" element={<ComprasPage />} />
-              <Route path="/reportes" element={<ReportesPage />} />
+              <Route path="/compras" element={<ComprasHubPage />} />
+              <Route path="/reportes" element={<ReportesHubPage />} />
               <Route path="/actividad" element={<AuditoriaPage />} />
               <Route path="/pos" element={<POSPage />} />
               <Route path="/conflictos" element={<ConflictosPage />} />
@@ -103,7 +108,7 @@ const AppContent = () => {
               <Route path="/reporte-sugeridos" element={<ReporteSugeridos />} />
               <Route path="/listas-precios" element={<ListasPreciosPage />} />
               <Route path="/catalogos-cotizador" element={<CatalogosCotizadorPage />} />
-              <Route path="/cotizador" element={<CotizadorPage />} />
+              <Route path="/cotizador" element={<CotizadorHubPage />} />
               <Route path="/ordenes-compra" element={<OrdenesCompraPage />} />
               <Route path="/cuentas-por-pagar" element={<CuentasPorPagarPage />} />
               <Route path="/fiscal" element={<FiscalPage />} />
