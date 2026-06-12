@@ -108,7 +108,7 @@ const AppContent = () => {
               <Route path="/reporte-sugeridos" element={<ReporteSugeridos />} />
               <Route path="/listas-precios" element={<ListasPreciosPage />} />
               <Route path="/catalogos-cotizador" element={<CatalogosCotizadorPage />} />
-              <Route path="/cotizador" element={<CotizadorPage />} />
+              <Route path="/cotizador" element={<CotizadorHubPage />} />
               <Route path="/ordenes-compra" element={<OrdenesCompraPage />} />
               <Route path="/cuentas-por-pagar" element={<CuentasPorPagarPage />} />
               <Route path="/fiscal" element={<FiscalPage />} />
