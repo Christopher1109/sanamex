@@ -86,15 +86,15 @@ const AppContent = () => {
               <Route path="/productos" element={<Productos />} />
               <Route path="/proveedores" element={<ProveedoresPage />} />
               <Route path="/clientes" element={<ClientesPage />} />
-              <Route path="/inventario" element={<InventarioPage />} />
+              <Route path="/inventario" element={<InventarioHubPage />} />
               <Route path="/kardex" element={<Kardex />} />
-              <Route path="/traspasos" element={<TraspasosPage />} />
+              <Route path="/traspasos" element={<TraspasosHubPage />} />
               <Route path="/ajustes" element={<AjustesMermasPage />} />
               <Route path="/mermas" element={<MermasPage />} />
               <Route path="/caducidades" element={<CaducidadesPage />} />
               <Route path="/pedidos" element={<PedidosPage />} />
-              <Route path="/compras" element={<ComprasPage />} />
-              <Route path="/reportes" element={<ReportesPage />} />
+              <Route path="/compras" element={<ComprasHubPage />} />
+              <Route path="/reportes" element={<ReportesHubPage />} />
               <Route path="/actividad" element={<AuditoriaPage />} />
               <Route path="/pos" element={<POSPage />} />
               <Route path="/conflictos" element={<ConflictosPage />} />
