@@ -138,7 +138,7 @@ const Sidebar = ({ userRole, onLogout }: SidebarProps) => {
                     )}>
                     <item.icon className="h-5 w-5" />
                     <span className="flex-1">{item.label}</span>
-                    {item.path === '/ordenes-compra' && esAprobador && pendientesAprob > 0 && (
+                    {item.path === '/compras' && esAprobador && pendientesAprob > 0 && (
                       <Badge variant="destructive" className="h-5 px-1.5 text-[10px]">{pendientesAprob}</Badge>
                     )}
                   </Link>
