@@ -38,6 +38,7 @@ import CatalogosCotizadorPage from './pages/CatalogosCotizadorPage';
 import CotizadorPage from './pages/CotizadorPage';
 import OrdenesCompraPage from './pages/OrdenesCompraPage';
 import StubPage from './pages/StubPage';
+import DevolucionesProveedorPage from './pages/DevolucionesProveedorPage';
 import Sidebar from './components/layout/Sidebar';
 import Header from './components/layout/Header';
 
@@ -107,7 +108,7 @@ const AppContent = () => {
               <Route path="/cuentas-por-pagar" element={<CuentasPorPagarPage />} />
               <Route path="/fiscal" element={<FiscalPage />} />
               <Route path="/cargas-masivas" element={<CargasMasivasPage />} />
-              <Route path="/devoluciones-proveedor" element={<StubPage title="Devoluciones a Proveedor" description="Registra devoluciones de productos a proveedores con descuento de inventario y nota de crédito." />} />
+              <Route path="/devoluciones-proveedor" element={<DevolucionesProveedorPage />} />
               <Route path="/consultas/articulos" element={<StubPage title="Movimientos de Artículo" description="Consulta histórica de todos los movimientos (compras, ventas, traspasos, ajustes) por artículo." />} />
               <Route path="/consultas/traspasos-salida" element={<StubPage title="Traspasos de Salida" description="Traspasos donde la sucursal activa es el origen." />} />
               <Route path="/consultas/traspasos-entrada" element={<StubPage title="Traspasos de Entrada" description="Traspasos donde la sucursal activa es el destino." />} />
