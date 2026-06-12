@@ -55,6 +55,7 @@ const NuevaFacturaWizard = ({ open, onOpenChange, onSaved }: Props) => {
   const [lineas, setLineas] = useState<Linea[]>([]);
   const [verificando, setVerificando] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [productos, setProductos] = useState<any[]>([]);
 
   useEffect(() => {
     if (open) {
@@ -64,6 +65,8 @@ const NuevaFacturaWizard = ({ open, onOpenChange, onSaved }: Props) => {
       setLineas([]);
       supabase.from('proveedores').select('id, nombre, rfc, plazo_pago_dias').eq('activo', true).order('nombre')
         .then(({ data }) => setProveedores(data || []));
+      supabase.from('productos').select('id, nombre, sku, precio_base').eq('activo', true).limit(5000)
+        .then(({ data }) => setProductos(data || []));
     }
   }, [open]);
 
