@@ -109,8 +109,8 @@ const Sidebar = ({ userRole, onLogout }: SidebarProps) => {
   return (
     <div className="flex h-screen w-64 flex-col bg-sidebar text-sidebar-foreground">
       <div className="sticky top-0 z-10 border-b border-sidebar-border bg-sidebar">
-        <div className="flex h-16 items-center px-6">
-          <img src={sanamexLogo.url} alt="Sanamex" className="h-10 w-auto object-contain" />
+        <div className="flex h-20 items-center justify-center px-4">
+          <img src={sanamexLogo.url} alt="Sanamex" className="h-12 w-auto rounded-xl object-contain shadow-sm" />
         </div>
         <div className="px-3 pb-3 space-y-2">
           <div className="rounded-lg bg-sidebar-accent p-3">
