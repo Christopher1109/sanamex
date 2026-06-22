@@ -162,7 +162,7 @@ const Dashboard = ({ userRole }: DashboardProps) => {
     const sb: any = supabase;
 
     const [cfdiRes, cxpRes, usersRes, sucRes, auditRes] = await Promise.all([
-      sb.from('cfdi_emitidos').select('id', { count: 'exact', head: true }).gte('created_at', firstDay),
+      sb.from('cfdi_emitidos').select('id', { count: 'exact', head: true }).gte('created_at', firstDay).eq('es_demo', false),
       sb.from('cuentas_por_pagar').select('id', { count: 'exact', head: true }).neq('estado', 'pagada'),
       sb.from('profiles').select('id', { count: 'exact', head: true }),
       sb.from('sucursales').select('id', { count: 'exact', head: true }).eq('activa', true),
