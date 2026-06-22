@@ -448,6 +448,64 @@ export default function FiscalPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* REP / Complemento de pago */}
+      <Dialog open={!!dialogPago} onOpenChange={(o) => !o && setDialogPago(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader><DialogTitle>Registrar pago (REP) · {dialogPago?.serie}-{dialogPago?.folio}</DialogTitle></DialogHeader>
+          <div className="space-y-3">
+            <div><Label>Monto del pago</Label><Input type="number" step="0.01" value={pagoForm.monto} onChange={e => setPagoForm({ ...pagoForm, monto: e.target.value })} /></div>
+            <div><Label>Fecha de pago</Label><Input type="date" value={pagoForm.fecha} onChange={e => setPagoForm({ ...pagoForm, fecha: e.target.value })} /></div>
+            <div>
+              <Label>Forma de pago</Label>
+              <Select value={pagoForm.forma_pago} onValueChange={v => setPagoForm({ ...pagoForm, forma_pago: v })}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="01">01 · Efectivo</SelectItem>
+                  <SelectItem value="03">03 · Transferencia</SelectItem>
+                  <SelectItem value="04">04 · Tarjeta de crédito</SelectItem>
+                  <SelectItem value="28">28 · Tarjeta de débito</SelectItem>
+                  <SelectItem value="02">02 · Cheque</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div><Label>Parcialidad #</Label><Input type="number" min={1} value={pagoForm.num_parcialidad} onChange={e => setPagoForm({ ...pagoForm, num_parcialidad: Number(e.target.value) })} /></div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDialogPago(null)}>Cancelar</Button>
+            <Button onClick={emitirREP} disabled={procesando}>{procesando ? 'Emitiendo…' : 'Emitir REP'}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Nota de crédito */}
+      <Dialog open={!!dialogNota} onOpenChange={(o) => !o && setDialogNota(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader><DialogTitle>Nota de crédito · {dialogNota?.serie}-{dialogNota?.folio}</DialogTitle></DialogHeader>
+          <div className="space-y-3">
+            <div><Label>Monto</Label><Input type="number" step="0.01" value={notaForm.monto} onChange={e => setNotaForm({ ...notaForm, monto: e.target.value })} /></div>
+            <div><Label>Motivo</Label><Textarea value={notaForm.motivo} onChange={e => setNotaForm({ ...notaForm, motivo: e.target.value })} /></div>
+            <div>
+              <Label>Forma de pago</Label>
+              <Select value={notaForm.forma_pago} onValueChange={v => setNotaForm({ ...notaForm, forma_pago: v })}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="01">01 · Efectivo</SelectItem>
+                  <SelectItem value="03">03 · Transferencia</SelectItem>
+                  <SelectItem value="04">04 · Tarjeta de crédito</SelectItem>
+                  <SelectItem value="28">28 · Tarjeta de débito</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <p className="text-xs text-muted-foreground">Se emite como CFDI Egreso (tipo E) con relación 01 a la factura original.</p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDialogNota(null)}>Cancelar</Button>
+            <Button onClick={emitirNotaCredito} disabled={procesando}>{procesando ? 'Emitiendo…' : 'Emitir NC'}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
+
