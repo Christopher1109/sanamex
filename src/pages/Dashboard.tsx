@@ -159,13 +159,14 @@ const Dashboard = ({ userRole }: DashboardProps) => {
   const loadAdminKPIs = async () => {
     const now = new Date();
     const firstDay = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+    const sb: any = supabase;
 
     const [cfdiRes, cxpRes, usersRes, sucRes, auditRes] = await Promise.all([
-      supabase.from('cfdi_emitidos').select('id', { count: 'exact', head: true }).gte('created_at', firstDay),
-      supabase.from('cuentas_por_pagar').select('id', { count: 'exact', head: true }).neq('estado', 'pagada'),
-      supabase.from('profiles').select('id', { count: 'exact', head: true }),
-      supabase.from('sucursales').select('id', { count: 'exact', head: true }).eq('activa', true),
-      supabase.from('audit_log').select('id, accion, tabla, created_at, descripcion').order('created_at', { ascending: false }).limit(8),
+      sb.from('cfdi_emitidos').select('id', { count: 'exact', head: true }).gte('created_at', firstDay),
+      sb.from('cuentas_por_pagar').select('id', { count: 'exact', head: true }).neq('estado', 'pagada'),
+      sb.from('profiles').select('id', { count: 'exact', head: true }),
+      sb.from('sucursales').select('id', { count: 'exact', head: true }).eq('activa', true),
+      sb.from('audit_log').select('id, accion, tabla, created_at, descripcion').order('created_at', { ascending: false }).limit(8),
     ]);
 
     setCfdisMes(cfdiRes.count || 0);
