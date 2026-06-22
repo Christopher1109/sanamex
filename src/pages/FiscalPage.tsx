@@ -200,7 +200,49 @@ export default function FiscalPage() {
     else { toast.success('CFDI cancelado'); loadCfdis(); }
   }
 
-  const esTest = (config?.pac_proveedor || '').toLowerCase().includes('test') || true; // Facturapi test mode
+  async function emitirREP() {
+    if (!dialogPago) return;
+    const monto = Number(pagoForm.monto);
+    if (!monto || monto <= 0) return toast.error('Monto inválido');
+    setProcesando(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const res = await fetch(`${FN_BASE}/facturapi-complemento-pago`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session?.access_token}` },
+        body: JSON.stringify({
+          factura_id: dialogPago.id, monto, fecha_pago: pagoForm.fecha,
+          forma_pago: pagoForm.forma_pago, num_parcialidad: pagoForm.num_parcialidad,
+        }),
+      });
+      const body = await res.json();
+      if (!res.ok) toast.error(body?.error || 'Error emitiendo REP', { description: body?.detalle?.message });
+      else { toast.success(`REP emitido · UUID ${body.rep?.uuid_sat}`); setDialogPago(null); loadCfdis(); }
+    } catch (e: any) { toast.error(e.message); }
+    finally { setProcesando(false); }
+  }
+
+  async function emitirNotaCredito() {
+    if (!dialogNota) return;
+    const monto = Number(notaForm.monto);
+    if (!monto || monto <= 0) return toast.error('Monto inválido');
+    setProcesando(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const res = await fetch(`${FN_BASE}/facturapi-nota-credito`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session?.access_token}` },
+        body: JSON.stringify({
+          factura_id: dialogNota.id, monto, motivo: notaForm.motivo, forma_pago: notaForm.forma_pago,
+        }),
+      });
+      const body = await res.json();
+      if (!res.ok) toast.error(body?.error || 'Error emitiendo NC', { description: body?.detalle?.message });
+      else { toast.success(`Nota de crédito emitida · UUID ${body.nota_credito?.uuid_sat}`); setDialogNota(null); loadCfdis(); }
+    } catch (e: any) { toast.error(e.message); }
+    finally { setProcesando(false); }
+  }
+
 
   return (
     <div className="space-y-6">
