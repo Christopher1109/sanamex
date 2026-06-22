@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { cn } from '@/lib/utils';
+import sanamexLogo from '@/assets/sanamex-logo.png.asset.json';
 import { UserRole } from '@/types';
 import {
   LayoutDashboard, Package, Users, LogOut,
@@ -109,7 +110,7 @@ const Sidebar = ({ userRole, onLogout }: SidebarProps) => {
     <div className="flex h-screen w-64 flex-col bg-sidebar text-sidebar-foreground">
       <div className="sticky top-0 z-10 border-b border-sidebar-border bg-sidebar">
         <div className="flex h-16 items-center px-6">
-          <h1 className="text-lg font-bold text-sidebar-primary">Sanamex</h1>
+          <img src={sanamexLogo.url} alt="Sanamex" className="h-10 w-auto object-contain" />
         </div>
         <div className="px-3 pb-3 space-y-2">
           <div className="rounded-lg bg-sidebar-accent p-3">
