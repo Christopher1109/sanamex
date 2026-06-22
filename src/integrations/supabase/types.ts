@@ -202,55 +202,76 @@ export type Database = {
         Row: {
           created_at: string
           created_by: string | null
+          es_demo: boolean
           estado: string
+          facturapi_id: string | null
           folio: number | null
           id: string
           pac_response: Json | null
+          pdf_storage_path: string | null
           pdf_url: string | null
           pedido_id: string | null
+          relacionado_uuid: string | null
           rfc_receptor: string | null
           serie: string | null
           sucursal_id: string
           timbrado_at: string | null
+          tipo_comprobante: string
+          tipo_relacion: string | null
           total: number
           uuid_sat: string | null
           venta_id: string | null
+          xml_storage_path: string | null
           xml_url: string | null
         }
         Insert: {
           created_at?: string
           created_by?: string | null
+          es_demo?: boolean
           estado?: string
+          facturapi_id?: string | null
           folio?: number | null
           id?: string
           pac_response?: Json | null
+          pdf_storage_path?: string | null
           pdf_url?: string | null
           pedido_id?: string | null
+          relacionado_uuid?: string | null
           rfc_receptor?: string | null
           serie?: string | null
           sucursal_id: string
           timbrado_at?: string | null
+          tipo_comprobante?: string
+          tipo_relacion?: string | null
           total?: number
           uuid_sat?: string | null
           venta_id?: string | null
+          xml_storage_path?: string | null
           xml_url?: string | null
         }
         Update: {
           created_at?: string
           created_by?: string | null
+          es_demo?: boolean
           estado?: string
+          facturapi_id?: string | null
           folio?: number | null
           id?: string
           pac_response?: Json | null
+          pdf_storage_path?: string | null
           pdf_url?: string | null
           pedido_id?: string | null
+          relacionado_uuid?: string | null
           rfc_receptor?: string | null
           serie?: string | null
           sucursal_id?: string
           timbrado_at?: string | null
+          tipo_comprobante?: string
+          tipo_relacion?: string | null
           total?: number
           uuid_sat?: string | null
           venta_id?: string | null
+          xml_storage_path?: string | null
           xml_url?: string | null
         }
         Relationships: []
@@ -1511,6 +1532,72 @@ export type Database = {
             columns: ["sucursal_destino_id"]
             isOneToOne: false
             referencedRelation: "sucursales"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      pagos_recibidos: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          estado: string
+          factura_id: string
+          fecha_pago: string
+          forma_pago: string
+          id: string
+          moneda: string
+          monto: number
+          num_parcialidad: number
+          rep_cfdi_id: string | null
+          rep_facturapi_id: string | null
+          rep_uuid_sat: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          estado?: string
+          factura_id: string
+          fecha_pago?: string
+          forma_pago: string
+          id?: string
+          moneda?: string
+          monto: number
+          num_parcialidad?: number
+          rep_cfdi_id?: string | null
+          rep_facturapi_id?: string | null
+          rep_uuid_sat?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          estado?: string
+          factura_id?: string
+          fecha_pago?: string
+          forma_pago?: string
+          id?: string
+          moneda?: string
+          monto?: number
+          num_parcialidad?: number
+          rep_cfdi_id?: string | null
+          rep_facturapi_id?: string | null
+          rep_uuid_sat?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pagos_recibidos_factura_id_fkey"
+            columns: ["factura_id"]
+            isOneToOne: false
+            referencedRelation: "cfdi_emitidos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pagos_recibidos_rep_cfdi_id_fkey"
+            columns: ["rep_cfdi_id"]
+            isOneToOne: false
+            referencedRelation: "cfdi_emitidos"
             referencedColumns: ["id"]
           },
         ]
@@ -3416,6 +3503,7 @@ export type Database = {
         | "almacen_ventas"
         | "ventas"
         | "compras"
+        | "contador"
       estado_traspaso: "pendiente" | "aprobado" | "rechazado" | "completado"
       genero: "masculino" | "femenino"
       tipo_actividad:
@@ -3572,6 +3660,7 @@ export const Constants = {
         "almacen_ventas",
         "ventas",
         "compras",
+        "contador",
       ],
       estado_traspaso: ["pendiente", "aprobado", "rechazado", "completado"],
       genero: ["masculino", "femenino"],
