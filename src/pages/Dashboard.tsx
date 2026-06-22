@@ -3,13 +3,15 @@ import { Link } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useSucursal } from '@/contexts/SucursalContext';
 import { UserRole } from '@/types';
+import { FASE_2_VISIBLE } from '@/config/featureFlags';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
   Package, AlertCircle, Warehouse, FileSpreadsheet,
   ArrowLeftRight, Clock, CheckCircle2, AlertTriangle, ShoppingCart,
-  PackageCheck, Activity, CalendarDays, ArrowRight, TrendingDown
+  PackageCheck, Activity, CalendarDays, ArrowRight, TrendingDown,
+  Receipt, Wallet, Users as UsersIcon, Building2, Shield
 } from 'lucide-react';
 import { format, formatDistanceToNow } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -124,6 +126,13 @@ const Dashboard = ({ userRole }: DashboardProps) => {
   const [recentActivity, setRecentActivity] = useState<RecentActivity[]>([]);
   const [stockBajoCount, setStockBajoCount] = useState(0);
 
+  // KPIs Fase 1 (administrativos)
+  const [cfdisMes, setCfdisMes] = useState(0);
+  const [cxpPendientes, setCxpPendientes] = useState(0);
+  const [usuariosActivos, setUsuariosActivos] = useState(0);
+  const [sucursalesActivas, setSucursalesActivas] = useState(0);
+  const [auditRecent, setAuditRecent] = useState<RecentActivity[]>([]);
+
   const roleLabels: Record<UserRole, string> = {
     super_admin: 'Super Administrador',
     admin: 'Administrador',
@@ -140,8 +149,38 @@ const Dashboard = ({ userRole }: DashboardProps) => {
   };
 
   useEffect(() => {
-    if (selectedSucursal) loadAll();
+    if (FASE_2_VISIBLE) {
+      if (selectedSucursal) loadAll();
+    } else {
+      loadAdminKPIs();
+    }
   }, [selectedSucursal]);
+
+  const loadAdminKPIs = async () => {
+    const now = new Date();
+    const firstDay = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+
+    const [cfdiRes, cxpRes, usersRes, sucRes, auditRes] = await Promise.all([
+      supabase.from('cfdi_emitidos').select('id', { count: 'exact', head: true }).gte('created_at', firstDay),
+      supabase.from('cuentas_por_pagar').select('id', { count: 'exact', head: true }).neq('estado', 'pagada'),
+      supabase.from('profiles').select('id', { count: 'exact', head: true }),
+      supabase.from('sucursales').select('id', { count: 'exact', head: true }).eq('activa', true),
+      supabase.from('audit_log').select('id, accion, tabla, created_at, descripcion').order('created_at', { ascending: false }).limit(8),
+    ]);
+
+    setCfdisMes(cfdiRes.count || 0);
+    setCxpPendientes(cxpRes.count || 0);
+    setUsuariosActivos(usersRes.count || 0);
+    setSucursalesActivas(sucRes.count || 0);
+    setAuditRecent(
+      (auditRes.data || []).map((a: any) => ({
+        id: a.id,
+        description: a.descripcion || `${a.accion || 'acción'} en ${a.tabla || 'sistema'}`,
+        timestamp: a.created_at || '',
+        type: a.accion || 'audit',
+      }))
+    );
+  };
 
   const getAlmacenIds = async (): Promise<string[]> => {
     if (!selectedSucursal) return [];
