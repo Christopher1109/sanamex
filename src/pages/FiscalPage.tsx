@@ -5,7 +5,7 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Receipt, Download, Ban, FlaskConical } from 'lucide-react';
+import { Receipt, Download, Ban, FlaskConical, CreditCard, FileMinus } from 'lucide-react';
 import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -13,6 +13,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Textarea } from '@/components/ui/textarea';
 
 const PROJECT_ID = import.meta.env.VITE_SUPABASE_PROJECT_ID;
 const FN_BASE = `https://${PROJECT_ID}.supabase.co/functions/v1`;
@@ -25,6 +26,12 @@ export default function FiscalPage() {
   const [form, setForm] = useState({ rfc: '', razon_social: '', regimen_fiscal: '601', cp_emisor: '', pac_proveedor: 'Facturapi', serie_default: 'A' });
   const [timbrando, setTimbrando] = useState<string | null>(null);
   const [dialogVenta, setDialogVenta] = useState<any>(null);
+  const [verDemo, setVerDemo] = useState(false);
+  const [dialogPago, setDialogPago] = useState<any>(null);
+  const [dialogNota, setDialogNota] = useState<any>(null);
+  const [pagoForm, setPagoForm] = useState({ monto: '', fecha: new Date().toISOString().slice(0,10), forma_pago: '03', num_parcialidad: 1 });
+  const [notaForm, setNotaForm] = useState({ monto: '', motivo: 'Devolución / descuento', forma_pago: '01' });
+  const [procesando, setProcesando] = useState(false);
   const [receptor, setReceptor] = useState({
     rfc: 'XAXX010101000', nombre: 'PUBLICO EN GENERAL', regimen_fiscal: '616', cp: '', email: '',
     forma_pago: '01', metodo_pago: 'PUE' as 'PUE' | 'PPD', uso_cfdi: 'S01', lineas_con_iva: false,
@@ -33,7 +40,7 @@ export default function FiscalPage() {
   const sucursalIds = availableSucursales.map(s => s.id);
   const sucursalMap = Object.fromEntries(availableSucursales.map(s => [s.id, s.codigo || s.nombre]));
 
-  useEffect(() => { loadConfig(); loadCfdis(); loadVentas(); /* eslint-disable-next-line */ }, [availableSucursales.length]);
+  useEffect(() => { loadConfig(); loadCfdis(); loadVentas(); /* eslint-disable-next-line */ }, [availableSucursales.length, verDemo]);
 
   async function loadConfig() {
     // Configuración fiscal GLOBAL (compartida por todas las distribuidoras)
@@ -42,7 +49,9 @@ export default function FiscalPage() {
   }
   async function loadCfdis() {
     if (sucursalIds.length === 0) { setCfdis([]); return; }
-    const { data } = await supabase.from('cfdi_emitidos').select('*').in('sucursal_id', sucursalIds).order('created_at', { ascending: false }).limit(50);
+    let q = supabase.from('cfdi_emitidos').select('*').in('sucursal_id', sucursalIds).order('created_at', { ascending: false }).limit(100);
+    if (!verDemo) q = q.eq('es_demo', false);
+    const { data } = await q;
     setCfdis(data || []);
   }
   async function loadVentas() {
