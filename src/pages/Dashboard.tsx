@@ -726,6 +726,7 @@ const Dashboard = ({ userRole }: DashboardProps) => {
           </CardContent>
         </Card>
       )}
+      </>}
     </div>
   );
 };
