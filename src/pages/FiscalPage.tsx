@@ -306,10 +306,15 @@ export default function FiscalPage() {
 
         <TabsContent value="cfdis">
           <Card>
+            <div className="p-3 border-b flex items-center gap-3">
+              <Switch checked={verDemo} onCheckedChange={setVerDemo} id="ver-demo" />
+              <Label htmlFor="ver-demo" className="cursor-pointer text-sm">Mostrar CFDI demo (seed)</Label>
+            </div>
             <Table>
               <TableHeader>
                 <TableRow>
                   <TableHead>Folio</TableHead>
+                  <TableHead>Tipo</TableHead>
                   <TableHead>UUID SAT</TableHead>
                   <TableHead>RFC Receptor</TableHead>
                   <TableHead className="text-right">Total</TableHead>
@@ -319,10 +324,17 @@ export default function FiscalPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {cfdis.length === 0 && <TableRow><TableCell colSpan={7} className="text-center py-6 text-muted-foreground">Aún no hay comprobantes.</TableCell></TableRow>}
-                {cfdis.map(c => (
+                {cfdis.length === 0 && <TableRow><TableCell colSpan={8} className="text-center py-6 text-muted-foreground">Aún no hay comprobantes.</TableCell></TableRow>}
+                {cfdis.map(c => {
+                  const tipoLabel = c.tipo_comprobante === 'P' ? 'REP' : c.tipo_comprobante === 'E' ? 'Egreso' : 'Ingreso';
+                  const esPPD = (c.pac_response as any)?.payment_method === 'PPD';
+                  return (
                   <TableRow key={c.id}>
                     <TableCell>{c.serie}-{c.folio}</TableCell>
+                    <TableCell>
+                      <Badge variant={c.tipo_comprobante === 'P' ? 'secondary' : c.tipo_comprobante === 'E' ? 'destructive' : 'default'}>{tipoLabel}</Badge>
+                      {c.es_demo && <Badge variant="outline" className="ml-1 text-[10px]">demo</Badge>}
+                    </TableCell>
                     <TableCell className="font-mono text-xs">{c.uuid_sat || '—'}</TableCell>
                     <TableCell>{c.rfc_receptor}</TableCell>
                     <TableCell className="text-right">${Number(c.total).toFixed(2)}</TableCell>
@@ -330,21 +342,33 @@ export default function FiscalPage() {
                       <Badge variant={c.estado === 'timbrado' ? 'default' : c.estado === 'cancelado' ? 'destructive' : 'outline'}>{c.estado}</Badge>
                     </TableCell>
                     <TableCell>{new Date(c.created_at).toLocaleDateString()}</TableCell>
-                    <TableCell className="flex gap-1">
+                    <TableCell className="flex gap-1 flex-wrap">
                       {c.estado === 'timbrado' && (
                         <>
-                          <Button size="sm" variant="outline" onClick={() => descargar(c, 'pdf')}><Download className="h-3 w-3" /> PDF</Button>
+                          <Button size="sm" variant="outline" onClick={() => descargar(c, 'pdf')}><Download className="h-3 w-3" /></Button>
                           <Button size="sm" variant="outline" onClick={() => descargar(c, 'xml')}><Download className="h-3 w-3" /> XML</Button>
+                          {c.tipo_comprobante === 'I' && esPPD && (
+                            <Button size="sm" variant="outline" onClick={() => { setPagoForm({ monto: String(c.total), fecha: new Date().toISOString().slice(0,10), forma_pago: '03', num_parcialidad: 1 }); setDialogPago(c); }}>
+                              <CreditCard className="h-3 w-3" /> Pago
+                            </Button>
+                          )}
+                          {c.tipo_comprobante === 'I' && (
+                            <Button size="sm" variant="outline" onClick={() => { setNotaForm({ monto: String(c.total), motivo: 'Devolución / descuento', forma_pago: '01' }); setDialogNota(c); }}>
+                              <FileMinus className="h-3 w-3" /> NC
+                            </Button>
+                          )}
                           <Button size="sm" variant="ghost" onClick={() => cancelar(c)}><Ban className="h-3 w-3" /></Button>
                         </>
                       )}
                     </TableCell>
                   </TableRow>
-                ))}
+                  );
+                })}
               </TableBody>
             </Table>
           </Card>
         </TabsContent>
+
 
         <TabsContent value="config">
           <Card className="p-5">
