@@ -381,6 +381,141 @@ const Dashboard = ({ userRole }: DashboardProps) => {
         </div>
       </div>
 
+      {/* === Dashboard administrativo (Fase 1) === */}
+      {!FASE_2_VISIBLE && (
+        <>
+          <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
+            <Card>
+              <CardContent className="p-5">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">CFDIs del Mes</p>
+                    <p className="text-3xl font-bold mt-1">{cfdisMes}</p>
+                    <p className="text-xs text-muted-foreground mt-1">Comprobantes emitidos</p>
+                  </div>
+                  <div className="flex items-center justify-center h-12 w-12 rounded-xl bg-primary/10">
+                    <Receipt className="h-6 w-6 text-primary" />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="p-5">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Cuentas por Pagar</p>
+                    <p className="text-3xl font-bold mt-1">{cxpPendientes}</p>
+                    <p className="text-xs text-muted-foreground mt-1">Pendientes de pago</p>
+                  </div>
+                  <div className="flex items-center justify-center h-12 w-12 rounded-xl bg-warning/10">
+                    <Wallet className="h-6 w-6 text-warning" />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="p-5">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Usuarios</p>
+                    <p className="text-3xl font-bold mt-1">{usuariosActivos}</p>
+                    <p className="text-xs text-muted-foreground mt-1">Registrados en el sistema</p>
+                  </div>
+                  <div className="flex items-center justify-center h-12 w-12 rounded-xl bg-accent/10">
+                    <UsersIcon className="h-6 w-6 text-accent" />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="p-5">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Sucursales</p>
+                    <p className="text-3xl font-bold mt-1">{sucursalesActivas}</p>
+                    <p className="text-xs text-muted-foreground mt-1">Activas</p>
+                  </div>
+                  <div className="flex items-center justify-center h-12 w-12 rounded-xl bg-primary/10">
+                    <Building2 className="h-6 w-6 text-primary" />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          <Card>
+            <CardHeader className="pb-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Activity className="h-5 w-5 text-primary" />
+                  <CardTitle className="text-lg">Actividad Reciente</CardTitle>
+                </div>
+                <Button variant="ghost" size="sm" asChild>
+                  <Link to="/actividad" className="flex items-center gap-1">
+                    Ver todo <ArrowRight className="h-3 w-3" />
+                  </Link>
+                </Button>
+              </div>
+              <CardDescription>Últimos eventos registrados en el sistema</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {auditRecent.length === 0 ? (
+                <p className="text-sm text-muted-foreground text-center py-6">Sin actividad reciente</p>
+              ) : (
+                <div className="space-y-3">
+                  {auditRecent.map((act, idx) => (
+                    <div key={act.id} className="flex items-start gap-3">
+                      <div className="relative flex flex-col items-center">
+                        <div className="h-2 w-2 rounded-full bg-primary mt-2" />
+                        {idx < auditRecent.length - 1 && (
+                          <div className="w-px flex-1 bg-border mt-1" style={{ minHeight: '24px' }} />
+                        )}
+                      </div>
+                      <div className="flex-1 pb-3">
+                        <p className="text-sm">{act.description}</p>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          {act.timestamp && formatDistanceToNow(new Date(act.timestamp), { addSuffix: true, locale: es })}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Accesos rápidos</CardTitle>
+              <CardDescription>Módulos administrativos disponibles</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="grid gap-3 grid-cols-2 md:grid-cols-3 lg:grid-cols-5">
+                {[
+                  { path: '/fiscal', icon: Receipt, label: 'Facturación', description: 'CFDI' },
+                  { path: '/cuentas-por-pagar', icon: Wallet, label: 'Cuentas por Pagar', description: 'Adeudos' },
+                  { path: '/actividad', icon: Activity, label: 'Actividad', description: 'Auditoría' },
+                  { path: '/super-admin', icon: Shield, label: 'Super Admin', description: 'Usuarios y sucursales' },
+                ].map((action) => (
+                  <Link key={action.path} to={action.path}
+                    className="rounded-xl border p-4 transition-all hover:shadow-md hover:border-primary/30 flex flex-col items-center text-center group">
+                    <div className="flex items-center justify-center h-10 w-10 rounded-lg bg-primary/10 group-hover:bg-primary/20 transition-colors mb-2">
+                      <action.icon className="h-5 w-5 text-primary" />
+                    </div>
+                    <h4 className="font-semibold text-sm">{action.label}</h4>
+                    <p className="text-xs text-muted-foreground">{action.description}</p>
+                  </Link>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        </>
+      )}
+
+      {/* === Dashboard comercial (Fase 2) === */}
+      {FASE_2_VISIBLE && <>
+
+
       {/* Summary banner */}
       {(pendingCount > 0 || alertCount > 0) && (
         <div className="rounded-lg border bg-card p-4 flex items-center gap-4 flex-wrap">
