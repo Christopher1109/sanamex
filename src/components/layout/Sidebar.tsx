@@ -63,6 +63,8 @@ const Sidebar = ({ userRole, onLogout }: SidebarProps) => {
     repartidor: 'Repartidor',
     auditoria: 'Auditoría',
     contador: 'Contador',
+    contraloria: 'Contraloría',
+    tesoreria: 'Tesorería',
   };
 
   const ALL: UserRole[] = ['super_admin','admin','gerente','subgerente','supervisor','ventas','almacen','almacen_ventas','repartidor','auditoria','contador'];
