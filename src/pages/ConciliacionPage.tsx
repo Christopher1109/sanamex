@@ -44,8 +44,8 @@ const ConciliacionPage = () => {
     const [{ data: pagos }, { data: cfdis }] = await Promise.all([
       supabase.from('pagos_cxp').select('id, fecha, monto, referencia, compras(numero_compra, proveedores(nombre))')
         .gte('fecha', desde).lte('fecha', hasta),
-      supabase.from('cfdi_emitidos').select('id, fecha_emision, total, folio, receptor_nombre, es_demo')
-        .eq('es_demo', false).gte('fecha_emision', desde).lte('fecha_emision', hasta),
+      supabase.from('cfdi_emitidos').select('id, timbrado_at, total, folio, rfc_receptor, es_demo')
+        .eq('es_demo', false).gte('timbrado_at', desde).lte('timbrado_at', hasta + 'T23:59:59'),
     ]);
 
     const docs: Documento[] = [
@@ -54,8 +54,8 @@ const ConciliacionPage = () => {
         descripcion: `Pago ${p.compras?.numero_compra || ''} → ${p.compras?.proveedores?.nombre || ''} ${p.referencia ? `(${p.referencia})` : ''}`,
       })),
       ...((cfdis as any[]) || []).map((c: any) => ({
-        id: c.id, tipo: 'cfdi' as const, fecha: c.fecha_emision, monto: Number(c.total),
-        descripcion: `CFDI ${c.folio || ''} ← ${c.receptor_nombre || ''}`,
+        id: c.id, tipo: 'cfdi' as const, fecha: String(c.timbrado_at).slice(0, 10), monto: Number(c.total),
+        descripcion: `CFDI ${c.folio || ''} ← ${c.rfc_receptor || ''}`,
       })),
     ];
     setDocs(docs);
