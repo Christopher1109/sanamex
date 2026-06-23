@@ -102,7 +102,9 @@ const Sidebar = ({ userRole, onLogout }: SidebarProps) => {
     { path: '/conciliacion', icon: ArrowLeftRight, label: 'Conciliación', roles: FINANZAS, category: 'Finanzas', fase: 1 },
     { path: '/contabilidad', icon: FileSpreadsheet, label: 'Contabilidad', roles: FINANZAS, category: 'Finanzas', fase: 1 },
     { path: '/reportes-admin', icon: FileSpreadsheet, label: 'Reportes administrativos', roles: FINANZAS, category: 'Finanzas', fase: 1 },
-    { path: '/fiscal', icon: Receipt, label: 'Facturación (CFDI)', roles: FINANZAS, category: 'Fiscal', fase: 1 },
+    { path: '/fiscal', icon: Receipt, label: 'Facturación (CFDI)', roles: FISCAL, category: 'Fiscal', fase: 1 },
+    { path: '/impuestos', icon: Receipt, label: 'Impuestos', roles: FISCAL, category: 'Fiscal', fase: 1 },
+    { path: '/nomina', icon: Wallet, label: 'Nómina', roles: NOMINA, category: 'Nómina', fase: 1 },
     // Sistema
     { path: '/cargas-masivas', icon: Upload, label: 'Cargas Masivas', roles: MGMT, category: 'Sistema', fase: 2 },
     { path: '/conflictos', icon: CloudOff, label: 'Ventas Offline', roles: SALES, category: 'Sistema', fase: 2 },
