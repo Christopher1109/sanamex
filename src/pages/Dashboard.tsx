@@ -152,6 +152,7 @@ const Dashboard = ({ userRole }: DashboardProps) => {
     repartidor: 'Repartidor',
     
     auditoria: 'Auditoría',
+    contador: 'Contador',
   };
 
   useEffect(() => {
