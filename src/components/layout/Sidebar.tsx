@@ -67,9 +67,11 @@ const Sidebar = ({ userRole, onLogout }: SidebarProps) => {
     tesoreria: 'Tesorería',
   };
 
-  const ALL: UserRole[] = ['super_admin','admin','gerente','subgerente','supervisor','ventas','almacen','almacen_ventas','repartidor','auditoria','contador'];
+  const ALL: UserRole[] = ['super_admin','admin','gerente','subgerente','supervisor','ventas','almacen','almacen_ventas','repartidor','auditoria','contador','contraloria','tesoreria'];
   const MGMT: UserRole[] = ['super_admin','admin','gerente','subgerente'];
-  const FINANZAS: UserRole[] = ['super_admin','admin','gerente','contador'];
+  const FINANZAS: UserRole[] = ['super_admin','admin','gerente','contador','contraloria','tesoreria'];
+  const FISCAL: UserRole[] = ['super_admin','admin','contador','contraloria'];
+  const NOMINA: UserRole[] = ['super_admin','admin','contador'];
   const OPS: UserRole[] = ['super_admin','admin','gerente','subgerente','almacen','almacen_ventas'];
   const SALES: UserRole[] = ['super_admin','admin','gerente','subgerente','ventas','almacen_ventas'];
   const AUDIT: UserRole[] = ['super_admin','admin','gerente','auditoria','supervisor','contador'];
