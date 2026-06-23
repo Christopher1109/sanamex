@@ -99,6 +99,30 @@ export type Database = {
           },
         ]
       }
+      bancos: {
+        Row: {
+          activo: boolean
+          codigo: string
+          created_at: string
+          id: string
+          nombre: string
+        }
+        Insert: {
+          activo?: boolean
+          codigo: string
+          created_at?: string
+          id?: string
+          nombre: string
+        }
+        Update: {
+          activo?: boolean
+          codigo?: string
+          created_at?: string
+          id?: string
+          nombre?: string
+        }
+        Relationships: []
+      }
       bolsas_valores: {
         Row: {
           corte_id: string | null
@@ -378,6 +402,7 @@ export type Database = {
       compras: {
         Row: {
           almacen_id: string | null
+          cfdi_proveedor_uuid: string | null
           comprobante_pago_url: string | null
           creado_por: string | null
           created_at: string | null
@@ -386,6 +411,7 @@ export type Database = {
           fecha_factura: string | null
           fecha_pago_limite: string | null
           fecha_pago_real: string | null
+          fecha_programada: string | null
           folio_factura: string | null
           id: string
           impuestos: number
@@ -394,6 +420,7 @@ export type Database = {
           notas_pago: string | null
           numero_compra: string
           pagada: boolean
+          prioridad: string | null
           proveedor_id: string
           rfc_emisor: string | null
           subtotal: number
@@ -405,6 +432,7 @@ export type Database = {
         }
         Insert: {
           almacen_id?: string | null
+          cfdi_proveedor_uuid?: string | null
           comprobante_pago_url?: string | null
           creado_por?: string | null
           created_at?: string | null
@@ -413,6 +441,7 @@ export type Database = {
           fecha_factura?: string | null
           fecha_pago_limite?: string | null
           fecha_pago_real?: string | null
+          fecha_programada?: string | null
           folio_factura?: string | null
           id?: string
           impuestos?: number
@@ -421,6 +450,7 @@ export type Database = {
           notas_pago?: string | null
           numero_compra: string
           pagada?: boolean
+          prioridad?: string | null
           proveedor_id: string
           rfc_emisor?: string | null
           subtotal?: number
@@ -432,6 +462,7 @@ export type Database = {
         }
         Update: {
           almacen_id?: string | null
+          cfdi_proveedor_uuid?: string | null
           comprobante_pago_url?: string | null
           creado_por?: string | null
           created_at?: string | null
@@ -440,6 +471,7 @@ export type Database = {
           fecha_factura?: string | null
           fecha_pago_limite?: string | null
           fecha_pago_real?: string | null
+          fecha_programada?: string | null
           folio_factura?: string | null
           id?: string
           impuestos?: number
@@ -448,6 +480,7 @@ export type Database = {
           notas_pago?: string | null
           numero_compra?: string
           pagada?: boolean
+          prioridad?: string | null
           proveedor_id?: string
           rfc_emisor?: string | null
           subtotal?: number
@@ -491,31 +524,46 @@ export type Database = {
       conciliacion_bancaria: {
         Row: {
           bolsa_id: string | null
+          conciliado_at: string | null
+          conciliado_por: string | null
           created_at: string | null
+          documento_id: string | null
+          documento_tipo: string | null
           estado: string
           fecha_estado_cuenta: string | null
           id: string
           monto: number
+          movimiento_id: string | null
           notas: string | null
           referencia: string | null
         }
         Insert: {
           bolsa_id?: string | null
+          conciliado_at?: string | null
+          conciliado_por?: string | null
           created_at?: string | null
+          documento_id?: string | null
+          documento_tipo?: string | null
           estado?: string
           fecha_estado_cuenta?: string | null
           id?: string
           monto: number
+          movimiento_id?: string | null
           notas?: string | null
           referencia?: string | null
         }
         Update: {
           bolsa_id?: string | null
+          conciliado_at?: string | null
+          conciliado_por?: string | null
           created_at?: string | null
+          documento_id?: string | null
+          documento_tipo?: string | null
           estado?: string
           fecha_estado_cuenta?: string | null
           id?: string
           monto?: number
+          movimiento_id?: string | null
           notas?: string | null
           referencia?: string | null
         }
@@ -525,6 +573,13 @@ export type Database = {
             columns: ["bolsa_id"]
             isOneToOne: false
             referencedRelation: "bolsas_valores"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "conciliacion_bancaria_movimiento_id_fkey"
+            columns: ["movimiento_id"]
+            isOneToOne: false
+            referencedRelation: "movimientos_bancarios"
             referencedColumns: ["id"]
           },
         ]
@@ -717,6 +772,79 @@ export type Database = {
           updated_at?: string | null
         }
         Relationships: []
+      }
+      cuentas_bancarias: {
+        Row: {
+          activo: boolean
+          alias: string
+          banco_id: string
+          clabe: string | null
+          created_at: string
+          id: string
+          moneda: string
+          no_cuenta: string | null
+          notas: string | null
+          parent_id: string | null
+          saldo_inicial: number
+          sucursal_id: string | null
+          tipo: string
+          updated_at: string
+        }
+        Insert: {
+          activo?: boolean
+          alias: string
+          banco_id: string
+          clabe?: string | null
+          created_at?: string
+          id?: string
+          moneda?: string
+          no_cuenta?: string | null
+          notas?: string | null
+          parent_id?: string | null
+          saldo_inicial?: number
+          sucursal_id?: string | null
+          tipo?: string
+          updated_at?: string
+        }
+        Update: {
+          activo?: boolean
+          alias?: string
+          banco_id?: string
+          clabe?: string | null
+          created_at?: string
+          id?: string
+          moneda?: string
+          no_cuenta?: string | null
+          notas?: string | null
+          parent_id?: string | null
+          saldo_inicial?: number
+          sucursal_id?: string | null
+          tipo?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cuentas_bancarias_banco_id_fkey"
+            columns: ["banco_id"]
+            isOneToOne: false
+            referencedRelation: "bancos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cuentas_bancarias_parent_id_fkey"
+            columns: ["parent_id"]
+            isOneToOne: false
+            referencedRelation: "cuentas_bancarias"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cuentas_bancarias_sucursal_id_fkey"
+            columns: ["sucursal_id"]
+            isOneToOne: false
+            referencedRelation: "sucursales"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       cuentas_por_pagar: {
         Row: {
@@ -1205,6 +1333,95 @@ export type Database = {
         }
         Relationships: []
       }
+      movimientos_bancarios: {
+        Row: {
+          abono: number
+          cargo: number
+          cliente_sugerido_id: string | null
+          concepto: string | null
+          conciliado: boolean
+          contraparte_clabe: string | null
+          contraparte_nombre: string | null
+          created_at: string
+          cuenta_id: string
+          fecha: string
+          id: string
+          notas: string | null
+          origen: string
+          proveedor_sugerido_id: string | null
+          referencia: string | null
+          saldo: number | null
+          updated_at: string
+        }
+        Insert: {
+          abono?: number
+          cargo?: number
+          cliente_sugerido_id?: string | null
+          concepto?: string | null
+          conciliado?: boolean
+          contraparte_clabe?: string | null
+          contraparte_nombre?: string | null
+          created_at?: string
+          cuenta_id: string
+          fecha: string
+          id?: string
+          notas?: string | null
+          origen?: string
+          proveedor_sugerido_id?: string | null
+          referencia?: string | null
+          saldo?: number | null
+          updated_at?: string
+        }
+        Update: {
+          abono?: number
+          cargo?: number
+          cliente_sugerido_id?: string | null
+          concepto?: string | null
+          conciliado?: boolean
+          contraparte_clabe?: string | null
+          contraparte_nombre?: string | null
+          created_at?: string
+          cuenta_id?: string
+          fecha?: string
+          id?: string
+          notas?: string | null
+          origen?: string
+          proveedor_sugerido_id?: string | null
+          referencia?: string | null
+          saldo?: number | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "movimientos_bancarios_cliente_sugerido_id_fkey"
+            columns: ["cliente_sugerido_id"]
+            isOneToOne: false
+            referencedRelation: "clientes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "movimientos_bancarios_cuenta_id_fkey"
+            columns: ["cuenta_id"]
+            isOneToOne: false
+            referencedRelation: "cuentas_bancarias"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "movimientos_bancarios_proveedor_sugerido_id_fkey"
+            columns: ["proveedor_sugerido_id"]
+            isOneToOne: false
+            referencedRelation: "proveedores"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "movimientos_bancarios_proveedor_sugerido_id_fkey"
+            columns: ["proveedor_sugerido_id"]
+            isOneToOne: false
+            referencedRelation: "vista_fill_rate_proveedores"
+            referencedColumns: ["proveedor_id"]
+          },
+        ]
+      }
       movimientos_inventario: {
         Row: {
           almacen_id: string
@@ -1532,6 +1749,66 @@ export type Database = {
             columns: ["sucursal_destino_id"]
             isOneToOne: false
             referencedRelation: "sucursales"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      pagos_cxp: {
+        Row: {
+          banco_cuenta_id: string | null
+          compra_id: string
+          comprobante_url: string | null
+          creado_por: string | null
+          created_at: string
+          fecha: string
+          forma_pago: string
+          id: string
+          monto: number
+          notas: string | null
+          referencia: string | null
+          updated_at: string
+        }
+        Insert: {
+          banco_cuenta_id?: string | null
+          compra_id: string
+          comprobante_url?: string | null
+          creado_por?: string | null
+          created_at?: string
+          fecha?: string
+          forma_pago?: string
+          id?: string
+          monto: number
+          notas?: string | null
+          referencia?: string | null
+          updated_at?: string
+        }
+        Update: {
+          banco_cuenta_id?: string | null
+          compra_id?: string
+          comprobante_url?: string | null
+          creado_por?: string | null
+          created_at?: string
+          fecha?: string
+          forma_pago?: string
+          id?: string
+          monto?: number
+          notas?: string | null
+          referencia?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pagos_cxp_banco_cuenta_fkey"
+            columns: ["banco_cuenta_id"]
+            isOneToOne: false
+            referencedRelation: "cuentas_bancarias"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pagos_cxp_compra_id_fkey"
+            columns: ["compra_id"]
+            isOneToOne: false
+            referencedRelation: "compras"
             referencedColumns: ["id"]
           },
         ]
