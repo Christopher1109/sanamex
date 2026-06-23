@@ -9,20 +9,21 @@ export const AsientoGenerator = {
     if (!regla?.cuenta_cargo_id || !regla?.cuenta_abono_id) {
       throw new Error('Configura la regla "cfdi_ingreso" (cuenta cargo y abono).');
     }
-    let q = supabase.from('cfdi_emitidos').select('id, total, fecha_emision, folio, uuid_fiscal')
+    let q = supabase.from('cfdi_emitidos').select('id, total, timbrado_at, folio, uuid_sat')
       .eq('es_demo', false).neq('estado', 'cancelado');
-    if (desde) q = q.gte('fecha_emision', desde);
-    if (hasta) q = q.lte('fecha_emision', hasta);
+    if (desde) q = q.gte('timbrado_at', desde);
+    if (hasta) q = q.lte('timbrado_at', hasta);
     const { data: cfdis, error } = await q;
     if (error) throw error;
     let creadas = 0;
-    for (const c of cfdis || []) {
+    for (const c of (cfdis as any[]) || []) {
       const refId = c.id;
       const { data: existe } = await supabase.from('polizas').select('id')
         .eq('origen_referencia_tipo', 'cfdi').eq('origen_referencia_id', refId).maybeSingle();
       if (existe) continue;
+      const fecha = (c.timbrado_at || new Date().toISOString()).slice(0, 10);
       const { data: pol, error: e1 } = await supabase.from('polizas').insert({
-        tipo: 'ingreso', fecha: c.fecha_emision, concepto: `CFDI ${c.folio || c.uuid_fiscal || ''}`,
+        tipo: 'ingreso', fecha, concepto: `CFDI ${c.folio || c.uuid_sat || ''}`,
         estatus: 'borrador', origen: 'automatica',
         origen_referencia_tipo: 'cfdi', origen_referencia_id: refId,
       }).select('id').single();
@@ -48,7 +49,7 @@ export const AsientoGenerator = {
     const { data: pagos, error } = await q;
     if (error) throw error;
     let creadas = 0;
-    for (const p of pagos || []) {
+    for (const p of (pagos as any[]) || []) {
       const { data: existe } = await supabase.from('polizas').select('id')
         .eq('origen_referencia_tipo', 'pago_cxp').eq('origen_referencia_id', p.id).maybeSingle();
       if (existe) continue;
@@ -73,20 +74,22 @@ export const AsientoGenerator = {
     if (!regla?.cuenta_cargo_id || !regla?.cuenta_abono_id) {
       throw new Error('Configura la regla "mov_bancario".');
     }
-    let q = supabase.from('movimientos_bancarios').select('id, monto, fecha, descripcion, conciliado')
+    let q = supabase.from('movimientos_bancarios')
+      .select('id, cargo, abono, fecha, concepto, conciliado')
       .eq('conciliado', true);
     if (desde) q = q.gte('fecha', desde);
     if (hasta) q = q.lte('fecha', hasta);
     const { data: movs, error } = await q;
     if (error) throw error;
     let creadas = 0;
-    for (const m of movs || []) {
+    for (const m of (movs as any[]) || []) {
       const { data: existe } = await supabase.from('polizas').select('id')
         .eq('origen_referencia_tipo', 'mov_bancario').eq('origen_referencia_id', m.id).maybeSingle();
       if (existe) continue;
-      const monto = Math.abs(Number(m.monto || 0));
+      const monto = Math.abs(Number(m.cargo || m.abono || 0));
+      if (monto <= 0) continue;
       const { data: pol } = await supabase.from('polizas').insert({
-        tipo: 'diario', fecha: m.fecha, concepto: m.descripcion || 'Movimiento bancario',
+        tipo: 'diario', fecha: m.fecha, concepto: m.concepto || 'Movimiento bancario',
         estatus: 'borrador', origen: 'automatica',
         origen_referencia_tipo: 'mov_bancario', origen_referencia_id: m.id,
       }).select('id').single();
