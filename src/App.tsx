@@ -49,6 +49,8 @@ import Header from './components/layout/Header';
 import Fase2Guard from './components/Fase2Guard';
 import BancosPage from './pages/BancosPage';
 import ConciliacionPage from './pages/ConciliacionPage';
+import ContabilidadPage from './pages/ContabilidadPage';
+import ReportesAdminPage from './pages/ReportesAdminPage';
 
 
 const queryClient = new QueryClient({
@@ -93,6 +95,8 @@ const AppContent = () => {
               <Route path="/bancos" element={<BancosPage />} />
               <Route path="/conciliacion" element={<ConciliacionPage />} />
               <Route path="/fiscal" element={<FiscalPage />} />
+              <Route path="/contabilidad" element={<ContabilidadPage />} />
+              <Route path="/reportes-admin" element={<ReportesAdminPage />} />
               {/* Fase 2 (ocultas tras feature flag) */}
               <Route path="/productos" element={<Fase2Guard><Productos /></Fase2Guard>} />
               <Route path="/proveedores" element={<Fase2Guard><ProveedoresPage /></Fase2Guard>} />
