@@ -75,7 +75,7 @@ const BancosPage = () => {
     let proveedor_sugerido_id: string | null = null;
     let cliente_sugerido_id: string | null = null;
     if (movForm.contraparte_clabe) {
-      const { data: p } = await supabase.from('proveedores').select('id').or(`clabe.eq.${movForm.contraparte_clabe},cuenta_bancaria.eq.${movForm.contraparte_clabe}`).limit(1).maybeSingle();
+      const { data: p } = await supabase.from('proveedores').select('id').eq('cuenta_banco', movForm.contraparte_clabe).limit(1).maybeSingle();
       if (p) proveedor_sugerido_id = (p as any).id;
     }
     const { error } = await supabase.from('movimientos_bancarios').insert({
