@@ -1,100 +1,197 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import { Card, CardContent } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
-import { Label } from '@/components/ui/label';
+import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Textarea } from '@/components/ui/textarea';
-import { Plus } from 'lucide-react';
+import { CheckCircle2, RotateCcw, Link2 } from 'lucide-react';
 import { toast } from 'sonner';
 
-const estadoBadge: Record<string, any> = { pendiente: 'secondary', conciliado: 'default', discrepancia: 'destructive' };
+type Mov = {
+  id: string; cuenta_id: string; fecha: string; concepto: string | null;
+  cargo: number; abono: number; conciliado: boolean; referencia: string | null;
+};
+type Documento = {
+  id: string; tipo: 'pago_cxp' | 'cfdi'; fecha: string; monto: number; descripcion: string;
+};
 
 const ConciliacionPage = () => {
-  const [registros, setRegistros] = useState<any[]>([]);
-  const [bolsas, setBolsas] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [dialogOpen, setDialogOpen] = useState(false);
-  const [form, setForm] = useState({ bolsa_id: '', monto: '', referencia: '', fecha_estado_cuenta: '', notas: '' });
+  const [cuentas, setCuentas] = useState<any[]>([]);
+  const [cuentaId, setCuentaId] = useState<string>('');
+  const [desde, setDesde] = useState<string>(() => { const d = new Date(); d.setDate(d.getDate() - 30); return d.toISOString().slice(0, 10); });
+  const [hasta, setHasta] = useState<string>(new Date().toISOString().slice(0, 10));
+  const [movs, setMovs] = useState<Mov[]>([]);
+  const [docs, setDocs] = useState<Documento[]>([]);
+  const [selMov, setSelMov] = useState<Mov | null>(null);
+  const [tolDias, setTolDias] = useState(3);
 
-  useEffect(() => { load(); loadBolsas(); }, []);
+  useEffect(() => {
+    supabase.from('cuentas_bancarias').select('id, alias, bancos(nombre)').eq('activo', true).order('alias')
+      .then(({ data }) => { setCuentas(data || []); if (data?.length && !cuentaId) setCuentaId(data[0].id); });
+  }, []);
+
+  useEffect(() => { if (cuentaId) load(); }, [cuentaId, desde, hasta]);
 
   const load = async () => {
-    setLoading(true);
-    const { data } = await supabase.from('conciliacion_bancaria').select('*, bolsas_valores(numero_bolsa, monto)').order('created_at', { ascending: false }).limit(50);
-    setRegistros(data || []);
-    setLoading(false);
+    const { data: m } = await supabase.from('movimientos_bancarios').select('*')
+      .eq('cuenta_id', cuentaId).gte('fecha', desde).lte('fecha', hasta).order('fecha', { ascending: false });
+    setMovs((m as any) || []);
+
+    // Documentos: pagos_cxp (egresos) + cfdi_emitidos no demo (ingresos)
+    const [{ data: pagos }, { data: cfdis }] = await Promise.all([
+      supabase.from('pagos_cxp').select('id, fecha, monto, referencia, compras(numero_compra, proveedores(nombre))')
+        .gte('fecha', desde).lte('fecha', hasta),
+      supabase.from('cfdi_emitidos').select('id, timbrado_at, total, folio, rfc_receptor, es_demo')
+        .eq('es_demo', false).gte('timbrado_at', desde).lte('timbrado_at', hasta + 'T23:59:59'),
+    ]);
+
+    const docs: Documento[] = [
+      ...((pagos as any[]) || []).map((p: any) => ({
+        id: p.id, tipo: 'pago_cxp' as const, fecha: p.fecha, monto: Number(p.monto),
+        descripcion: `Pago ${p.compras?.numero_compra || ''} → ${p.compras?.proveedores?.nombre || ''} ${p.referencia ? `(${p.referencia})` : ''}`,
+      })),
+      ...((cfdis as any[]) || []).map((c: any) => ({
+        id: c.id, tipo: 'cfdi' as const, fecha: String(c.timbrado_at).slice(0, 10), monto: Number(c.total),
+        descripcion: `CFDI ${c.folio || ''} ← ${c.rfc_receptor || ''}`,
+      })),
+    ];
+    setDocs(docs);
   };
 
-  const loadBolsas = async () => {
-    const { data } = await supabase.from('bolsas_valores').select('id, numero_bolsa, monto').eq('estado', 'depositada');
-    setBolsas(data || []);
-  };
+  const sugerencias = useMemo(() => {
+    if (!selMov) return [] as Documento[];
+    const monto = selMov.cargo > 0 ? selMov.cargo : selMov.abono;
+    const tipoEsperado = selMov.cargo > 0 ? 'pago_cxp' : 'cfdi';
+    const fechaMov = new Date(selMov.fecha).getTime();
+    return docs
+      .filter(d => d.tipo === tipoEsperado)
+      .map(d => {
+        const diffDias = Math.abs((new Date(d.fecha).getTime() - fechaMov) / 86400000);
+        const diffMonto = Math.abs(d.monto - monto);
+        return { d, diffDias, diffMonto };
+      })
+      .filter(x => x.diffDias <= tolDias && x.diffMonto <= 0.5)
+      .sort((a, b) => (a.diffMonto - b.diffMonto) || (a.diffDias - b.diffDias))
+      .map(x => x.d);
+  }, [selMov, docs, tolDias]);
 
-  const save = async () => {
-    if (!form.monto) { toast.error('Monto requerido'); return; }
-    const { error } = await supabase.from('conciliacion_bancaria').insert({
-      bolsa_id: form.bolsa_id || null, monto: parseFloat(form.monto),
-      referencia: form.referencia || null, fecha_estado_cuenta: form.fecha_estado_cuenta || null, notas: form.notas || null,
+  const conciliar = async (mov: Mov, doc: Documento) => {
+    const user = (await supabase.auth.getUser()).data.user;
+    const { error: e1 } = await supabase.from('conciliacion_bancaria').insert({
+      monto: mov.cargo > 0 ? mov.cargo : mov.abono,
+      referencia: mov.referencia, fecha_estado_cuenta: mov.fecha, estado: 'conciliado',
+      movimiento_id: mov.id, documento_tipo: doc.tipo, documento_id: doc.id,
+      conciliado_por: user?.id, conciliado_at: new Date().toISOString(),
     });
-    if (error) toast.error('Error'); else { toast.success('Registro creado'); load(); setDialogOpen(false); }
+    if (e1) { toast.error(e1.message); return; }
+    await supabase.from('movimientos_bancarios').update({ conciliado: true }).eq('id', mov.id);
+    toast.success('Conciliado'); setSelMov(null); load();
   };
 
-  const conciliar = async (id: string) => {
-    const { error } = await supabase.from('conciliacion_bancaria').update({ estado: 'conciliado' }).eq('id', id);
-    if (error) toast.error('Error'); else { toast.success('Conciliado'); load(); }
+  const desconciliar = async (mov: Mov) => {
+    await supabase.from('conciliacion_bancaria').delete().eq('movimiento_id', mov.id);
+    await supabase.from('movimientos_bancarios').update({ conciliado: false }).eq('id', mov.id);
+    toast.success('Desconciliado'); load();
   };
+
+  const movsFiltrados = movs;
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div><h1 className="text-2xl font-bold">Conciliación Bancaria</h1><p className="text-muted-foreground">Conciliación de depósitos vs estado de cuenta</p></div>
-        <Button onClick={() => { setForm({ bolsa_id: '', monto: '', referencia: '', fecha_estado_cuenta: '', notas: '' }); setDialogOpen(true); }}><Plus className="h-4 w-4 mr-2" /> Nuevo Registro</Button>
+      <div>
+        <h1 className="text-2xl font-bold">Conciliación Bancaria</h1>
+        <p className="text-muted-foreground">Compara movimientos del banco contra pagos a proveedores y CFDIs emitidos</p>
       </div>
+
       <Card>
-        <CardContent className="p-0">
-          <Table>
-            <TableHeader><TableRow><TableHead>Bolsa</TableHead><TableHead>Referencia</TableHead><TableHead>Fecha Edo. Cuenta</TableHead><TableHead className="text-right">Monto</TableHead><TableHead>Estado</TableHead><TableHead>Notas</TableHead><TableHead>Acciones</TableHead></TableRow></TableHeader>
-            <TableBody>
-              {loading ? <TableRow><TableCell colSpan={7} className="text-center py-8">Cargando...</TableCell></TableRow> :
-               registros.length === 0 ? <TableRow><TableCell colSpan={7} className="text-center py-8 text-muted-foreground">Sin registros</TableCell></TableRow> :
-               registros.map(r => (
-                <TableRow key={r.id}>
-                  <TableCell className="font-mono text-xs">{(r.bolsas_valores as any)?.numero_bolsa || '—'}</TableCell>
-                  <TableCell>{r.referencia || '—'}</TableCell>
-                  <TableCell className="text-xs">{r.fecha_estado_cuenta || '—'}</TableCell>
-                  <TableCell className="text-right font-bold">${Number(r.monto).toFixed(2)}</TableCell>
-                  <TableCell><Badge variant={estadoBadge[r.estado] || 'secondary'}>{r.estado}</Badge></TableCell>
-                  <TableCell className="text-xs max-w-[150px] truncate">{r.notas || '—'}</TableCell>
-                  <TableCell>{r.estado === 'pendiente' && <Button size="sm" onClick={() => conciliar(r.id)}>Conciliar</Button>}</TableCell>
-                </TableRow>
-               ))}
-            </TableBody>
-          </Table>
+        <CardContent className="p-4 grid grid-cols-1 md:grid-cols-4 gap-3">
+          <div><Label>Cuenta</Label>
+            <Select value={cuentaId} onValueChange={setCuentaId}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>{cuentas.map(c => <SelectItem key={c.id} value={c.id}>{c.alias}</SelectItem>)}</SelectContent>
+            </Select>
+          </div>
+          <div><Label>Desde</Label><Input type="date" value={desde} onChange={e => setDesde(e.target.value)} /></div>
+          <div><Label>Hasta</Label><Input type="date" value={hasta} onChange={e => setHasta(e.target.value)} /></div>
+          <div><Label>Tolerancia (días)</Label><Input type="number" value={tolDias} onChange={e => setTolDias(parseInt(e.target.value) || 0)} /></div>
         </CardContent>
       </Card>
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent>
-          <DialogHeader><DialogTitle>Nuevo Registro de Conciliación</DialogTitle></DialogHeader>
-          <div className="space-y-3">
-            <div><Label>Bolsa de Valores (opcional)</Label>
-              <Select value={form.bolsa_id} onValueChange={v => setForm({...form, bolsa_id: v})}>
-                <SelectTrigger><SelectValue placeholder="Seleccionar bolsa..." /></SelectTrigger>
-                <SelectContent>{bolsas.map(b => <SelectItem key={b.id} value={b.id}>{b.numero_bolsa} — ${Number(b.monto).toFixed(2)}</SelectItem>)}</SelectContent>
-              </Select>
-            </div>
-            <div><Label>Monto *</Label><Input type="number" step="0.01" value={form.monto} onChange={e => setForm({...form, monto: e.target.value})} /></div>
-            <div><Label>Referencia bancaria</Label><Input value={form.referencia} onChange={e => setForm({...form, referencia: e.target.value})} /></div>
-            <div><Label>Fecha Estado de Cuenta</Label><Input type="date" value={form.fecha_estado_cuenta} onChange={e => setForm({...form, fecha_estado_cuenta: e.target.value})} /></div>
-            <div><Label>Notas</Label><Textarea value={form.notas} onChange={e => setForm({...form, notas: e.target.value})} /></div>
-          </div>
-          <DialogFooter><Button onClick={save}>Crear</Button></DialogFooter>
-        </DialogContent>
-      </Dialog>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <Card>
+          <CardHeader><CardTitle className="text-base">Movimientos del banco ({movsFiltrados.length})</CardTitle></CardHeader>
+          <CardContent className="p-0">
+            <Table>
+              <TableHeader><TableRow>
+                <TableHead>Fecha</TableHead><TableHead>Concepto</TableHead>
+                <TableHead className="text-right">Monto</TableHead><TableHead>Acciones</TableHead>
+              </TableRow></TableHeader>
+              <TableBody>
+                {movsFiltrados.map(m => {
+                  const monto = m.cargo > 0 ? m.cargo : m.abono;
+                  return (
+                    <TableRow key={m.id} className={selMov?.id === m.id ? 'bg-muted' : ''}>
+                      <TableCell className="text-xs">{m.fecha}</TableCell>
+                      <TableCell className="text-sm max-w-[180px] truncate">{m.concepto || '—'}</TableCell>
+                      <TableCell className={`text-right ${m.cargo > 0 ? 'text-destructive' : 'text-green-600'}`}>
+                        {m.cargo > 0 ? '-' : '+'}${monto.toFixed(2)}
+                      </TableCell>
+                      <TableCell>
+                        {m.conciliado ? (
+                          <div className="flex gap-1 items-center">
+                            <Badge className="bg-green-100 text-green-700"><CheckCircle2 className="h-3 w-3 mr-1" />OK</Badge>
+                            <Button size="sm" variant="ghost" onClick={() => desconciliar(m)}><RotateCcw className="h-3 w-3" /></Button>
+                          </div>
+                        ) : (
+                          <Button size="sm" variant={selMov?.id === m.id ? 'default' : 'outline'} onClick={() => setSelMov(m)}>
+                            <Link2 className="h-3 w-3 mr-1" />Match
+                          </Button>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">
+              {selMov ? `Sugerencias para ${selMov.fecha} (${sugerencias.length})` : 'Selecciona un movimiento'}
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-0">
+            {!selMov ? (
+              <p className="p-6 text-sm text-muted-foreground">Haz clic en "Match" en un movimiento sin conciliar para ver candidatos.</p>
+            ) : sugerencias.length === 0 ? (
+              <p className="p-6 text-sm text-muted-foreground">Sin coincidencias dentro de la tolerancia. Ajusta filtros o registra el pago/CFDI.</p>
+            ) : (
+              <Table>
+                <TableHeader><TableRow>
+                  <TableHead>Tipo</TableHead><TableHead>Fecha</TableHead><TableHead>Descripción</TableHead>
+                  <TableHead className="text-right">Monto</TableHead><TableHead></TableHead>
+                </TableRow></TableHeader>
+                <TableBody>
+                  {sugerencias.map(d => (
+                    <TableRow key={`${d.tipo}-${d.id}`}>
+                      <TableCell><Badge variant="outline">{d.tipo}</Badge></TableCell>
+                      <TableCell className="text-xs">{d.fecha}</TableCell>
+                      <TableCell className="text-sm max-w-[180px] truncate">{d.descripcion}</TableCell>
+                      <TableCell className="text-right">${d.monto.toFixed(2)}</TableCell>
+                      <TableCell><Button size="sm" onClick={() => conciliar(selMov, d)}>Conciliar</Button></TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            )}
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 };
