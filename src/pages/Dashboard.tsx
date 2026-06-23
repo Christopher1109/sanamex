@@ -108,6 +108,16 @@ const quickActionsByRole: Record<UserRole, Array<{
     { path: '/conciliacion', icon: Activity, label: 'Conciliación', description: 'Banco vs documentos' },
     { path: '/fiscal', icon: FileSpreadsheet, label: 'Facturación CFDI', description: 'Timbrado' },
   ],
+  contraloria: [
+    { path: '/reportes-admin', icon: FileSpreadsheet, label: 'Reportes admin', description: 'Solo lectura' },
+    { path: '/contabilidad', icon: Activity, label: 'Contabilidad', description: 'Pólizas y balanzas' },
+    { path: '/actividad', icon: Activity, label: 'Auditoría', description: 'Registro de actividad' },
+  ],
+  tesoreria: [
+    { path: '/bancos', icon: Warehouse, label: 'Bancos', description: 'Cuentas y movimientos' },
+    { path: '/conciliacion', icon: Activity, label: 'Conciliación', description: 'Banco vs documentos' },
+    { path: '/cuentas-por-pagar', icon: ShoppingCart, label: 'Cuentas por Pagar', description: 'Autorizar pagos' },
+  ],
 };
 
 const estadoBadge = (estado: string) => {
@@ -153,6 +163,8 @@ const Dashboard = ({ userRole }: DashboardProps) => {
     
     auditoria: 'Auditoría',
     contador: 'Contador',
+    contraloria: 'Contraloría',
+    tesoreria: 'Tesorería',
   };
 
   useEffect(() => {

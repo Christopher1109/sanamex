@@ -49,6 +49,53 @@ export type Database = {
           },
         ]
       }
+      asistencia: {
+        Row: {
+          created_at: string
+          empleado_id: string
+          entrada: string | null
+          fecha: string
+          horas_extra: number | null
+          id: string
+          incidencia: string | null
+          notas: string | null
+          origen: string
+          salida: string | null
+        }
+        Insert: {
+          created_at?: string
+          empleado_id: string
+          entrada?: string | null
+          fecha: string
+          horas_extra?: number | null
+          id?: string
+          incidencia?: string | null
+          notas?: string | null
+          origen?: string
+          salida?: string | null
+        }
+        Update: {
+          created_at?: string
+          empleado_id?: string
+          entrada?: string | null
+          fecha?: string
+          horas_extra?: number | null
+          id?: string
+          incidencia?: string | null
+          notas?: string | null
+          origen?: string
+          salida?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "asistencia_empleado_id_fkey"
+            columns: ["empleado_id"]
+            isOneToOne: false
+            referencedRelation: "empleados"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       audit_log: {
         Row: {
           accion: string
@@ -389,6 +436,53 @@ export type Database = {
         }
         Relationships: []
       }
+      comisiones: {
+        Row: {
+          base_calculo: number
+          created_at: string
+          empleado_id: string
+          grava: boolean
+          id: string
+          monto: number
+          notas: string | null
+          periodo_fin: string
+          periodo_inicio: string
+          porcentaje: number
+        }
+        Insert: {
+          base_calculo?: number
+          created_at?: string
+          empleado_id: string
+          grava?: boolean
+          id?: string
+          monto?: number
+          notas?: string | null
+          periodo_fin: string
+          periodo_inicio: string
+          porcentaje?: number
+        }
+        Update: {
+          base_calculo?: number
+          created_at?: string
+          empleado_id?: string
+          grava?: boolean
+          id?: string
+          monto?: number
+          notas?: string | null
+          periodo_fin?: string
+          periodo_inicio?: string
+          porcentaje?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "comisiones_empleado_id_fkey"
+            columns: ["empleado_id"]
+            isOneToOne: false
+            referencedRelation: "empleados"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       compra_lineas: {
         Row: {
           cantidad_ordenada: number
@@ -570,6 +664,45 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      conceptos_nomina: {
+        Row: {
+          activo: boolean
+          clave: string
+          codigo_sat: string | null
+          created_at: string
+          descripcion: string
+          formula: string | null
+          grava_imss: boolean
+          grava_isr: boolean
+          id: string
+          tipo: string
+        }
+        Insert: {
+          activo?: boolean
+          clave: string
+          codigo_sat?: string | null
+          created_at?: string
+          descripcion: string
+          formula?: string | null
+          grava_imss?: boolean
+          grava_isr?: boolean
+          id?: string
+          tipo: string
+        }
+        Update: {
+          activo?: boolean
+          clave?: string
+          codigo_sat?: string | null
+          created_at?: string
+          descripcion?: string
+          formula?: string | null
+          grava_imss?: boolean
+          grava_isr?: boolean
+          id?: string
+          tipo?: string
+        }
+        Relationships: []
       }
       conciliacion_bancaria: {
         Row: {
@@ -981,6 +1114,63 @@ export type Database = {
           },
         ]
       }
+      declaraciones: {
+        Row: {
+          a_cargo_o_favor: number
+          base: number
+          causado: number
+          created_at: string
+          created_by: string | null
+          detalle: Json | null
+          estatus: string
+          id: string
+          impuesto: string
+          pagado_previo: number
+          periodo_anio: number
+          periodo_mes: number | null
+          presentada_at: string | null
+          retenido: number
+          tipo: string
+          updated_at: string
+        }
+        Insert: {
+          a_cargo_o_favor?: number
+          base?: number
+          causado?: number
+          created_at?: string
+          created_by?: string | null
+          detalle?: Json | null
+          estatus?: string
+          id?: string
+          impuesto: string
+          pagado_previo?: number
+          periodo_anio: number
+          periodo_mes?: number | null
+          presentada_at?: string | null
+          retenido?: number
+          tipo: string
+          updated_at?: string
+        }
+        Update: {
+          a_cargo_o_favor?: number
+          base?: number
+          causado?: number
+          created_at?: string
+          created_by?: string | null
+          detalle?: Json | null
+          estatus?: string
+          id?: string
+          impuesto?: string
+          pagado_previo?: number
+          periodo_anio?: number
+          periodo_mes?: number | null
+          presentada_at?: string | null
+          retenido?: number
+          tipo?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       devolucion_proveedor_lineas: {
         Row: {
           cantidad: number
@@ -1112,6 +1302,137 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      empleados: {
+        Row: {
+          activo: boolean
+          banco: string | null
+          clabe: string | null
+          created_at: string
+          curp: string | null
+          departamento: string | null
+          email: string | null
+          entidad_federativa: string | null
+          fecha_alta: string | null
+          fecha_baja: string | null
+          id: string
+          nombre: string
+          nss: string | null
+          numero_empleado: string | null
+          periodicidad_pago: string | null
+          puesto: string | null
+          regimen: string | null
+          rfc: string | null
+          riesgo_puesto: number | null
+          salario_diario: number
+          sbc: number
+          sucursal_id: string | null
+          tipo_contrato: string | null
+          updated_at: string
+        }
+        Insert: {
+          activo?: boolean
+          banco?: string | null
+          clabe?: string | null
+          created_at?: string
+          curp?: string | null
+          departamento?: string | null
+          email?: string | null
+          entidad_federativa?: string | null
+          fecha_alta?: string | null
+          fecha_baja?: string | null
+          id?: string
+          nombre: string
+          nss?: string | null
+          numero_empleado?: string | null
+          periodicidad_pago?: string | null
+          puesto?: string | null
+          regimen?: string | null
+          rfc?: string | null
+          riesgo_puesto?: number | null
+          salario_diario?: number
+          sbc?: number
+          sucursal_id?: string | null
+          tipo_contrato?: string | null
+          updated_at?: string
+        }
+        Update: {
+          activo?: boolean
+          banco?: string | null
+          clabe?: string | null
+          created_at?: string
+          curp?: string | null
+          departamento?: string | null
+          email?: string | null
+          entidad_federativa?: string | null
+          fecha_alta?: string | null
+          fecha_baja?: string | null
+          id?: string
+          nombre?: string
+          nss?: string | null
+          numero_empleado?: string | null
+          periodicidad_pago?: string | null
+          puesto?: string | null
+          regimen?: string | null
+          rfc?: string | null
+          riesgo_puesto?: number | null
+          salario_diario?: number
+          sbc?: number
+          sucursal_id?: string | null
+          tipo_contrato?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "empleados_sucursal_id_fkey"
+            columns: ["sucursal_id"]
+            isOneToOne: false
+            referencedRelation: "sucursales"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      impuestos_parametros: {
+        Row: {
+          anio_vigente: number
+          coeficiente_utilidad: number
+          id: number
+          ieps_activo: boolean
+          isn_tasa_pct: number
+          periodicidad_nomina: string
+          retencion_isr_pct: number
+          retencion_iva_pct: number
+          salario_minimo_diario: number
+          uma_diaria: number
+          updated_at: string
+        }
+        Insert: {
+          anio_vigente?: number
+          coeficiente_utilidad?: number
+          id?: number
+          ieps_activo?: boolean
+          isn_tasa_pct?: number
+          periodicidad_nomina?: string
+          retencion_isr_pct?: number
+          retencion_iva_pct?: number
+          salario_minimo_diario?: number
+          uma_diaria?: number
+          updated_at?: string
+        }
+        Update: {
+          anio_vigente?: number
+          coeficiente_utilidad?: number
+          id?: number
+          ieps_activo?: boolean
+          isn_tasa_pct?: number
+          periodicidad_nomina?: string
+          retencion_isr_pct?: number
+          retencion_iva_pct?: number
+          salario_minimo_diario?: number
+          uma_diaria?: number
+          updated_at?: string
+        }
+        Relationships: []
       }
       inventario: {
         Row: {
@@ -2746,6 +3067,126 @@ export type Database = {
         }
         Relationships: []
       }
+      recibo_conceptos: {
+        Row: {
+          clave: string
+          concepto_id: string | null
+          descripcion: string
+          id: string
+          importe_exento: number
+          importe_gravado: number
+          importe_total: number
+          recibo_id: string
+          tipo: string
+        }
+        Insert: {
+          clave: string
+          concepto_id?: string | null
+          descripcion: string
+          id?: string
+          importe_exento?: number
+          importe_gravado?: number
+          importe_total?: number
+          recibo_id: string
+          tipo: string
+        }
+        Update: {
+          clave?: string
+          concepto_id?: string | null
+          descripcion?: string
+          id?: string
+          importe_exento?: number
+          importe_gravado?: number
+          importe_total?: number
+          recibo_id?: string
+          tipo?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "recibo_conceptos_concepto_id_fkey"
+            columns: ["concepto_id"]
+            isOneToOne: false
+            referencedRelation: "conceptos_nomina"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "recibo_conceptos_recibo_id_fkey"
+            columns: ["recibo_id"]
+            isOneToOne: false
+            referencedRelation: "recibos_nomina"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      recibos_nomina: {
+        Row: {
+          cfdi_id: string | null
+          created_at: string
+          dias_pagados: number
+          empleado_id: string
+          es_prueba: boolean
+          estatus: string
+          folio: string | null
+          id: string
+          neto_pagado: number
+          periodo_fin: string
+          periodo_inicio: string
+          total_deducciones: number
+          total_otros_pagos: number
+          total_percepciones: number
+          updated_at: string
+        }
+        Insert: {
+          cfdi_id?: string | null
+          created_at?: string
+          dias_pagados?: number
+          empleado_id: string
+          es_prueba?: boolean
+          estatus?: string
+          folio?: string | null
+          id?: string
+          neto_pagado?: number
+          periodo_fin: string
+          periodo_inicio: string
+          total_deducciones?: number
+          total_otros_pagos?: number
+          total_percepciones?: number
+          updated_at?: string
+        }
+        Update: {
+          cfdi_id?: string | null
+          created_at?: string
+          dias_pagados?: number
+          empleado_id?: string
+          es_prueba?: boolean
+          estatus?: string
+          folio?: string | null
+          id?: string
+          neto_pagado?: number
+          periodo_fin?: string
+          periodo_inicio?: string
+          total_deducciones?: number
+          total_otros_pagos?: number
+          total_percepciones?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "recibos_nomina_cfdi_id_fkey"
+            columns: ["cfdi_id"]
+            isOneToOne: false
+            referencedRelation: "cfdi_emitidos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "recibos_nomina_empleado_id_fkey"
+            columns: ["empleado_id"]
+            isOneToOne: false
+            referencedRelation: "empleados"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       recomendaciones: {
         Row: {
           expira_at: string
@@ -3067,6 +3508,42 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      tablas_isr: {
+        Row: {
+          activo: boolean
+          anio: number
+          cuota_fija: number
+          id: string
+          limite_inferior: number
+          limite_superior: number | null
+          periodicidad: string
+          tasa_excedente: number
+          tipo: string
+        }
+        Insert: {
+          activo?: boolean
+          anio: number
+          cuota_fija: number
+          id?: string
+          limite_inferior: number
+          limite_superior?: number | null
+          periodicidad: string
+          tasa_excedente: number
+          tipo?: string
+        }
+        Update: {
+          activo?: boolean
+          anio?: number
+          cuota_fija?: number
+          id?: string
+          limite_inferior?: number
+          limite_superior?: number | null
+          periodicidad?: string
+          tasa_excedente?: number
+          tipo?: string
+        }
+        Relationships: []
       }
       traspaso_lineas: {
         Row: {
@@ -4026,6 +4503,8 @@ export type Database = {
         | "ventas"
         | "compras"
         | "contador"
+        | "contraloria"
+        | "tesoreria"
       estado_traspaso: "pendiente" | "aprobado" | "rechazado" | "completado"
       genero: "masculino" | "femenino"
       tipo_actividad:
@@ -4183,6 +4662,8 @@ export const Constants = {
         "ventas",
         "compras",
         "contador",
+        "contraloria",
+        "tesoreria",
       ],
       estado_traspaso: ["pendiente", "aprobado", "rechazado", "completado"],
       genero: ["masculino", "femenino"],

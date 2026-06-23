@@ -9,7 +9,9 @@ export type UserRole =
   | 'ventas'           // operador POS (anteriormente 'cajero', consolidado)
   | 'repartidor'
   | 'auditoria'        // auditoría operativa (anteriormente 'auditor', consolidado)
-  | 'contador';        // contador / finanzas (CxP, bancos, conciliación, fiscal)
+  | 'contador'        // contador / finanzas (CxP, bancos, conciliación, fiscal)
+  | 'contraloria'     // contraloría: solo lectura financiera / contable
+  | 'tesoreria';      // tesorería: bancos, conciliación, CxP con autorización
 
 export interface Sucursal {
   id: string;
