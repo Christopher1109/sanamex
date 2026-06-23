@@ -51,6 +51,8 @@ import BancosPage from './pages/BancosPage';
 import ConciliacionPage from './pages/ConciliacionPage';
 import ContabilidadPage from './pages/ContabilidadPage';
 import ReportesAdminPage from './pages/ReportesAdminPage';
+import ImpuestosPage from './pages/ImpuestosPage';
+import NominaPage from './pages/NominaPage';
 
 
 const queryClient = new QueryClient({
