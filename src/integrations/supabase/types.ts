@@ -222,6 +222,56 @@ export type Database = {
         }
         Relationships: []
       }
+      catalogo_cuentas: {
+        Row: {
+          activo: boolean
+          afectable: boolean
+          codigo: string
+          codigo_agrupador_sat: string | null
+          created_at: string
+          cuenta_padre_id: string | null
+          id: string
+          naturaleza: string
+          nivel: number
+          nombre: string
+          updated_at: string
+        }
+        Insert: {
+          activo?: boolean
+          afectable?: boolean
+          codigo: string
+          codigo_agrupador_sat?: string | null
+          created_at?: string
+          cuenta_padre_id?: string | null
+          id?: string
+          naturaleza: string
+          nivel?: number
+          nombre: string
+          updated_at?: string
+        }
+        Update: {
+          activo?: boolean
+          afectable?: boolean
+          codigo?: string
+          codigo_agrupador_sat?: string | null
+          created_at?: string
+          cuenta_padre_id?: string | null
+          id?: string
+          naturaleza?: string
+          nivel?: number
+          nombre?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "catalogo_cuentas_cuenta_padre_id_fkey"
+            columns: ["cuenta_padre_id"]
+            isOneToOne: false
+            referencedRelation: "catalogo_cuentas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       cfdi_emitidos: {
         Row: {
           created_at: string
@@ -637,6 +687,27 @@ export type Database = {
           rfc?: string
           serie_default?: string | null
           sucursal_id?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      contabilidad_parametros: {
+        Row: {
+          fecha_inicio_contable: string
+          id: number
+          prorrateo_cedis_pct: number
+          updated_at: string
+        }
+        Insert: {
+          fecha_inicio_contable?: string
+          id?: number
+          prorrateo_cedis_pct?: number
+          updated_at?: string
+        }
+        Update: {
+          fecha_inicio_contable?: string
+          id?: number
+          prorrateo_cedis_pct?: number
           updated_at?: string
         }
         Relationships: []
@@ -2022,6 +2093,113 @@ export type Database = {
           },
         ]
       }
+      poliza_movimientos: {
+        Row: {
+          abono: number
+          cargo: number
+          concepto: string | null
+          created_at: string
+          cuenta_id: string
+          id: string
+          poliza_id: string
+        }
+        Insert: {
+          abono?: number
+          cargo?: number
+          concepto?: string | null
+          created_at?: string
+          cuenta_id: string
+          id?: string
+          poliza_id: string
+        }
+        Update: {
+          abono?: number
+          cargo?: number
+          concepto?: string | null
+          created_at?: string
+          cuenta_id?: string
+          id?: string
+          poliza_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "poliza_movimientos_cuenta_id_fkey"
+            columns: ["cuenta_id"]
+            isOneToOne: false
+            referencedRelation: "catalogo_cuentas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "poliza_movimientos_poliza_id_fkey"
+            columns: ["poliza_id"]
+            isOneToOne: false
+            referencedRelation: "polizas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      polizas: {
+        Row: {
+          concepto: string | null
+          created_at: string
+          created_by: string | null
+          estatus: string
+          fecha: string
+          folio: string | null
+          id: string
+          origen: string
+          origen_referencia_id: string | null
+          origen_referencia_tipo: string | null
+          sucursal_id: string | null
+          tipo: string
+          total_abono: number
+          total_cargo: number
+          updated_at: string
+        }
+        Insert: {
+          concepto?: string | null
+          created_at?: string
+          created_by?: string | null
+          estatus?: string
+          fecha?: string
+          folio?: string | null
+          id?: string
+          origen?: string
+          origen_referencia_id?: string | null
+          origen_referencia_tipo?: string | null
+          sucursal_id?: string | null
+          tipo: string
+          total_abono?: number
+          total_cargo?: number
+          updated_at?: string
+        }
+        Update: {
+          concepto?: string | null
+          created_at?: string
+          created_by?: string | null
+          estatus?: string
+          fecha?: string
+          folio?: string | null
+          id?: string
+          origen?: string
+          origen_referencia_id?: string | null
+          origen_referencia_tipo?: string | null
+          sucursal_id?: string | null
+          tipo?: string
+          total_abono?: number
+          total_cargo?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "polizas_sucursal_id_fkey"
+            columns: ["sucursal_id"]
+            isOneToOne: false
+            referencedRelation: "sucursales"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       presupuesto_ventas: {
         Row: {
           anio: number
@@ -2604,6 +2782,54 @@ export type Database = {
         }
         Relationships: []
       }
+      reglas_contabilizacion: {
+        Row: {
+          activo: boolean
+          created_at: string
+          cuenta_abono_id: string | null
+          cuenta_cargo_id: string | null
+          descripcion: string | null
+          id: string
+          origen: string
+          updated_at: string
+        }
+        Insert: {
+          activo?: boolean
+          created_at?: string
+          cuenta_abono_id?: string | null
+          cuenta_cargo_id?: string | null
+          descripcion?: string | null
+          id?: string
+          origen: string
+          updated_at?: string
+        }
+        Update: {
+          activo?: boolean
+          created_at?: string
+          cuenta_abono_id?: string | null
+          cuenta_cargo_id?: string | null
+          descripcion?: string | null
+          id?: string
+          origen?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "reglas_contabilizacion_cuenta_abono_id_fkey"
+            columns: ["cuenta_abono_id"]
+            isOneToOne: false
+            referencedRelation: "catalogo_cuentas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reglas_contabilizacion_cuenta_cargo_id_fkey"
+            columns: ["cuenta_cargo_id"]
+            isOneToOne: false
+            referencedRelation: "catalogo_cuentas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       role_permissions: {
         Row: {
           created_at: string
@@ -2752,6 +2978,7 @@ export type Database = {
           codigo: string
           created_at: string | null
           direccion: string | null
+          es_fiscal: boolean
           id: string
           nombre: string
           telefono: string | null
@@ -2763,6 +2990,7 @@ export type Database = {
           codigo: string
           created_at?: string | null
           direccion?: string | null
+          es_fiscal?: boolean
           id?: string
           nombre: string
           telefono?: string | null
@@ -2774,6 +3002,7 @@ export type Database = {
           codigo?: string
           created_at?: string | null
           direccion?: string | null
+          es_fiscal?: boolean
           id?: string
           nombre?: string
           telefono?: string | null
@@ -3260,6 +3489,22 @@ export type Database = {
       }
     }
     Functions: {
+      balanza_comprobacion: {
+        Args: {
+          p_desde?: string
+          p_hasta?: string
+          p_solo_autorizadas?: boolean
+        }
+        Returns: {
+          abonos: number
+          cargos: number
+          codigo: string
+          cuenta_id: string
+          naturaleza: string
+          nombre: string
+          saldo: number
+        }[]
+      }
       cancelar_traspaso: {
         Args: { p_motivo: string; p_traspaso_id: string }
         Returns: Json
