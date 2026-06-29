@@ -1,5 +1,6 @@
 // Timbra una venta como CFDI 4.0 usando Facturapi (modo prueba/producción según la API key configurada)
 import { createClient } from 'npm:@supabase/supabase-js@2';
+import { fetchAndStoreCfdiArtifacts } from '../_shared/cfdi-storage.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -217,7 +218,15 @@ Deno.serve(async (req) => {
       return json({ error: respJson?.message || 'Error Facturapi', detalle: respJson }, res.status);
     }
 
-    // Éxito → guardar y avanzar folio
+    // Éxito → resguardar XML/PDF en Storage (mejor esfuerzo, XML prioritario) y guardar
+    let stored = { xml_storage_path: null as string | null, pdf_storage_path: null as string | null, errors: [] as string[] };
+    if (respJson.id) {
+      stored = await fetchAndStoreCfdiArtifacts({
+        admin, apiKey, facturapiId: respJson.id, rfcEmisor: cfg.rfc || 'SIN_RFC',
+      });
+      if (stored.errors.length) console.warn('cfdi-storage:', stored.errors);
+    }
+
     const insertRow = {
       sucursal_id: venta.sucursal_id,
       venta_id: origen === 'venta' ? venta.id : null,
@@ -228,10 +237,15 @@ Deno.serve(async (req) => {
       rfc_receptor: receptor.rfc,
       total: Number(respJson.total ?? venta.total),
       estado: 'timbrado',
+      tipo_comprobante: 'I',
+      facturapi_id: respJson.id || null,
       pac_response: respJson,
       timbrado_at: new Date().toISOString(),
       xml_url: respJson.id ? `facturapi:${respJson.id}/xml` : null,
       pdf_url: respJson.id ? `facturapi:${respJson.id}/pdf` : null,
+      xml_storage_path: stored.xml_storage_path,
+      pdf_storage_path: stored.pdf_storage_path,
+      es_demo: false,
       created_by: userId,
     };
 
@@ -247,7 +261,7 @@ Deno.serve(async (req) => {
       .update({ folio_actual: (cfg.folio_actual || 1) + 1 })
       .eq('id', cfg.id);
 
-    return json({ ok: true, cfdi: cfdiRow, facturapi_id: respJson.id });
+    return json({ ok: true, cfdi: cfdiRow, facturapi_id: respJson.id, storage: stored });
   } catch (e: any) {
     console.error('timbrar error', e);
     return json({ error: e?.message || 'Error interno' }, 500);

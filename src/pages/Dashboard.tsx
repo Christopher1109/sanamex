@@ -3,13 +3,15 @@ import { Link } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useSucursal } from '@/contexts/SucursalContext';
 import { UserRole } from '@/types';
+import { FASE_2_VISIBLE } from '@/config/featureFlags';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
   Package, AlertCircle, Warehouse, FileSpreadsheet,
   ArrowLeftRight, Clock, CheckCircle2, AlertTriangle, ShoppingCart,
-  PackageCheck, Activity, CalendarDays, ArrowRight, TrendingDown
+  PackageCheck, Activity, CalendarDays, ArrowRight, TrendingDown,
+  Receipt, Wallet, Users as UsersIcon, Building2, Shield
 } from 'lucide-react';
 import { format, formatDistanceToNow } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -100,6 +102,22 @@ const quickActionsByRole: Record<UserRole, Array<{
     { path: '/actividad', icon: Activity, label: 'Auditoría', description: 'Ver logs' },
     { path: '/reportes', icon: FileSpreadsheet, label: 'Reportes', description: 'Operativos' },
   ],
+  contador: [
+    { path: '/cuentas-por-pagar', icon: ShoppingCart, label: 'Cuentas por Pagar', description: 'Pagos a proveedores' },
+    { path: '/bancos', icon: Warehouse, label: 'Bancos', description: 'Cuentas y movimientos' },
+    { path: '/conciliacion', icon: Activity, label: 'Conciliación', description: 'Banco vs documentos' },
+    { path: '/fiscal', icon: FileSpreadsheet, label: 'Facturación CFDI', description: 'Timbrado' },
+  ],
+  contraloria: [
+    { path: '/reportes-admin', icon: FileSpreadsheet, label: 'Reportes admin', description: 'Solo lectura' },
+    { path: '/contabilidad', icon: Activity, label: 'Contabilidad', description: 'Pólizas y balanzas' },
+    { path: '/actividad', icon: Activity, label: 'Auditoría', description: 'Registro de actividad' },
+  ],
+  tesoreria: [
+    { path: '/bancos', icon: Warehouse, label: 'Bancos', description: 'Cuentas y movimientos' },
+    { path: '/conciliacion', icon: Activity, label: 'Conciliación', description: 'Banco vs documentos' },
+    { path: '/cuentas-por-pagar', icon: ShoppingCart, label: 'Cuentas por Pagar', description: 'Autorizar pagos' },
+  ],
 };
 
 const estadoBadge = (estado: string) => {
@@ -124,6 +142,13 @@ const Dashboard = ({ userRole }: DashboardProps) => {
   const [recentActivity, setRecentActivity] = useState<RecentActivity[]>([]);
   const [stockBajoCount, setStockBajoCount] = useState(0);
 
+  // KPIs Fase 1 (administrativos)
+  const [cfdisMes, setCfdisMes] = useState(0);
+  const [cxpPendientes, setCxpPendientes] = useState(0);
+  const [usuariosActivos, setUsuariosActivos] = useState(0);
+  const [sucursalesActivas, setSucursalesActivas] = useState(0);
+  const [auditRecent, setAuditRecent] = useState<RecentActivity[]>([]);
+
   const roleLabels: Record<UserRole, string> = {
     super_admin: 'Super Administrador',
     admin: 'Administrador',
@@ -137,11 +162,45 @@ const Dashboard = ({ userRole }: DashboardProps) => {
     repartidor: 'Repartidor',
     
     auditoria: 'Auditoría',
+    contador: 'Contador',
+    contraloria: 'Contraloría',
+    tesoreria: 'Tesorería',
   };
 
   useEffect(() => {
-    if (selectedSucursal) loadAll();
+    if (FASE_2_VISIBLE) {
+      if (selectedSucursal) loadAll();
+    } else {
+      loadAdminKPIs();
+    }
   }, [selectedSucursal]);
+
+  const loadAdminKPIs = async () => {
+    const now = new Date();
+    const firstDay = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+    const sb: any = supabase;
+
+    const [cfdiRes, cxpRes, usersRes, sucRes, auditRes] = await Promise.all([
+      sb.from('cfdi_emitidos').select('id', { count: 'exact', head: true }).gte('created_at', firstDay).eq('es_demo', false),
+      sb.from('cuentas_por_pagar').select('id', { count: 'exact', head: true }).neq('estado', 'pagada'),
+      sb.from('profiles').select('id', { count: 'exact', head: true }),
+      sb.from('sucursales').select('id', { count: 'exact', head: true }).eq('activa', true),
+      sb.from('audit_log').select('id, accion, tabla, created_at, descripcion').order('created_at', { ascending: false }).limit(8),
+    ]);
+
+    setCfdisMes(cfdiRes.count || 0);
+    setCxpPendientes(cxpRes.count || 0);
+    setUsuariosActivos(usersRes.count || 0);
+    setSucursalesActivas(sucRes.count || 0);
+    setAuditRecent(
+      (auditRes.data || []).map((a: any) => ({
+        id: a.id,
+        description: a.descripcion || `${a.accion || 'acción'} en ${a.tabla || 'sistema'}`,
+        timestamp: a.created_at || '',
+        type: a.accion || 'audit',
+      }))
+    );
+  };
 
   const getAlmacenIds = async (): Promise<string[]> => {
     if (!selectedSucursal) return [];
@@ -340,6 +399,141 @@ const Dashboard = ({ userRole }: DashboardProps) => {
           {format(new Date(), "EEEE d 'de' MMMM, yyyy", { locale: es })}
         </div>
       </div>
+
+      {/* === Dashboard administrativo (Fase 1) === */}
+      {!FASE_2_VISIBLE && (
+        <>
+          <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
+            <Card>
+              <CardContent className="p-5">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">CFDIs del Mes</p>
+                    <p className="text-3xl font-bold mt-1">{cfdisMes}</p>
+                    <p className="text-xs text-muted-foreground mt-1">Comprobantes emitidos</p>
+                  </div>
+                  <div className="flex items-center justify-center h-12 w-12 rounded-xl bg-primary/10">
+                    <Receipt className="h-6 w-6 text-primary" />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="p-5">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Cuentas por Pagar</p>
+                    <p className="text-3xl font-bold mt-1">{cxpPendientes}</p>
+                    <p className="text-xs text-muted-foreground mt-1">Pendientes de pago</p>
+                  </div>
+                  <div className="flex items-center justify-center h-12 w-12 rounded-xl bg-warning/10">
+                    <Wallet className="h-6 w-6 text-warning" />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="p-5">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Usuarios</p>
+                    <p className="text-3xl font-bold mt-1">{usuariosActivos}</p>
+                    <p className="text-xs text-muted-foreground mt-1">Registrados en el sistema</p>
+                  </div>
+                  <div className="flex items-center justify-center h-12 w-12 rounded-xl bg-accent/10">
+                    <UsersIcon className="h-6 w-6 text-accent" />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="p-5">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Sucursales</p>
+                    <p className="text-3xl font-bold mt-1">{sucursalesActivas}</p>
+                    <p className="text-xs text-muted-foreground mt-1">Activas</p>
+                  </div>
+                  <div className="flex items-center justify-center h-12 w-12 rounded-xl bg-primary/10">
+                    <Building2 className="h-6 w-6 text-primary" />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          <Card>
+            <CardHeader className="pb-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Activity className="h-5 w-5 text-primary" />
+                  <CardTitle className="text-lg">Actividad Reciente</CardTitle>
+                </div>
+                <Button variant="ghost" size="sm" asChild>
+                  <Link to="/actividad" className="flex items-center gap-1">
+                    Ver todo <ArrowRight className="h-3 w-3" />
+                  </Link>
+                </Button>
+              </div>
+              <CardDescription>Últimos eventos registrados en el sistema</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {auditRecent.length === 0 ? (
+                <p className="text-sm text-muted-foreground text-center py-6">Sin actividad reciente</p>
+              ) : (
+                <div className="space-y-3">
+                  {auditRecent.map((act, idx) => (
+                    <div key={act.id} className="flex items-start gap-3">
+                      <div className="relative flex flex-col items-center">
+                        <div className="h-2 w-2 rounded-full bg-primary mt-2" />
+                        {idx < auditRecent.length - 1 && (
+                          <div className="w-px flex-1 bg-border mt-1" style={{ minHeight: '24px' }} />
+                        )}
+                      </div>
+                      <div className="flex-1 pb-3">
+                        <p className="text-sm">{act.description}</p>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          {act.timestamp && formatDistanceToNow(new Date(act.timestamp), { addSuffix: true, locale: es })}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Accesos rápidos</CardTitle>
+              <CardDescription>Módulos administrativos disponibles</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="grid gap-3 grid-cols-2 md:grid-cols-3 lg:grid-cols-5">
+                {[
+                  { path: '/fiscal', icon: Receipt, label: 'Facturación', description: 'CFDI' },
+                  { path: '/cuentas-por-pagar', icon: Wallet, label: 'Cuentas por Pagar', description: 'Adeudos' },
+                  { path: '/actividad', icon: Activity, label: 'Actividad', description: 'Auditoría' },
+                  { path: '/super-admin', icon: Shield, label: 'Super Admin', description: 'Usuarios y sucursales' },
+                ].map((action) => (
+                  <Link key={action.path} to={action.path}
+                    className="rounded-xl border p-4 transition-all hover:shadow-md hover:border-primary/30 flex flex-col items-center text-center group">
+                    <div className="flex items-center justify-center h-10 w-10 rounded-lg bg-primary/10 group-hover:bg-primary/20 transition-colors mb-2">
+                      <action.icon className="h-5 w-5 text-primary" />
+                    </div>
+                    <h4 className="font-semibold text-sm">{action.label}</h4>
+                    <p className="text-xs text-muted-foreground">{action.description}</p>
+                  </Link>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        </>
+      )}
+
+      {/* === Dashboard comercial (Fase 2) === */}
+      {FASE_2_VISIBLE && <>
+
 
       {/* Summary banner */}
       {(pendingCount > 0 || alertCount > 0) && (
@@ -551,6 +745,7 @@ const Dashboard = ({ userRole }: DashboardProps) => {
           </CardContent>
         </Card>
       )}
+      </>}
     </div>
   );
 };

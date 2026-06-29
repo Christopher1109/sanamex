@@ -3,6 +3,7 @@ import { Link, useLocation } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import sanamexLogo from '@/assets/sanamex-logo.png.asset.json';
 import { UserRole } from '@/types';
+import { FASE_2_VISIBLE } from '@/config/featureFlags';
 import {
   LayoutDashboard, Package, Users, LogOut,
   Warehouse, ArrowLeftRight,
@@ -27,6 +28,7 @@ interface MenuItem {
   label: string;
   roles: UserRole[];
   category?: string;
+  fase?: 1 | 2;
 }
 
 const Sidebar = ({ userRole, onLogout }: SidebarProps) => {
@@ -60,45 +62,59 @@ const Sidebar = ({ userRole, onLogout }: SidebarProps) => {
     almacen_ventas: 'Almacén y Ventas',
     repartidor: 'Repartidor',
     auditoria: 'Auditoría',
+    contador: 'Contador',
+    contraloria: 'Contraloría',
+    tesoreria: 'Tesorería',
   };
 
-  const ALL: UserRole[] = ['super_admin','admin','gerente','subgerente','supervisor','ventas','almacen','almacen_ventas','repartidor','auditoria'];
+  const ALL: UserRole[] = ['super_admin','admin','gerente','subgerente','supervisor','ventas','almacen','almacen_ventas','repartidor','auditoria','contador','contraloria','tesoreria'];
   const MGMT: UserRole[] = ['super_admin','admin','gerente','subgerente'];
+  const FINANZAS: UserRole[] = ['super_admin','admin','gerente','contador','contraloria','tesoreria'];
+  const FISCAL: UserRole[] = ['super_admin','admin','contador','contraloria'];
+  const NOMINA: UserRole[] = ['super_admin','admin','contador'];
   const OPS: UserRole[] = ['super_admin','admin','gerente','subgerente','almacen','almacen_ventas'];
   const SALES: UserRole[] = ['super_admin','admin','gerente','subgerente','ventas','almacen_ventas'];
-  const AUDIT: UserRole[] = ['super_admin','admin','gerente','auditoria','supervisor'];
+  const AUDIT: UserRole[] = ['super_admin','admin','gerente','auditoria','supervisor','contador'];
 
   const menuItems: MenuItem[] = [
     { path: '/dashboard', icon: LayoutDashboard, label: 'Dashboard', roles: ALL, category: 'Principal' },
-    // Catálogos
-    { path: '/productos', icon: Package, label: 'Artículos', roles: ['super_admin','admin','gerente','subgerente','almacen','almacen_ventas'], category: 'Catálogos' },
-    { path: '/proveedores', icon: Store, label: 'Proveedores', roles: MGMT, category: 'Catálogos' },
-    { path: '/listas-precios', icon: DollarSign, label: 'Listas de Precios', roles: MGMT, category: 'Catálogos' },
-    { path: '/clientes', icon: Users, label: 'Clientes', roles: [...MGMT,'ventas'], category: 'Catálogos' },
-    // Operaciones
-    { path: '/compras', icon: ShoppingCart, label: 'Compras', roles: OPS, category: 'Operaciones' },
-    { path: '/pedidos', icon: PackageCheck, label: 'Ventas', roles: SALES, category: 'Operaciones' },
-    { path: '/pos', icon: Monitor, label: 'Punto de Venta', roles: SALES, category: 'Operaciones' },
-    { path: '/traspasos', icon: ArrowLeftRight, label: 'Traspasos', roles: OPS, category: 'Operaciones' },
-    { path: '/devoluciones-proveedor', icon: Undo2, label: 'Devoluciones a Proveedor', roles: OPS, category: 'Operaciones' },
-    // Inventario
-    { path: '/inventario', icon: Warehouse, label: 'Inventario', roles: ['super_admin','admin','gerente','subgerente','almacen','almacen_ventas'], category: 'Inventario' },
-    { path: '/caducidades', icon: AlertCircle, label: 'Caducidades', roles: [...OPS,'auditoria'], category: 'Inventario' },
-    // Análisis
-    { path: '/rotacion', icon: TrendingUp, label: 'Inteligencia de Rotación', roles: MGMT, category: 'Análisis' },
-    { path: '/rentabilidad-lotes', icon: DollarSign, label: 'Rentabilidad por Lote', roles: MGMT, category: 'Análisis' },
-    { path: '/reportes', icon: FileSpreadsheet, label: 'Reportes', roles: MGMT, category: 'Análisis' },
-    // Finanzas
-    { path: '/cuentas-por-pagar', icon: Wallet, label: 'Cuentas por Pagar', roles: MGMT, category: 'Finanzas' },
-    { path: '/fiscal', icon: Receipt, label: 'Facturación (CFDI)', roles: MGMT, category: 'Fiscal' },
+    // Catálogos (Fase 2)
+    { path: '/productos', icon: Package, label: 'Artículos', roles: ['super_admin','admin','gerente','subgerente','almacen','almacen_ventas'], category: 'Catálogos', fase: 2 },
+    { path: '/proveedores', icon: Store, label: 'Proveedores', roles: MGMT, category: 'Catálogos', fase: 2 },
+    { path: '/listas-precios', icon: DollarSign, label: 'Listas de Precios', roles: MGMT, category: 'Catálogos', fase: 2 },
+    { path: '/clientes', icon: Users, label: 'Clientes', roles: [...MGMT,'ventas'], category: 'Catálogos', fase: 2 },
+    // Operaciones (Fase 2)
+    { path: '/compras', icon: ShoppingCart, label: 'Compras', roles: OPS, category: 'Operaciones', fase: 2 },
+    { path: '/pedidos', icon: PackageCheck, label: 'Ventas', roles: SALES, category: 'Operaciones', fase: 2 },
+    { path: '/pos', icon: Monitor, label: 'Punto de Venta', roles: SALES, category: 'Operaciones', fase: 2 },
+    { path: '/traspasos', icon: ArrowLeftRight, label: 'Traspasos', roles: OPS, category: 'Operaciones', fase: 2 },
+    { path: '/devoluciones-proveedor', icon: Undo2, label: 'Devoluciones a Proveedor', roles: OPS, category: 'Operaciones', fase: 2 },
+    // Inventario (Fase 2)
+    { path: '/inventario', icon: Warehouse, label: 'Inventario', roles: ['super_admin','admin','gerente','subgerente','almacen','almacen_ventas'], category: 'Inventario', fase: 2 },
+    { path: '/caducidades', icon: AlertCircle, label: 'Caducidades', roles: [...OPS,'auditoria'], category: 'Inventario', fase: 2 },
+    // Análisis (Fase 2)
+    { path: '/rotacion', icon: TrendingUp, label: 'Inteligencia de Rotación', roles: MGMT, category: 'Análisis', fase: 2 },
+    { path: '/rentabilidad-lotes', icon: DollarSign, label: 'Rentabilidad por Lote', roles: MGMT, category: 'Análisis', fase: 2 },
+    { path: '/reportes', icon: FileSpreadsheet, label: 'Reportes', roles: MGMT, category: 'Análisis', fase: 2 },
+    // Finanzas (Fase 1)
+    { path: '/cuentas-por-pagar', icon: Wallet, label: 'Cuentas por Pagar', roles: FINANZAS, category: 'Finanzas', fase: 1 },
+    { path: '/bancos', icon: DollarSign, label: 'Bancos', roles: FINANZAS, category: 'Finanzas', fase: 1 },
+    { path: '/conciliacion', icon: ArrowLeftRight, label: 'Conciliación', roles: FINANZAS, category: 'Finanzas', fase: 1 },
+    { path: '/contabilidad', icon: FileSpreadsheet, label: 'Contabilidad', roles: FINANZAS, category: 'Finanzas', fase: 1 },
+    { path: '/reportes-admin', icon: FileSpreadsheet, label: 'Reportes administrativos', roles: FINANZAS, category: 'Finanzas', fase: 1 },
+    { path: '/fiscal', icon: Receipt, label: 'Facturación (CFDI)', roles: FISCAL, category: 'Fiscal', fase: 1 },
+    { path: '/impuestos', icon: Receipt, label: 'Impuestos', roles: FISCAL, category: 'Fiscal', fase: 1 },
+    { path: '/nomina', icon: Wallet, label: 'Nómina', roles: NOMINA, category: 'Nómina', fase: 1 },
     // Sistema
-    { path: '/cargas-masivas', icon: Upload, label: 'Cargas Masivas', roles: MGMT, category: 'Sistema' },
-    { path: '/conflictos', icon: CloudOff, label: 'Ventas Offline', roles: SALES, category: 'Sistema' },
+    { path: '/cargas-masivas', icon: Upload, label: 'Cargas Masivas', roles: MGMT, category: 'Sistema', fase: 2 },
+    { path: '/conflictos', icon: CloudOff, label: 'Ventas Offline', roles: SALES, category: 'Sistema', fase: 2 },
     { path: '/actividad', icon: History, label: 'Registro de Actividad', roles: AUDIT, category: 'Sistema' },
     { path: '/super-admin', icon: Shield, label: 'Super Admin', roles: ['super_admin'], category: 'Sistema' },
   ];
 
-  const filtered = menuItems.filter(item => item.roles.includes(userRole));
+  const filtered = menuItems
+    .filter(item => FASE_2_VISIBLE || item.fase !== 2)
+    .filter(item => item.roles.includes(userRole));
   const grouped = filtered.reduce((acc, item) => {
     const cat = item.category || 'Otros';
     if (!acc[cat]) acc[cat] = [];
