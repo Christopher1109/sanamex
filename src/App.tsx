@@ -46,7 +46,6 @@ import InventarioHubPage from './pages/InventarioHubPage';
 import ReportesHubPage from './pages/ReportesHubPage';
 import Sidebar from './components/layout/Sidebar';
 import Header from './components/layout/Header';
-import Fase2Guard from './components/Fase2Guard';
 
 
 const queryClient = new QueryClient({
@@ -84,43 +83,41 @@ const AppContent = () => {
             <Routes>
               <Route path="/" element={<Navigate to="/dashboard" replace />} />
               <Route path="/dashboard" element={<Dashboard userRole={userRole} />} />
-              {/* Fase 1 (siempre visibles) */}
+              <Route path="/productos" element={<Productos />} />
+              <Route path="/proveedores" element={<ProveedoresPage />} />
+              <Route path="/clientes" element={<ClientesPage />} />
+              <Route path="/inventario" element={<InventarioHubPage />} />
+              <Route path="/kardex" element={<Kardex />} />
+              <Route path="/traspasos" element={<TraspasosHubPage />} />
+              <Route path="/ajustes" element={<AjustesMermasPage />} />
+              <Route path="/mermas" element={<MermasPage />} />
+              <Route path="/caducidades" element={<CaducidadesPage />} />
+              <Route path="/pedidos" element={<PedidosPage />} />
+              <Route path="/compras" element={<ComprasHubPage />} />
+              <Route path="/reportes" element={<ReportesHubPage />} />
               <Route path="/actividad" element={<AuditoriaPage />} />
+              <Route path="/pos" element={<POSPage />} />
+              <Route path="/conflictos" element={<ConflictosPage />} />
               <Route path="/super-admin" element={<SuperAdminPage />} />
+              <Route path="/recomendaciones" element={<RecomendacionesPage />} />
+              <Route path="/rotacion" element={<RotacionPage />} />
+              <Route path="/rentabilidad-lotes" element={<RentabilidadLotesPage />} />
+              <Route path="/reporte-sanamex" element={<ReporteVentasInventarioSanamex />} />
+              <Route path="/reporte-inventario-general" element={<ReporteInventarioGeneral />} />
+              <Route path="/reporte-ventas-presupuesto" element={<ReporteVentasPresupuesto />} />
+              <Route path="/reporte-sugeridos" element={<ReporteSugeridos />} />
+              <Route path="/listas-precios" element={<ListasPreciosPage />} />
+              <Route path="/catalogos-cotizador" element={<CatalogosCotizadorPage />} />
+              <Route path="/cotizador" element={<CotizadorHubPage />} />
+              <Route path="/ordenes-compra" element={<OrdenesCompraPage />} />
               <Route path="/cuentas-por-pagar" element={<CuentasPorPagarPage />} />
               <Route path="/fiscal" element={<FiscalPage />} />
-              {/* Fase 2 (ocultas tras feature flag) */}
-              <Route path="/productos" element={<Fase2Guard><Productos /></Fase2Guard>} />
-              <Route path="/proveedores" element={<Fase2Guard><ProveedoresPage /></Fase2Guard>} />
-              <Route path="/clientes" element={<Fase2Guard><ClientesPage /></Fase2Guard>} />
-              <Route path="/inventario" element={<Fase2Guard><InventarioHubPage /></Fase2Guard>} />
-              <Route path="/kardex" element={<Fase2Guard><Kardex /></Fase2Guard>} />
-              <Route path="/traspasos" element={<Fase2Guard><TraspasosHubPage /></Fase2Guard>} />
-              <Route path="/ajustes" element={<Fase2Guard><AjustesMermasPage /></Fase2Guard>} />
-              <Route path="/mermas" element={<Fase2Guard><MermasPage /></Fase2Guard>} />
-              <Route path="/caducidades" element={<Fase2Guard><CaducidadesPage /></Fase2Guard>} />
-              <Route path="/pedidos" element={<Fase2Guard><PedidosPage /></Fase2Guard>} />
-              <Route path="/compras" element={<Fase2Guard><ComprasHubPage /></Fase2Guard>} />
-              <Route path="/reportes" element={<Fase2Guard><ReportesHubPage /></Fase2Guard>} />
-              <Route path="/pos" element={<Fase2Guard><POSPage /></Fase2Guard>} />
-              <Route path="/conflictos" element={<Fase2Guard><ConflictosPage /></Fase2Guard>} />
-              <Route path="/recomendaciones" element={<Fase2Guard><RecomendacionesPage /></Fase2Guard>} />
-              <Route path="/rotacion" element={<Fase2Guard><RotacionPage /></Fase2Guard>} />
-              <Route path="/rentabilidad-lotes" element={<Fase2Guard><RentabilidadLotesPage /></Fase2Guard>} />
-              <Route path="/reporte-sanamex" element={<Fase2Guard><ReporteVentasInventarioSanamex /></Fase2Guard>} />
-              <Route path="/reporte-inventario-general" element={<Fase2Guard><ReporteInventarioGeneral /></Fase2Guard>} />
-              <Route path="/reporte-ventas-presupuesto" element={<Fase2Guard><ReporteVentasPresupuesto /></Fase2Guard>} />
-              <Route path="/reporte-sugeridos" element={<Fase2Guard><ReporteSugeridos /></Fase2Guard>} />
-              <Route path="/listas-precios" element={<Fase2Guard><ListasPreciosPage /></Fase2Guard>} />
-              <Route path="/catalogos-cotizador" element={<Fase2Guard><CatalogosCotizadorPage /></Fase2Guard>} />
-              <Route path="/cotizador" element={<Fase2Guard><CotizadorHubPage /></Fase2Guard>} />
-              <Route path="/ordenes-compra" element={<Fase2Guard><OrdenesCompraPage /></Fase2Guard>} />
-              <Route path="/cargas-masivas" element={<Fase2Guard><CargasMasivasPage /></Fase2Guard>} />
-              <Route path="/devoluciones-proveedor" element={<Fase2Guard><DevolucionesProveedorPage /></Fase2Guard>} />
-              <Route path="/consultas/articulos" element={<Fase2Guard><StubPage title="Movimientos de Artículo" description="Consulta histórica de todos los movimientos (compras, ventas, traspasos, ajustes) por artículo." /></Fase2Guard>} />
-              <Route path="/consultas/traspasos-salida" element={<Fase2Guard><StubPage title="Traspasos de Salida" description="Traspasos donde la sucursal activa es el origen." /></Fase2Guard>} />
-              <Route path="/consultas/traspasos-entrada" element={<Fase2Guard><StubPage title="Traspasos de Entrada" description="Traspasos donde la sucursal activa es el destino." /></Fase2Guard>} />
-              <Route path="/consultas/compras" element={<Fase2Guard><StubPage title="Compras Históricas" description="Listado completo de compras con filtros por fecha y proveedor." /></Fase2Guard>} />
+              <Route path="/cargas-masivas" element={<CargasMasivasPage />} />
+              <Route path="/devoluciones-proveedor" element={<DevolucionesProveedorPage />} />
+              <Route path="/consultas/articulos" element={<StubPage title="Movimientos de Artículo" description="Consulta histórica de todos los movimientos (compras, ventas, traspasos, ajustes) por artículo." />} />
+              <Route path="/consultas/traspasos-salida" element={<StubPage title="Traspasos de Salida" description="Traspasos donde la sucursal activa es el origen." />} />
+              <Route path="/consultas/traspasos-entrada" element={<StubPage title="Traspasos de Entrada" description="Traspasos donde la sucursal activa es el destino." />} />
+              <Route path="/consultas/compras" element={<StubPage title="Compras Históricas" description="Listado completo de compras con filtros por fecha y proveedor." />} />
               <Route path="/auth" element={<Navigate to="/dashboard" replace />} />
               <Route path="*" element={<Navigate to="/dashboard" replace />} />
             </Routes>
