@@ -102,22 +102,6 @@ const quickActionsByRole: Record<UserRole, Array<{
     { path: '/actividad', icon: Activity, label: 'Auditoría', description: 'Ver logs' },
     { path: '/reportes', icon: FileSpreadsheet, label: 'Reportes', description: 'Operativos' },
   ],
-  contador: [
-    { path: '/cuentas-por-pagar', icon: ShoppingCart, label: 'Cuentas por Pagar', description: 'Pagos a proveedores' },
-    { path: '/bancos', icon: Warehouse, label: 'Bancos', description: 'Cuentas y movimientos' },
-    { path: '/conciliacion', icon: Activity, label: 'Conciliación', description: 'Banco vs documentos' },
-    { path: '/fiscal', icon: FileSpreadsheet, label: 'Facturación CFDI', description: 'Timbrado' },
-  ],
-  contraloria: [
-    { path: '/reportes-admin', icon: FileSpreadsheet, label: 'Reportes admin', description: 'Solo lectura' },
-    { path: '/contabilidad', icon: Activity, label: 'Contabilidad', description: 'Pólizas y balanzas' },
-    { path: '/actividad', icon: Activity, label: 'Auditoría', description: 'Registro de actividad' },
-  ],
-  tesoreria: [
-    { path: '/bancos', icon: Warehouse, label: 'Bancos', description: 'Cuentas y movimientos' },
-    { path: '/conciliacion', icon: Activity, label: 'Conciliación', description: 'Banco vs documentos' },
-    { path: '/cuentas-por-pagar', icon: ShoppingCart, label: 'Cuentas por Pagar', description: 'Autorizar pagos' },
-  ],
 };
 
 const estadoBadge = (estado: string) => {
@@ -162,9 +146,6 @@ const Dashboard = ({ userRole }: DashboardProps) => {
     repartidor: 'Repartidor',
     
     auditoria: 'Auditoría',
-    contador: 'Contador',
-    contraloria: 'Contraloría',
-    tesoreria: 'Tesorería',
   };
 
   useEffect(() => {
@@ -181,7 +162,7 @@ const Dashboard = ({ userRole }: DashboardProps) => {
     const sb: any = supabase;
 
     const [cfdiRes, cxpRes, usersRes, sucRes, auditRes] = await Promise.all([
-      sb.from('cfdi_emitidos').select('id', { count: 'exact', head: true }).gte('created_at', firstDay).eq('es_demo', false),
+      sb.from('cfdi_emitidos').select('id', { count: 'exact', head: true }).gte('created_at', firstDay),
       sb.from('cuentas_por_pagar').select('id', { count: 'exact', head: true }).neq('estado', 'pagada'),
       sb.from('profiles').select('id', { count: 'exact', head: true }),
       sb.from('sucursales').select('id', { count: 'exact', head: true }).eq('activa', true),

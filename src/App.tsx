@@ -47,12 +47,6 @@ import ReportesHubPage from './pages/ReportesHubPage';
 import Sidebar from './components/layout/Sidebar';
 import Header from './components/layout/Header';
 import Fase2Guard from './components/Fase2Guard';
-import BancosPage from './pages/BancosPage';
-import ConciliacionPage from './pages/ConciliacionPage';
-import ContabilidadPage from './pages/ContabilidadPage';
-import ReportesAdminPage from './pages/ReportesAdminPage';
-import ImpuestosPage from './pages/ImpuestosPage';
-import NominaPage from './pages/NominaPage';
 
 
 const queryClient = new QueryClient({
@@ -94,13 +88,7 @@ const AppContent = () => {
               <Route path="/actividad" element={<AuditoriaPage />} />
               <Route path="/super-admin" element={<SuperAdminPage />} />
               <Route path="/cuentas-por-pagar" element={<CuentasPorPagarPage />} />
-              <Route path="/bancos" element={<BancosPage />} />
-              <Route path="/conciliacion" element={<ConciliacionPage />} />
               <Route path="/fiscal" element={<FiscalPage />} />
-              <Route path="/contabilidad" element={<ContabilidadPage />} />
-              <Route path="/reportes-admin" element={<ReportesAdminPage />} />
-              <Route path="/impuestos" element={<ImpuestosPage />} />
-              <Route path="/nomina" element={<NominaPage />} />
               {/* Fase 2 (ocultas tras feature flag) */}
               <Route path="/productos" element={<Fase2Guard><Productos /></Fase2Guard>} />
               <Route path="/proveedores" element={<Fase2Guard><ProveedoresPage /></Fase2Guard>} />

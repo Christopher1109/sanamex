@@ -5,7 +5,7 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Receipt, Download, Ban, FlaskConical, CreditCard, FileMinus } from 'lucide-react';
+import { Receipt, Download, Ban, FlaskConical } from 'lucide-react';
 import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -13,7 +13,6 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Textarea } from '@/components/ui/textarea';
 
 const PROJECT_ID = import.meta.env.VITE_SUPABASE_PROJECT_ID;
 const FN_BASE = `https://${PROJECT_ID}.supabase.co/functions/v1`;
@@ -26,12 +25,6 @@ export default function FiscalPage() {
   const [form, setForm] = useState({ rfc: '', razon_social: '', regimen_fiscal: '601', cp_emisor: '', pac_proveedor: 'Facturapi', serie_default: 'A' });
   const [timbrando, setTimbrando] = useState<string | null>(null);
   const [dialogVenta, setDialogVenta] = useState<any>(null);
-  const [verDemo, setVerDemo] = useState(false);
-  const [dialogPago, setDialogPago] = useState<any>(null);
-  const [dialogNota, setDialogNota] = useState<any>(null);
-  const [pagoForm, setPagoForm] = useState({ monto: '', fecha: new Date().toISOString().slice(0,10), forma_pago: '03', num_parcialidad: 1 });
-  const [notaForm, setNotaForm] = useState({ monto: '', motivo: 'Devolución / descuento', forma_pago: '01' });
-  const [procesando, setProcesando] = useState(false);
   const [receptor, setReceptor] = useState({
     rfc: 'XAXX010101000', nombre: 'PUBLICO EN GENERAL', regimen_fiscal: '616', cp: '', email: '',
     forma_pago: '01', metodo_pago: 'PUE' as 'PUE' | 'PPD', uso_cfdi: 'S01', lineas_con_iva: false,
@@ -40,7 +33,7 @@ export default function FiscalPage() {
   const sucursalIds = availableSucursales.map(s => s.id);
   const sucursalMap = Object.fromEntries(availableSucursales.map(s => [s.id, s.codigo || s.nombre]));
 
-  useEffect(() => { loadConfig(); loadCfdis(); loadVentas(); /* eslint-disable-next-line */ }, [availableSucursales.length, verDemo]);
+  useEffect(() => { loadConfig(); loadCfdis(); loadVentas(); /* eslint-disable-next-line */ }, [availableSucursales.length]);
 
   async function loadConfig() {
     // Configuración fiscal GLOBAL (compartida por todas las distribuidoras)
@@ -49,9 +42,7 @@ export default function FiscalPage() {
   }
   async function loadCfdis() {
     if (sucursalIds.length === 0) { setCfdis([]); return; }
-    let q = supabase.from('cfdi_emitidos').select('*').in('sucursal_id', sucursalIds).order('created_at', { ascending: false }).limit(100);
-    if (!verDemo) q = q.eq('es_demo', false);
-    const { data } = await q;
+    const { data } = await supabase.from('cfdi_emitidos').select('*').in('sucursal_id', sucursalIds).order('created_at', { ascending: false }).limit(50);
     setCfdis(data || []);
   }
   async function loadVentas() {
@@ -200,49 +191,7 @@ export default function FiscalPage() {
     else { toast.success('CFDI cancelado'); loadCfdis(); }
   }
 
-  async function emitirREP() {
-    if (!dialogPago) return;
-    const monto = Number(pagoForm.monto);
-    if (!monto || monto <= 0) return toast.error('Monto inválido');
-    setProcesando(true);
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const res = await fetch(`${FN_BASE}/facturapi-complemento-pago`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session?.access_token}` },
-        body: JSON.stringify({
-          factura_id: dialogPago.id, monto, fecha_pago: pagoForm.fecha,
-          forma_pago: pagoForm.forma_pago, num_parcialidad: pagoForm.num_parcialidad,
-        }),
-      });
-      const body = await res.json();
-      if (!res.ok) toast.error(body?.error || 'Error emitiendo REP', { description: body?.detalle?.message });
-      else { toast.success(`REP emitido · UUID ${body.rep?.uuid_sat}`); setDialogPago(null); loadCfdis(); }
-    } catch (e: any) { toast.error(e.message); }
-    finally { setProcesando(false); }
-  }
-
-  async function emitirNotaCredito() {
-    if (!dialogNota) return;
-    const monto = Number(notaForm.monto);
-    if (!monto || monto <= 0) return toast.error('Monto inválido');
-    setProcesando(true);
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const res = await fetch(`${FN_BASE}/facturapi-nota-credito`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session?.access_token}` },
-        body: JSON.stringify({
-          factura_id: dialogNota.id, monto, motivo: notaForm.motivo, forma_pago: notaForm.forma_pago,
-        }),
-      });
-      const body = await res.json();
-      if (!res.ok) toast.error(body?.error || 'Error emitiendo NC', { description: body?.detalle?.message });
-      else { toast.success(`Nota de crédito emitida · UUID ${body.nota_credito?.uuid_sat}`); setDialogNota(null); loadCfdis(); }
-    } catch (e: any) { toast.error(e.message); }
-    finally { setProcesando(false); }
-  }
-
+  const esTest = (config?.pac_proveedor || '').toLowerCase().includes('test') || true; // Facturapi test mode
 
   return (
     <div className="space-y-6">
@@ -306,15 +255,10 @@ export default function FiscalPage() {
 
         <TabsContent value="cfdis">
           <Card>
-            <div className="p-3 border-b flex items-center gap-3">
-              <Switch checked={verDemo} onCheckedChange={setVerDemo} id="ver-demo" />
-              <Label htmlFor="ver-demo" className="cursor-pointer text-sm">Mostrar CFDI demo (seed)</Label>
-            </div>
             <Table>
               <TableHeader>
                 <TableRow>
                   <TableHead>Folio</TableHead>
-                  <TableHead>Tipo</TableHead>
                   <TableHead>UUID SAT</TableHead>
                   <TableHead>RFC Receptor</TableHead>
                   <TableHead className="text-right">Total</TableHead>
@@ -324,17 +268,10 @@ export default function FiscalPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {cfdis.length === 0 && <TableRow><TableCell colSpan={8} className="text-center py-6 text-muted-foreground">Aún no hay comprobantes.</TableCell></TableRow>}
-                {cfdis.map(c => {
-                  const tipoLabel = c.tipo_comprobante === 'P' ? 'REP' : c.tipo_comprobante === 'E' ? 'Egreso' : 'Ingreso';
-                  const esPPD = (c.pac_response as any)?.payment_method === 'PPD';
-                  return (
+                {cfdis.length === 0 && <TableRow><TableCell colSpan={7} className="text-center py-6 text-muted-foreground">Aún no hay comprobantes.</TableCell></TableRow>}
+                {cfdis.map(c => (
                   <TableRow key={c.id}>
                     <TableCell>{c.serie}-{c.folio}</TableCell>
-                    <TableCell>
-                      <Badge variant={c.tipo_comprobante === 'P' ? 'secondary' : c.tipo_comprobante === 'E' ? 'destructive' : 'default'}>{tipoLabel}</Badge>
-                      {c.es_demo && <Badge variant="outline" className="ml-1 text-[10px]">demo</Badge>}
-                    </TableCell>
                     <TableCell className="font-mono text-xs">{c.uuid_sat || '—'}</TableCell>
                     <TableCell>{c.rfc_receptor}</TableCell>
                     <TableCell className="text-right">${Number(c.total).toFixed(2)}</TableCell>
@@ -342,33 +279,21 @@ export default function FiscalPage() {
                       <Badge variant={c.estado === 'timbrado' ? 'default' : c.estado === 'cancelado' ? 'destructive' : 'outline'}>{c.estado}</Badge>
                     </TableCell>
                     <TableCell>{new Date(c.created_at).toLocaleDateString()}</TableCell>
-                    <TableCell className="flex gap-1 flex-wrap">
+                    <TableCell className="flex gap-1">
                       {c.estado === 'timbrado' && (
                         <>
-                          <Button size="sm" variant="outline" onClick={() => descargar(c, 'pdf')}><Download className="h-3 w-3" /></Button>
+                          <Button size="sm" variant="outline" onClick={() => descargar(c, 'pdf')}><Download className="h-3 w-3" /> PDF</Button>
                           <Button size="sm" variant="outline" onClick={() => descargar(c, 'xml')}><Download className="h-3 w-3" /> XML</Button>
-                          {c.tipo_comprobante === 'I' && esPPD && (
-                            <Button size="sm" variant="outline" onClick={() => { setPagoForm({ monto: String(c.total), fecha: new Date().toISOString().slice(0,10), forma_pago: '03', num_parcialidad: 1 }); setDialogPago(c); }}>
-                              <CreditCard className="h-3 w-3" /> Pago
-                            </Button>
-                          )}
-                          {c.tipo_comprobante === 'I' && (
-                            <Button size="sm" variant="outline" onClick={() => { setNotaForm({ monto: String(c.total), motivo: 'Devolución / descuento', forma_pago: '01' }); setDialogNota(c); }}>
-                              <FileMinus className="h-3 w-3" /> NC
-                            </Button>
-                          )}
                           <Button size="sm" variant="ghost" onClick={() => cancelar(c)}><Ban className="h-3 w-3" /></Button>
                         </>
                       )}
                     </TableCell>
                   </TableRow>
-                  );
-                })}
+                ))}
               </TableBody>
             </Table>
           </Card>
         </TabsContent>
-
 
         <TabsContent value="config">
           <Card className="p-5">
@@ -448,64 +373,6 @@ export default function FiscalPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
-      {/* REP / Complemento de pago */}
-      <Dialog open={!!dialogPago} onOpenChange={(o) => !o && setDialogPago(null)}>
-        <DialogContent className="max-w-md">
-          <DialogHeader><DialogTitle>Registrar pago (REP) · {dialogPago?.serie}-{dialogPago?.folio}</DialogTitle></DialogHeader>
-          <div className="space-y-3">
-            <div><Label>Monto del pago</Label><Input type="number" step="0.01" value={pagoForm.monto} onChange={e => setPagoForm({ ...pagoForm, monto: e.target.value })} /></div>
-            <div><Label>Fecha de pago</Label><Input type="date" value={pagoForm.fecha} onChange={e => setPagoForm({ ...pagoForm, fecha: e.target.value })} /></div>
-            <div>
-              <Label>Forma de pago</Label>
-              <Select value={pagoForm.forma_pago} onValueChange={v => setPagoForm({ ...pagoForm, forma_pago: v })}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="01">01 · Efectivo</SelectItem>
-                  <SelectItem value="03">03 · Transferencia</SelectItem>
-                  <SelectItem value="04">04 · Tarjeta de crédito</SelectItem>
-                  <SelectItem value="28">28 · Tarjeta de débito</SelectItem>
-                  <SelectItem value="02">02 · Cheque</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div><Label>Parcialidad #</Label><Input type="number" min={1} value={pagoForm.num_parcialidad} onChange={e => setPagoForm({ ...pagoForm, num_parcialidad: Number(e.target.value) })} /></div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setDialogPago(null)}>Cancelar</Button>
-            <Button onClick={emitirREP} disabled={procesando}>{procesando ? 'Emitiendo…' : 'Emitir REP'}</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Nota de crédito */}
-      <Dialog open={!!dialogNota} onOpenChange={(o) => !o && setDialogNota(null)}>
-        <DialogContent className="max-w-md">
-          <DialogHeader><DialogTitle>Nota de crédito · {dialogNota?.serie}-{dialogNota?.folio}</DialogTitle></DialogHeader>
-          <div className="space-y-3">
-            <div><Label>Monto</Label><Input type="number" step="0.01" value={notaForm.monto} onChange={e => setNotaForm({ ...notaForm, monto: e.target.value })} /></div>
-            <div><Label>Motivo</Label><Textarea value={notaForm.motivo} onChange={e => setNotaForm({ ...notaForm, motivo: e.target.value })} /></div>
-            <div>
-              <Label>Forma de pago</Label>
-              <Select value={notaForm.forma_pago} onValueChange={v => setNotaForm({ ...notaForm, forma_pago: v })}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="01">01 · Efectivo</SelectItem>
-                  <SelectItem value="03">03 · Transferencia</SelectItem>
-                  <SelectItem value="04">04 · Tarjeta de crédito</SelectItem>
-                  <SelectItem value="28">28 · Tarjeta de débito</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <p className="text-xs text-muted-foreground">Se emite como CFDI Egreso (tipo E) con relación 01 a la factura original.</p>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setDialogNota(null)}>Cancelar</Button>
-            <Button onClick={emitirNotaCredito} disabled={procesando}>{procesando ? 'Emitiendo…' : 'Emitir NC'}</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }
-

@@ -8,10 +8,7 @@ export type UserRole =
   | 'almacen_ventas'   // almacenista que ALSO opera POS para cobertura en caja
   | 'ventas'           // operador POS (anteriormente 'cajero', consolidado)
   | 'repartidor'
-  | 'auditoria'        // auditoría operativa (anteriormente 'auditor', consolidado)
-  | 'contador'        // contador / finanzas (CxP, bancos, conciliación, fiscal)
-  | 'contraloria'     // contraloría: solo lectura financiera / contable
-  | 'tesoreria';      // tesorería: bancos, conciliación, CxP con autorización
+  | 'auditoria';       // auditoría operativa (anteriormente 'auditor', consolidado)
 
 export interface Sucursal {
   id: string;
