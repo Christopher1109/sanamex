@@ -14,6 +14,48 @@ export type Database = {
   }
   public: {
     Tables: {
+      admin_permisos_matriz: {
+        Row: {
+          area: string
+          autorizar_dispersion: boolean
+          autorizar_pagos: boolean
+          capturar: boolean
+          consultar: boolean
+          created_at: string
+          dispersar: boolean
+          id: string
+          puesto_asociado: string | null
+          rol: Database["public"]["Enums"]["app_role"]
+          updated_at: string
+        }
+        Insert: {
+          area: string
+          autorizar_dispersion?: boolean
+          autorizar_pagos?: boolean
+          capturar?: boolean
+          consultar?: boolean
+          created_at?: string
+          dispersar?: boolean
+          id?: string
+          puesto_asociado?: string | null
+          rol: Database["public"]["Enums"]["app_role"]
+          updated_at?: string
+        }
+        Update: {
+          area?: string
+          autorizar_dispersion?: boolean
+          autorizar_pagos?: boolean
+          capturar?: boolean
+          consultar?: boolean
+          created_at?: string
+          dispersar?: boolean
+          id?: string
+          puesto_asociado?: string | null
+          rol?: Database["public"]["Enums"]["app_role"]
+          updated_at?: string
+        }
+        Relationships: []
+      }
       almacenes: {
         Row: {
           activo: boolean | null
@@ -145,6 +187,33 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      auditoria_accesos: {
+        Row: {
+          created_at: string
+          id: string
+          modificable: boolean
+          modo: string
+          perfil: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          modificable?: boolean
+          modo?: string
+          perfil: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          modificable?: boolean
+          modo?: string
+          perfil?: string
+          updated_at?: string
+        }
+        Relationships: []
       }
       bancos: {
         Row: {
@@ -767,6 +836,42 @@ export type Database = {
           },
         ]
       }
+      configuracion_alertas: {
+        Row: {
+          activo: boolean
+          clave: string
+          created_at: string
+          descripcion: string | null
+          id: string
+          updated_at: string
+          valor_numero: number | null
+          valor_texto: string | null
+          vigencia_desde: string
+        }
+        Insert: {
+          activo?: boolean
+          clave: string
+          created_at?: string
+          descripcion?: string | null
+          id?: string
+          updated_at?: string
+          valor_numero?: number | null
+          valor_texto?: string | null
+          vigencia_desde?: string
+        }
+        Update: {
+          activo?: boolean
+          clave?: string
+          created_at?: string
+          descripcion?: string | null
+          id?: string
+          updated_at?: string
+          valor_numero?: number | null
+          valor_texto?: string | null
+          vigencia_desde?: string
+        }
+        Relationships: []
+      }
       configuracion_fiscal: {
         Row: {
           activo: boolean
@@ -826,21 +931,33 @@ export type Database = {
       }
       contabilidad_parametros: {
         Row: {
+          consolidacion_activa: boolean
           fecha_inicio_contable: string
           id: number
+          modo_prorrateo_cedis: string
           prorrateo_cedis_pct: number
+          sucursales_contables: number
+          sucursales_fiscales: number
           updated_at: string
         }
         Insert: {
+          consolidacion_activa?: boolean
           fecha_inicio_contable?: string
           id?: number
+          modo_prorrateo_cedis?: string
           prorrateo_cedis_pct?: number
+          sucursales_contables?: number
+          sucursales_fiscales?: number
           updated_at?: string
         }
         Update: {
+          consolidacion_activa?: boolean
           fecha_inicio_contable?: string
           id?: number
+          modo_prorrateo_cedis?: string
           prorrateo_cedis_pct?: number
+          sucursales_contables?: number
+          sucursales_fiscales?: number
           updated_at?: string
         }
         Relationships: []
@@ -1398,7 +1515,9 @@ export type Database = {
           coeficiente_utilidad: number
           id: number
           ieps_activo: boolean
+          isn_entidad: string
           isn_tasa_pct: number
+          isn_vigencia_desde: string
           periodicidad_nomina: string
           retencion_isr_pct: number
           retencion_iva_pct: number
@@ -1411,7 +1530,9 @@ export type Database = {
           coeficiente_utilidad?: number
           id?: number
           ieps_activo?: boolean
+          isn_entidad?: string
           isn_tasa_pct?: number
+          isn_vigencia_desde?: string
           periodicidad_nomina?: string
           retencion_isr_pct?: number
           retencion_iva_pct?: number
@@ -1424,7 +1545,9 @@ export type Database = {
           coeficiente_utilidad?: number
           id?: number
           ieps_activo?: boolean
+          isn_entidad?: string
           isn_tasa_pct?: number
+          isn_vigencia_desde?: string
           periodicidad_nomina?: string
           retencion_isr_pct?: number
           retencion_iva_pct?: number
@@ -3416,6 +3539,7 @@ export type Database = {
           codigo: string
           created_at: string | null
           direccion: string | null
+          es_cedis: boolean
           es_fiscal: boolean
           id: string
           nombre: string
@@ -3428,6 +3552,7 @@ export type Database = {
           codigo: string
           created_at?: string | null
           direccion?: string | null
+          es_cedis?: boolean
           es_fiscal?: boolean
           id?: string
           nombre: string
@@ -3440,6 +3565,7 @@ export type Database = {
           codigo?: string
           created_at?: string | null
           direccion?: string | null
+          es_cedis?: boolean
           es_fiscal?: boolean
           id?: string
           nombre?: string
@@ -4502,6 +4628,8 @@ export type Database = {
         | "contador"
         | "contraloria"
         | "tesoreria"
+        | "direccion"
+        | "contabilidad"
       estado_traspaso: "pendiente" | "aprobado" | "rechazado" | "completado"
       genero: "masculino" | "femenino"
       tipo_actividad:
@@ -4661,6 +4789,8 @@ export const Constants = {
         "contador",
         "contraloria",
         "tesoreria",
+        "direccion",
+        "contabilidad",
       ],
       estado_traspaso: ["pendiente", "aprobado", "rechazado", "completado"],
       genero: ["masculino", "femenino"],
