@@ -2276,7 +2276,6 @@ export type Database = {
           created_at: string
           id: string
           notas: string | null
-          password_assigned: string
           reset_by: string
           target_user_id: string
         }
@@ -2284,7 +2283,6 @@ export type Database = {
           created_at?: string
           id?: string
           notas?: string | null
-          password_assigned: string
           reset_by: string
           target_user_id: string
         }
@@ -2292,7 +2290,6 @@ export type Database = {
           created_at?: string
           id?: string
           notas?: string | null
-          password_assigned?: string
           reset_by?: string
           target_user_id?: string
         }
