@@ -25,12 +25,14 @@ export default function ContabilidadPage() {
         <TabsList>
           <TabsTrigger value="polizas">Pólizas</TabsTrigger>
           <TabsTrigger value="catalogo">Catálogo de cuentas</TabsTrigger>
+          <TabsTrigger value="saldos">Saldos de apertura</TabsTrigger>
           <TabsTrigger value="reglas">Reglas</TabsTrigger>
           <TabsTrigger value="auto">Asientos automáticos</TabsTrigger>
           <TabsTrigger value="parametros">Parámetros</TabsTrigger>
         </TabsList>
         <TabsContent value="polizas"><PolizasTab /></TabsContent>
         <TabsContent value="catalogo"><CatalogoTab /></TabsContent>
+        <TabsContent value="saldos"><SaldosAperturaTab /></TabsContent>
         <TabsContent value="reglas"><ReglasTab /></TabsContent>
         <TabsContent value="auto"><AutoTab /></TabsContent>
         <TabsContent value="parametros"><ParametrosTab /></TabsContent>
@@ -55,15 +57,36 @@ function CatalogoTab() {
       const XLSX = await import('xlsx');
       const buf = await file.arrayBuffer();
       const wb = XLSX.read(buf);
-      const rows: any[] = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]);
-      const filas = rows.map(r => ({
+      // Try flat headers first
+      let rows: any[] = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]);
+      let filas = rows.map(r => ({
         codigo: String(r.codigo ?? r.Codigo ?? r['Código'] ?? '').trim(),
         nombre: String(r.nombre ?? r.Nombre ?? '').trim(),
         nivel: Number(r.nivel ?? r.Nivel ?? 1),
         naturaleza: String(r.naturaleza ?? r.Naturaleza ?? 'deudora').toLowerCase().includes('acre') ? 'acreedora' : 'deudora',
-        codigo_agrupador_sat: r.codigo_agrupador_sat ?? r.SAT ?? null,
+        codigo_agrupador_sat: r.codigo_agrupador_sat ?? r.SAT ?? r.Agrupador ?? null,
         afectable: r.afectable === false ? false : true,
       })).filter(f => f.codigo && f.nombre);
+      // Fallback: Contpaq format (header row includes "Nivel"+"Código"+"Nombre"+"Tipo")
+      if (!filas.length) {
+        const raw: any[][] = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1, defval: '' });
+        let hdr = -1;
+        for (let i = 0; i < Math.min(15, raw.length); i++) {
+          const s = raw[i].map(v => String(v).replace(/\s+/g,'').toLowerCase()).join('|');
+          if (s.includes('nivel') && (s.includes('código') || s.includes('codigo')) && s.includes('nombre')) { hdr = i; break; }
+        }
+        if (hdr >= 0) {
+          const data = raw.slice(hdr + 3); // skip subheader + blank
+          filas = data.map((r: any[]) => ({
+            codigo: String(r[1] ?? '').trim(),
+            nombre: String(r[2] ?? '').trim(),
+            nivel: Number(r[0] ?? 1) || 1,
+            naturaleza: String(r[3] ?? '').toLowerCase().includes('acre') ? 'acreedora' as const : 'deudora' as const,
+            codigo_agrupador_sat: r[10] ? String(r[10]).trim() || null : null,
+            afectable: Number(r[0] ?? 1) >= 3,
+          })).filter(f => f.codigo && f.nombre && /^\d/.test(f.codigo));
+        }
+      }
       if (!filas.length) { toast.error('Archivo vacío o columnas inválidas'); return; }
       const { error } = await supabase.from('catalogo_cuentas').upsert(filas as any, { onConflict: 'codigo' });
       if (error) throw error;
@@ -355,5 +378,138 @@ function ParametrosTab() {
         <Button onClick={save}>Guardar</Button>
       </CardContent>
     </Card>
+  );
+}
+
+function SaldosAperturaTab() {
+  const [rows, setRows] = useState<any[]>([]);
+  const [cuentas, setCuentas] = useState<Cuenta[]>([]);
+  const [fechaCorte, setFechaCorte] = useState('2026-03-31');
+  const [loading, setLoading] = useState(false);
+  const [preview, setPreview] = useState<any[] | null>(null);
+
+  const load = async () => {
+    const { data } = await supabase.from('saldos_apertura')
+      .select('*, catalogo_cuentas(codigo, nombre)')
+      .eq('fecha_corte', fechaCorte)
+      .order('created_at');
+    setRows((data as any) || []);
+  };
+  useEffect(() => { load(); }, [fechaCorte]);
+  useEffect(() => {
+    supabase.from('catalogo_cuentas').select('id,codigo,nombre,nivel,naturaleza,codigo_agrupador_sat,afectable,activo').order('codigo')
+      .then(({ data }) => setCuentas((data as any) || []));
+  }, []);
+
+  const totales = {
+    deudor: rows.reduce((s, r) => s + Number(r.saldo_deudor || 0), 0),
+    acreedor: rows.reduce((s, r) => s + Number(r.saldo_acreedor || 0), 0),
+  };
+  const diff = totales.deudor - totales.acreedor;
+
+  const importarExcel = async (file: File) => {
+    setLoading(true);
+    try {
+      const XLSX = await import('xlsx');
+      const wb = XLSX.read(await file.arrayBuffer());
+      const raw: any[] = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1, defval: '' });
+      // find header row containing 'Cuenta' or 'Código'
+      let headerIdx = 0;
+      for (let i = 0; i < Math.min(15, raw.length); i++) {
+        const line = raw[i].map((v: any) => String(v).toLowerCase()).join(' ');
+        if (line.includes('cuenta') || line.includes('código') || line.includes('codigo')) { headerIdx = i; break; }
+      }
+      const map = new Map(cuentas.map(c => [c.codigo, c.id]));
+      const parsed = raw.slice(headerIdx + 1).map((r: any[]) => {
+        const codigo = String(r[0] ?? '').trim();
+        const deudor = Number(String(r[6] ?? r[2] ?? 0).replace(/[,$\s]/g, '')) || 0;
+        const acreedor = Number(String(r[7] ?? r[3] ?? 0).replace(/[,$\s]/g, '')) || 0;
+        return { codigo, deudor, acreedor, cuenta_id: map.get(codigo), match: !!map.get(codigo) };
+      }).filter(x => x.codigo && (x.deudor !== 0 || x.acreedor !== 0));
+      setPreview(parsed);
+    } catch (e: any) { toast.error(e.message); } finally { setLoading(false); }
+  };
+
+  const confirmar = async () => {
+    if (!preview) return;
+    const validos = preview.filter(p => p.match);
+    if (!validos.length) { toast.error('Ningún código coincide con el catálogo'); return; }
+    const payload = validos.map(p => ({
+      cuenta_id: p.cuenta_id, fecha_corte: fechaCorte,
+      saldo_deudor: p.deudor, saldo_acreedor: p.acreedor,
+      origen: 'importado_ui', notas: `Importado ${new Date().toLocaleDateString()}`,
+    }));
+    const { error } = await supabase.from('saldos_apertura').upsert(payload as any, { onConflict: 'cuenta_id,fecha_corte' });
+    if (error) { toast.error(error.message); return; }
+    toast.success(`${validos.length} saldos guardados`);
+    setPreview(null); load();
+  };
+
+  return (
+    <div className="space-y-3">
+      <Card>
+        <CardContent className="p-4 flex flex-wrap items-end gap-3">
+          <div><Label>Fecha de corte</Label><Input type="date" value={fechaCorte} onChange={e => setFechaCorte(e.target.value)} className="w-48" /></div>
+          <input id="sa-file" type="file" accept=".xlsx,.xls,.csv" className="hidden"
+            onChange={e => e.target.files?.[0] && importarExcel(e.target.files[0])} />
+          <Button variant="outline" disabled={loading} onClick={() => document.getElementById('sa-file')?.click()}>
+            <Upload className="h-4 w-4 mr-2" />Importar balanza (Excel)
+          </Button>
+          <div className="ml-auto text-sm">
+            <div>Total deudor: <strong>${totales.deudor.toLocaleString('es-MX',{minimumFractionDigits:2})}</strong></div>
+            <div>Total acreedor: <strong>${totales.acreedor.toLocaleString('es-MX',{minimumFractionDigits:2})}</strong></div>
+            <div>Diferencia: <Badge variant={Math.abs(diff)<0.5?'default':'destructive'}>${diff.toLocaleString('es-MX',{minimumFractionDigits:2})}</Badge></div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {preview && (
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between">
+            <CardTitle>Vista previa — {preview.length} filas ({preview.filter(p=>p.match).length} coinciden con catálogo)</CardTitle>
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={() => setPreview(null)}>Cancelar</Button>
+              <Button onClick={confirmar}><FileCheck className="h-4 w-4 mr-2" />Confirmar carga</Button>
+            </div>
+          </CardHeader>
+          <CardContent className="p-0 max-h-96 overflow-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-muted sticky top-0"><tr><th className="p-2 text-left">Código</th><th className="p-2 text-right">Deudor</th><th className="p-2 text-right">Acreedor</th><th className="p-2">Estado</th></tr></thead>
+              <tbody>
+                {preview.map((p, i) => (
+                  <tr key={i} className="border-b">
+                    <td className="p-2 font-mono">{p.codigo}</td>
+                    <td className="p-2 text-right">${p.deudor.toLocaleString('es-MX',{minimumFractionDigits:2})}</td>
+                    <td className="p-2 text-right">${p.acreedor.toLocaleString('es-MX',{minimumFractionDigits:2})}</td>
+                    <td className="p-2">{p.match ? <Badge>OK</Badge> : <Badge variant="destructive">Sin código en catálogo</Badge>}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </CardContent>
+        </Card>
+      )}
+
+      <Card>
+        <CardHeader><CardTitle>Saldos guardados ({rows.length})</CardTitle></CardHeader>
+        <CardContent className="p-0 max-h-[500px] overflow-auto">
+          <table className="w-full text-sm">
+            <thead className="bg-muted sticky top-0"><tr><th className="p-2 text-left">Código</th><th className="p-2 text-left">Cuenta</th><th className="p-2 text-right">Deudor</th><th className="p-2 text-right">Acreedor</th><th className="p-2 text-left">Origen</th></tr></thead>
+            <tbody>
+              {rows.map(r => (
+                <tr key={r.id} className="border-b">
+                  <td className="p-2 font-mono">{r.catalogo_cuentas?.codigo}</td>
+                  <td className="p-2">{r.catalogo_cuentas?.nombre}</td>
+                  <td className="p-2 text-right">${Number(r.saldo_deudor).toLocaleString('es-MX',{minimumFractionDigits:2})}</td>
+                  <td className="p-2 text-right">${Number(r.saldo_acreedor).toLocaleString('es-MX',{minimumFractionDigits:2})}</td>
+                  <td className="p-2 text-xs"><Badge variant="outline">{r.origen}</Badge></td>
+                </tr>
+              ))}
+              {rows.length === 0 && <tr><td colSpan={5} className="p-6 text-center text-muted-foreground">Sin saldos para esta fecha. Importa la balanza o captura manualmente.</td></tr>}
+            </tbody>
+          </table>
+        </CardContent>
+      </Card>
+    </div>
   );
 }
