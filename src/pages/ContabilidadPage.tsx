@@ -25,12 +25,14 @@ export default function ContabilidadPage() {
         <TabsList>
           <TabsTrigger value="polizas">Pólizas</TabsTrigger>
           <TabsTrigger value="catalogo">Catálogo de cuentas</TabsTrigger>
+          <TabsTrigger value="saldos">Saldos de apertura</TabsTrigger>
           <TabsTrigger value="reglas">Reglas</TabsTrigger>
           <TabsTrigger value="auto">Asientos automáticos</TabsTrigger>
           <TabsTrigger value="parametros">Parámetros</TabsTrigger>
         </TabsList>
         <TabsContent value="polizas"><PolizasTab /></TabsContent>
         <TabsContent value="catalogo"><CatalogoTab /></TabsContent>
+        <TabsContent value="saldos"><SaldosAperturaTab /></TabsContent>
         <TabsContent value="reglas"><ReglasTab /></TabsContent>
         <TabsContent value="auto"><AutoTab /></TabsContent>
         <TabsContent value="parametros"><ParametrosTab /></TabsContent>
