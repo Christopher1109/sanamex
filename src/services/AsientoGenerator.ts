@@ -75,7 +75,7 @@ export const AsientoGenerator = {
       throw new Error('Configura la regla "mov_bancario".');
     }
     let q = supabase.from('movimientos_bancarios')
-      .select('id, cargo, abono, fecha, concepto, conciliado')
+      .select('id, cargo, abono, fecha, concepto, conciliado, cuenta_id, cuentas_bancarias(cuenta_contable_id)')
       .eq('conciliado', true);
     if (desde) q = q.gte('fecha', desde);
     if (hasta) q = q.lte('fecha', hasta);
@@ -88,15 +88,21 @@ export const AsientoGenerator = {
       if (existe) continue;
       const monto = Math.abs(Number(m.cargo || m.abono || 0));
       if (monto <= 0) continue;
+      const cuentaBancoId = (m as any).cuentas_bancarias?.cuenta_contable_id || regla.cuenta_abono_id;
+      if (!cuentaBancoId) continue;
       const { data: pol } = await supabase.from('polizas').insert({
         tipo: 'diario', fecha: m.fecha, concepto: m.concepto || 'Movimiento bancario',
         estatus: 'borrador', origen: 'automatica',
         origen_referencia_tipo: 'mov_bancario', origen_referencia_id: m.id,
       }).select('id').single();
       if (!pol) continue;
-      await supabase.from('poliza_movimientos').insert([
-        { poliza_id: pol.id, cuenta_id: regla.cuenta_cargo_id, cargo: monto, abono: 0, concepto: 'Mov. bancario' },
-        { poliza_id: pol.id, cuenta_id: regla.cuenta_abono_id, cargo: 0, abono: monto, concepto: 'Mov. bancario' },
+      const esDeposito = Number(m.abono || 0) > 0;
+      await supabase.from('poliza_movimientos').insert(esDeposito ? [
+        { poliza_id: pol.id, cuenta_id: cuentaBancoId, cargo: monto, abono: 0, concepto: 'Banco' },
+        { poliza_id: pol.id, cuenta_id: regla.cuenta_abono_id, cargo: 0, abono: monto, concepto: 'Contrapartida bancaria' },
+      ] : [
+        { poliza_id: pol.id, cuenta_id: regla.cuenta_cargo_id, cargo: monto, abono: 0, concepto: 'Contrapartida bancaria' },
+        { poliza_id: pol.id, cuenta_id: cuentaBancoId, cargo: 0, abono: monto, concepto: 'Banco' },
       ]);
       creadas++;
     }
