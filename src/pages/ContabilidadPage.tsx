@@ -57,15 +57,36 @@ function CatalogoTab() {
       const XLSX = await import('xlsx');
       const buf = await file.arrayBuffer();
       const wb = XLSX.read(buf);
-      const rows: any[] = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]);
-      const filas = rows.map(r => ({
+      // Try flat headers first
+      let rows: any[] = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]);
+      let filas = rows.map(r => ({
         codigo: String(r.codigo ?? r.Codigo ?? r['Código'] ?? '').trim(),
         nombre: String(r.nombre ?? r.Nombre ?? '').trim(),
         nivel: Number(r.nivel ?? r.Nivel ?? 1),
         naturaleza: String(r.naturaleza ?? r.Naturaleza ?? 'deudora').toLowerCase().includes('acre') ? 'acreedora' : 'deudora',
-        codigo_agrupador_sat: r.codigo_agrupador_sat ?? r.SAT ?? null,
+        codigo_agrupador_sat: r.codigo_agrupador_sat ?? r.SAT ?? r.Agrupador ?? null,
         afectable: r.afectable === false ? false : true,
       })).filter(f => f.codigo && f.nombre);
+      // Fallback: Contpaq format (header row includes "Nivel"+"Código"+"Nombre"+"Tipo")
+      if (!filas.length) {
+        const raw: any[][] = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1, defval: '' });
+        let hdr = -1;
+        for (let i = 0; i < Math.min(15, raw.length); i++) {
+          const s = raw[i].map(v => String(v).replace(/\s+/g,'').toLowerCase()).join('|');
+          if (s.includes('nivel') && (s.includes('código') || s.includes('codigo')) && s.includes('nombre')) { hdr = i; break; }
+        }
+        if (hdr >= 0) {
+          const data = raw.slice(hdr + 3); // skip subheader + blank
+          filas = data.map((r: any[]) => ({
+            codigo: String(r[1] ?? '').trim(),
+            nombre: String(r[2] ?? '').trim(),
+            nivel: Number(r[0] ?? 1) || 1,
+            naturaleza: String(r[3] ?? '').toLowerCase().includes('acre') ? 'acreedora' as const : 'deudora' as const,
+            codigo_agrupador_sat: r[10] ? String(r[10]).trim() || null : null,
+            afectable: Number(r[0] ?? 1) >= 3,
+          })).filter(f => f.codigo && f.nombre && /^\d/.test(f.codigo));
+        }
+      }
       if (!filas.length) { toast.error('Archivo vacío o columnas inválidas'); return; }
       const { error } = await supabase.from('catalogo_cuentas').upsert(filas as any, { onConflict: 'codigo' });
       if (error) throw error;
