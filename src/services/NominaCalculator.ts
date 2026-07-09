@@ -76,8 +76,18 @@ export const NominaCalculator = {
     const sbc = Number(emp.sbc || sd);
     const imss = sbc * diasPagados * IMSS_OBRERO_PCT;
 
+    // Cuota patronal RT según registro patronal del empleado
+    let primaRT = 0;
+    if (emp.registro_patronal) {
+      const { data: prt } = await supabase.from('primas_riesgo_patronal')
+        .select('prima_rt').eq('registro_patronal', emp.registro_patronal).eq('activo', true).maybeSingle();
+      primaRT = Number(prt?.prima_rt || 0);
+    }
+    const cuotaRT = sbc * diasPagados * primaRT;
+
     if (isr > 0) conceptos.push({ clave: '002', descripcion: 'ISR', tipo: 'deduccion', importe_gravado: 0, importe_exento: 0, importe_total: isr });
     if (imss > 0) conceptos.push({ clave: '001D', descripcion: 'IMSS obrero', tipo: 'deduccion', importe_gravado: 0, importe_exento: 0, importe_total: imss });
+    if (cuotaRT > 0) conceptos.push({ clave: 'RT', descripcion: `Cuota patronal RT (${(primaRT*100).toFixed(4)}%)`, tipo: 'otro_pago', importe_gravado: 0, importe_exento: 0, importe_total: cuotaRT });
 
     const total_percepciones = conceptos.filter(c => c.tipo === 'percepcion').reduce((s, c) => s + c.importe_total, 0);
     const total_deducciones = conceptos.filter(c => c.tipo === 'deduccion').reduce((s, c) => s + c.importe_total, 0);
