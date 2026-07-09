@@ -20,12 +20,14 @@ export default function NominaPage() {
       <Tabs defaultValue="empleados">
         <TabsList>
           <TabsTrigger value="empleados">Empleados</TabsTrigger>
+          <TabsTrigger value="primas">Primas RT</TabsTrigger>
           <TabsTrigger value="conceptos">Conceptos</TabsTrigger>
           <TabsTrigger value="asistencia">Asistencia</TabsTrigger>
           <TabsTrigger value="recibos">Recibos</TabsTrigger>
           <TabsTrigger value="comisiones">Comisiones</TabsTrigger>
         </TabsList>
         <TabsContent value="empleados"><EmpleadosTab /></TabsContent>
+        <TabsContent value="primas"><PrimasRTTab /></TabsContent>
         <TabsContent value="conceptos"><ConceptosTab /></TabsContent>
         <TabsContent value="asistencia"><AsistenciaTab /></TabsContent>
         <TabsContent value="recibos"><RecibosTab /></TabsContent>
