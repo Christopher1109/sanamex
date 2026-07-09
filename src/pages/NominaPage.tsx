@@ -40,6 +40,7 @@ export default function NominaPage() {
 function EmpleadosTab() {
   const [emps, setEmps] = useState<any[]>([]);
   const [show, setShow] = useState(false);
+  const [preview, setPreview] = useState<any[] | null>(null);
   const [n, setN] = useState<any>({ nombre: '', rfc: '', salario_diario: 0, sbc: 0, periodicidad_pago: 'quincenal' });
   const load = async () => {
     const { data } = await supabase.from('empleados').select('*').order('nombre');
