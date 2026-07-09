@@ -1425,6 +1425,7 @@ export type Database = {
           activo: boolean
           banco: string | null
           clabe: string | null
+          clave_sistema: string | null
           created_at: string
           curp: string | null
           departamento: string | null
@@ -1435,10 +1436,12 @@ export type Database = {
           id: string
           nombre: string
           nss: string | null
+          numero_cuenta: string | null
           numero_empleado: string | null
           periodicidad_pago: string | null
           puesto: string | null
           regimen: string | null
+          registro_patronal: string | null
           rfc: string | null
           riesgo_puesto: number | null
           salario_diario: number
@@ -1451,6 +1454,7 @@ export type Database = {
           activo?: boolean
           banco?: string | null
           clabe?: string | null
+          clave_sistema?: string | null
           created_at?: string
           curp?: string | null
           departamento?: string | null
@@ -1461,10 +1465,12 @@ export type Database = {
           id?: string
           nombre: string
           nss?: string | null
+          numero_cuenta?: string | null
           numero_empleado?: string | null
           periodicidad_pago?: string | null
           puesto?: string | null
           regimen?: string | null
+          registro_patronal?: string | null
           rfc?: string | null
           riesgo_puesto?: number | null
           salario_diario?: number
@@ -1477,6 +1483,7 @@ export type Database = {
           activo?: boolean
           banco?: string | null
           clabe?: string | null
+          clave_sistema?: string | null
           created_at?: string
           curp?: string | null
           departamento?: string | null
@@ -1487,10 +1494,12 @@ export type Database = {
           id?: string
           nombre?: string
           nss?: string | null
+          numero_cuenta?: string | null
           numero_empleado?: string | null
           periodicidad_pago?: string | null
           puesto?: string | null
           regimen?: string | null
+          registro_patronal?: string | null
           rfc?: string | null
           riesgo_puesto?: number | null
           salario_diario?: number
@@ -1508,6 +1517,39 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      historicos_referencia: {
+        Row: {
+          categoria: string
+          created_at: string
+          descripcion: string | null
+          id: string
+          metadata: Json | null
+          nombre_archivo: string
+          periodo: string
+          updated_at: string
+        }
+        Insert: {
+          categoria: string
+          created_at?: string
+          descripcion?: string | null
+          id?: string
+          metadata?: Json | null
+          nombre_archivo: string
+          periodo: string
+          updated_at?: string
+        }
+        Update: {
+          categoria?: string
+          created_at?: string
+          descripcion?: string | null
+          id?: string
+          metadata?: Json | null
+          nombre_archivo?: string
+          periodo?: string
+          updated_at?: string
+        }
+        Relationships: []
       }
       impuestos_parametros: {
         Row: {
@@ -2694,6 +2736,45 @@ export type Database = {
           },
         ]
       }
+      primas_riesgo_patronal: {
+        Row: {
+          activo: boolean
+          clase_rt: number | null
+          created_at: string
+          id: string
+          notas: string | null
+          prima_rt: number
+          registro_patronal: string
+          updated_at: string
+          vigencia_desde: string
+          vigencia_hasta: string | null
+        }
+        Insert: {
+          activo?: boolean
+          clase_rt?: number | null
+          created_at?: string
+          id?: string
+          notas?: string | null
+          prima_rt: number
+          registro_patronal: string
+          updated_at?: string
+          vigencia_desde?: string
+          vigencia_hasta?: string | null
+        }
+        Update: {
+          activo?: boolean
+          clase_rt?: number | null
+          created_at?: string
+          id?: string
+          notas?: string | null
+          prima_rt?: number
+          registro_patronal?: string
+          updated_at?: string
+          vigencia_desde?: string
+          vigencia_hasta?: string | null
+        }
+        Relationships: []
+      }
       producto_corrugado: {
         Row: {
           created_at: string
@@ -3529,6 +3610,50 @@ export type Database = {
             columns: ["sucursal_id"]
             isOneToOne: false
             referencedRelation: "sucursales"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      saldos_apertura: {
+        Row: {
+          created_at: string
+          cuenta_id: string
+          fecha_corte: string
+          id: string
+          notas: string | null
+          origen: string
+          saldo_acreedor: number
+          saldo_deudor: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          cuenta_id: string
+          fecha_corte: string
+          id?: string
+          notas?: string | null
+          origen?: string
+          saldo_acreedor?: number
+          saldo_deudor?: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          cuenta_id?: string
+          fecha_corte?: string
+          id?: string
+          notas?: string | null
+          origen?: string
+          saldo_acreedor?: number
+          saldo_deudor?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "saldos_apertura_cuenta_id_fkey"
+            columns: ["cuenta_id"]
+            isOneToOne: false
+            referencedRelation: "catalogo_cuentas"
             referencedColumns: ["id"]
           },
         ]
