@@ -77,14 +77,17 @@ function CatalogoTab() {
         }
         if (hdr >= 0) {
           const data = raw.slice(hdr + 3); // skip subheader + blank
-          filas = data.map((r: any[]) => ({
+          filas = data.map((r: any[]) => {
+            const afectableTxt = String(r[4] ?? '').toLowerCase();
+            return ({
             codigo: String(r[1] ?? '').trim(),
             nombre: String(r[2] ?? '').trim(),
             nivel: Number(r[0] ?? 1) || 1,
             naturaleza: String(r[3] ?? '').toLowerCase().includes('acre') ? 'acreedora' as const : 'deudora' as const,
             codigo_agrupador_sat: r[10] ? String(r[10]).trim() || null : null,
-            afectable: Number(r[0] ?? 1) >= 3,
-          })).filter(f => f.codigo && f.nombre && /^\d/.test(f.codigo));
+            afectable: afectableTxt.includes('afectable'),
+          });
+          }).filter(f => f.codigo && f.nombre && /^\d/.test(f.codigo));
         }
       }
       if (!filas.length) { toast.error('Archivo vacío o columnas inválidas'); return; }
@@ -419,13 +422,27 @@ function SaldosAperturaTab() {
         const line = raw[i].map((v: any) => String(v).toLowerCase()).join(' ');
         if (line.includes('cuenta') || line.includes('código') || line.includes('codigo')) { headerIdx = i; break; }
       }
-      const map = new Map(cuentas.map(c => [c.codigo, c.id]));
-      const parsed = raw.slice(headerIdx + 1).map((r: any[]) => {
+      const map = new Map(cuentas.map(c => [c.codigo, c]));
+      const parseMoney = (v: any) => Number(String(v ?? 0).replace(/[$,\s]/g, '')) || 0;
+      const parsed = raw.slice(headerIdx + 1).flatMap((r: any[], idx: number) => {
         const codigo = String(r[0] ?? '').trim();
-        const deudor = Number(String(r[6] ?? r[2] ?? 0).replace(/[,$\s]/g, '')) || 0;
-        const acreedor = Number(String(r[7] ?? r[3] ?? 0).replace(/[,$\s]/g, '')) || 0;
-        return { codigo, deudor, acreedor, cuenta_id: map.get(codigo), match: !!map.get(codigo) };
-      }).filter(x => x.codigo && (x.deudor !== 0 || x.acreedor !== 0));
+        const nombre = String(r[1] ?? '').trim();
+        const isNoImpresas = nombre.toLowerCase().includes('total cuentas no impresas');
+        if (isNoImpresas) {
+          const next = raw[headerIdx + 1 + idx + 1] || [];
+          const cuenta = map.get('999-99-999');
+          const deudor = parseMoney(r[6] || r[2]);
+          const acreedor = parseMoney(r[7] || r[3] || next[7] || next[3]);
+          return [{ codigo: '999-99-999', nombre: 'Pendiente de detallar', deudor, acreedor, cuenta_id: cuenta?.id, match: !!cuenta, requiere_desglose: true }];
+        }
+        const cuenta = map.get(codigo);
+        if (!codigo || !/^\d{3}-\d{2}-\d{3}$/.test(codigo)) return [];
+        const deudor = parseMoney(r[6] ?? r[2]);
+        const acreedor = parseMoney(r[7] ?? r[3]);
+        if (deudor === 0 && acreedor === 0) return [];
+        const isAfectable = cuenta?.afectable === true;
+        return isAfectable ? [{ codigo, nombre, deudor, acreedor, cuenta_id: cuenta?.id, match: !!cuenta, requiere_desglose: false }] : [];
+      });
       setPreview(parsed);
     } catch (e: any) { toast.error(e.message); } finally { setLoading(false); }
   };
@@ -437,7 +454,7 @@ function SaldosAperturaTab() {
     const payload = validos.map(p => ({
       cuenta_id: p.cuenta_id, fecha_corte: fechaCorte,
       saldo_deudor: p.deudor, saldo_acreedor: p.acreedor,
-      origen: 'importado_ui', notas: `Importado ${new Date().toLocaleDateString()}`,
+      origen: 'importado_ui', notas: p.requiere_desglose ? 'Total cuentas no impresas; requiere desglose por contador' : `Importado ${new Date().toLocaleDateString()}`,
     }));
     const { error } = await supabase.from('saldos_apertura').upsert(payload as any, { onConflict: 'cuenta_id,fecha_corte' });
     if (error) { toast.error(error.message); return; }
@@ -474,11 +491,12 @@ function SaldosAperturaTab() {
           </CardHeader>
           <CardContent className="p-0 max-h-96 overflow-auto">
             <table className="w-full text-sm">
-              <thead className="bg-muted sticky top-0"><tr><th className="p-2 text-left">Código</th><th className="p-2 text-right">Deudor</th><th className="p-2 text-right">Acreedor</th><th className="p-2">Estado</th></tr></thead>
+              <thead className="bg-muted sticky top-0"><tr><th className="p-2 text-left">Código</th><th className="p-2 text-left">Cuenta</th><th className="p-2 text-right">Deudor</th><th className="p-2 text-right">Acreedor</th><th className="p-2">Estado</th></tr></thead>
               <tbody>
                 {preview.map((p, i) => (
                   <tr key={i} className="border-b">
                     <td className="p-2 font-mono">{p.codigo}</td>
+                    <td className="p-2">{p.nombre || '—'} {p.requiere_desglose && <Badge variant="destructive">Requiere desglose</Badge>}</td>
                     <td className="p-2 text-right">${p.deudor.toLocaleString('es-MX',{minimumFractionDigits:2})}</td>
                     <td className="p-2 text-right">${p.acreedor.toLocaleString('es-MX',{minimumFractionDigits:2})}</td>
                     <td className="p-2">{p.match ? <Badge>OK</Badge> : <Badge variant="destructive">Sin código en catálogo</Badge>}</td>
@@ -499,7 +517,7 @@ function SaldosAperturaTab() {
               {rows.map(r => (
                 <tr key={r.id} className="border-b">
                   <td className="p-2 font-mono">{r.catalogo_cuentas?.codigo}</td>
-                  <td className="p-2">{r.catalogo_cuentas?.nombre}</td>
+                  <td className="p-2">{r.catalogo_cuentas?.nombre} {String(r.notas || '').toLowerCase().includes('requiere desglose') && <Badge variant="destructive">Requiere desglose</Badge>}</td>
                   <td className="p-2 text-right">${Number(r.saldo_deudor).toLocaleString('es-MX',{minimumFractionDigits:2})}</td>
                   <td className="p-2 text-right">${Number(r.saldo_acreedor).toLocaleString('es-MX',{minimumFractionDigits:2})}</td>
                   <td className="p-2 text-xs"><Badge variant="outline">{r.origen}</Badge></td>

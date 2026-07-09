@@ -15,8 +15,9 @@ import { toast } from 'sonner';
 type Cuenta = {
   id: string; banco_id: string; alias: string; no_cuenta: string | null; clabe: string | null;
   moneda: string; tipo: 'cuenta' | 'subcuenta' | 'tpv'; parent_id: string | null;
-  sucursal_id: string | null; activo: boolean;
+  sucursal_id: string | null; cuenta_contable_id: string | null; activo: boolean;
   bancos?: { nombre: string; codigo: string };
+  catalogo_cuentas?: { codigo: string; nombre: string } | null;
 };
 type Mov = {
   id: string; cuenta_id: string; fecha: string; concepto: string | null; referencia: string | null;
@@ -26,13 +27,14 @@ type Mov = {
 
 const BancosPage = () => {
   const [cuentas, setCuentas] = useState<Cuenta[]>([]);
+  const [cuentasContables, setCuentasContables] = useState<any[]>([]);
   const [bancos, setBancos] = useState<any[]>([]);
   const [sel, setSel] = useState<Cuenta | null>(null);
   const [movs, setMovs] = useState<Mov[]>([]);
   const [loading, setLoading] = useState(true);
   const [showNew, setShowNew] = useState(false);
   const [showMov, setShowMov] = useState(false);
-  const [form, setForm] = useState({ banco_id: '', alias: '', no_cuenta: '', clabe: '', tipo: 'cuenta', parent_id: '' });
+  const [form, setForm] = useState({ banco_id: '', alias: '', no_cuenta: '', clabe: '', tipo: 'cuenta', parent_id: '', cuenta_contable_id: '' });
   const [movForm, setMovForm] = useState({ fecha: new Date().toISOString().slice(0, 10), concepto: '', referencia: '', cargo: '', abono: '', contraparte_nombre: '', contraparte_clabe: '' });
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -41,12 +43,14 @@ const BancosPage = () => {
 
   const load = async () => {
     setLoading(true);
-    const [{ data: cs }, { data: bs }] = await Promise.all([
-      supabase.from('cuentas_bancarias').select('*, bancos(nombre,codigo)').eq('activo', true).order('alias'),
+    const [{ data: cs }, { data: bs }, { data: cc }] = await Promise.all([
+      supabase.from('cuentas_bancarias').select('*, bancos(nombre,codigo), catalogo_cuentas(codigo,nombre)').eq('activo', true).order('alias'),
       supabase.from('bancos').select('*').eq('activo', true).order('nombre'),
+      supabase.from('catalogo_cuentas').select('id,codigo,nombre').eq('activo', true).eq('afectable', true).order('codigo'),
     ]);
     setCuentas((cs as any) || []);
     setBancos(bs || []);
+    setCuentasContables((cc as any) || []);
     if (cs?.length && !sel) setSel(cs[0] as any);
     setLoading(false);
   };
@@ -61,6 +65,7 @@ const BancosPage = () => {
     const { error } = await supabase.from('cuentas_bancarias').insert({
       banco_id: form.banco_id, alias: form.alias, no_cuenta: form.no_cuenta || null,
       clabe: form.clabe || null, tipo: form.tipo as any, parent_id: form.parent_id || null,
+      cuenta_contable_id: form.cuenta_contable_id || null,
     });
     if (error) { toast.error(error.message); return; }
     toast.success('Cuenta creada'); setShowNew(false); load();
@@ -164,7 +169,7 @@ const BancosPage = () => {
           <h1 className="text-2xl font-bold">Bancos</h1>
           <p className="text-muted-foreground">Catálogo de cuentas bancarias y movimientos</p>
         </div>
-        <Button onClick={() => { setForm({ banco_id: '', alias: '', no_cuenta: '', clabe: '', tipo: 'cuenta', parent_id: '' }); setShowNew(true); }}>
+        <Button onClick={() => { setForm({ banco_id: '', alias: '', no_cuenta: '', clabe: '', tipo: 'cuenta', parent_id: '', cuenta_contable_id: '' }); setShowNew(true); }}>
           <Plus className="h-4 w-4 mr-2" /> Nueva cuenta
         </Button>
       </div>
@@ -182,6 +187,7 @@ const BancosPage = () => {
                     <div className="flex-1">
                       <div className="font-medium">{p.alias}</div>
                       <div className="text-xs opacity-70">{p.bancos?.nombre}</div>
+                      <div className="text-xs opacity-70">{p.catalogo_cuentas ? `${p.catalogo_cuentas.codigo} · ${p.catalogo_cuentas.nombre}` : 'Sin cuenta contable'}</div>
                     </div>
                   </button>
                   {hijos(p.id).map(h => (
@@ -258,6 +264,12 @@ const BancosPage = () => {
             <div className="grid grid-cols-2 gap-2">
               <div><Label>No. cuenta</Label><Input value={form.no_cuenta} onChange={e => setForm({ ...form, no_cuenta: e.target.value })} /></div>
               <div><Label>CLABE</Label><Input value={form.clabe} onChange={e => setForm({ ...form, clabe: e.target.value })} /></div>
+            </div>
+            <div><Label>Cuenta contable</Label>
+              <Select value={form.cuenta_contable_id} onValueChange={v => setForm({ ...form, cuenta_contable_id: v })}>
+                <SelectTrigger><SelectValue placeholder="Selecciona cuenta contable..." /></SelectTrigger>
+                <SelectContent>{cuentasContables.map(c => <SelectItem key={c.id} value={c.id}>{c.codigo} — {c.nombre}</SelectItem>)}</SelectContent>
+              </Select>
             </div>
             <div><Label>Tipo</Label>
               <Select value={form.tipo} onValueChange={v => setForm({ ...form, tipo: v })}>

@@ -1101,6 +1101,7 @@ export type Database = {
           banco_id: string
           clabe: string | null
           created_at: string
+          cuenta_contable_id: string | null
           id: string
           moneda: string
           no_cuenta: string | null
@@ -1117,6 +1118,7 @@ export type Database = {
           banco_id: string
           clabe?: string | null
           created_at?: string
+          cuenta_contable_id?: string | null
           id?: string
           moneda?: string
           no_cuenta?: string | null
@@ -1133,6 +1135,7 @@ export type Database = {
           banco_id?: string
           clabe?: string | null
           created_at?: string
+          cuenta_contable_id?: string | null
           id?: string
           moneda?: string
           no_cuenta?: string | null
@@ -1149,6 +1152,13 @@ export type Database = {
             columns: ["banco_id"]
             isOneToOne: false
             referencedRelation: "bancos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cuentas_bancarias_cuenta_contable_id_fkey"
+            columns: ["cuenta_contable_id"]
+            isOneToOne: false
+            referencedRelation: "catalogo_cuentas"
             referencedColumns: ["id"]
           },
           {
