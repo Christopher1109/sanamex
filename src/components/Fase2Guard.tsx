@@ -1,17 +1,21 @@
 import { ReactNode } from 'react';
 import { Navigate } from 'react-router-dom';
-import { FASE_2_VISIBLE } from '@/config/featureFlags';
+import { useAuth } from '@/hooks/useAuth';
+import { canAccessFase2 } from '@/config/faseAccess';
 
 interface Fase2GuardProps {
   children: ReactNode;
 }
 
 /**
- * Intercepta el render de rutas de Fase 2 cuando el flag está apagado.
- * NO desmonta el código ni los imports; solo redirige a /dashboard.
+ * Intercepta el render de rutas de Fase 2 cuando el rol activo no
+ * tiene acceso operativo. NO desmonta código ni imports; redirige a
+ * /dashboard. Sustituye al flag global FASE_2_VISIBLE.
  */
 const Fase2Guard = ({ children }: Fase2GuardProps) => {
-  if (!FASE_2_VISIBLE) {
+  const { userRole, loading } = useAuth();
+  if (loading) return null;
+  if (!canAccessFase2(userRole)) {
     return <Navigate to="/dashboard" replace />;
   }
   return <>{children}</>;
