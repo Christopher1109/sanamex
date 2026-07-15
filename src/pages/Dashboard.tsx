@@ -402,7 +402,7 @@ const Dashboard = ({ userRole }: DashboardProps) => {
       </div>
 
       {/* === Dashboard administrativo (Fase 1) === */}
-      {!FASE_2_VISIBLE && (
+      {!showFase2 && (
         <>
           <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
             <Card>
