@@ -932,6 +932,7 @@ export type Database = {
       contabilidad_parametros: {
         Row: {
           consolidacion_activa: boolean
+          fecha_corte_automatico: string
           fecha_inicio_contable: string
           id: number
           modo_prorrateo_cedis: string
@@ -942,6 +943,7 @@ export type Database = {
         }
         Insert: {
           consolidacion_activa?: boolean
+          fecha_corte_automatico?: string
           fecha_inicio_contable?: string
           id?: number
           modo_prorrateo_cedis?: string
@@ -952,6 +954,7 @@ export type Database = {
         }
         Update: {
           consolidacion_activa?: boolean
+          fecha_corte_automatico?: string
           fecha_inicio_contable?: string
           id?: number
           modo_prorrateo_cedis?: string

@@ -1,17 +1,38 @@
 import { supabase } from '@/integrations/supabase/client';
 
+// Lee la fecha de corte Go-Live. Documentos anteriores a esta fecha
+// NO deben generar pólizas automáticas (viven como histórico).
+async function getFechaCorte(): Promise<string> {
+  const { data } = await supabase
+    .from('contabilidad_parametros')
+    .select('fecha_corte_automatico')
+    .eq('id', 1)
+    .maybeSingle();
+  return (data as any)?.fecha_corte_automatico || new Date().toISOString().slice(0, 10);
+}
+
+// Devuelve el mayor entre `desde` solicitado por el usuario y la fecha de corte.
+function aplicarCorte(desde: string | undefined, corte: string): string {
+  if (!desde) return corte;
+  return desde > corte ? desde : corte;
+}
+
 // Genera pólizas BORRADOR desde CFDIs, pagos CxP y movimientos bancarios.
 // El mapeo de cuentas se lee de reglas_contabilizacion (editable sin código).
+// Todas las funciones respetan `contabilidad_parametros.fecha_corte_automatico`
+// como piso mínimo — nunca contabilizan documentos anteriores al Go-Live.
 export const AsientoGenerator = {
   async generarDesdeCFDIs(desde?: string, hasta?: string) {
+    const corte = await getFechaCorte();
+    const desdeEfectivo = aplicarCorte(desde, corte);
     const { data: regla } = await supabase
       .from('reglas_contabilizacion').select('*').eq('origen', 'cfdi_ingreso').maybeSingle();
     if (!regla?.cuenta_cargo_id || !regla?.cuenta_abono_id) {
       throw new Error('Configura la regla "cfdi_ingreso" (cuenta cargo y abono).');
     }
     let q = supabase.from('cfdi_emitidos').select('id, total, timbrado_at, folio, uuid_sat')
-      .eq('es_demo', false).neq('estado', 'cancelado');
-    if (desde) q = q.gte('timbrado_at', desde);
+      .eq('es_demo', false).neq('estado', 'cancelado')
+      .gte('timbrado_at', desdeEfectivo);
     if (hasta) q = q.lte('timbrado_at', hasta);
     const { data: cfdis, error } = await q;
     if (error) throw error;
@@ -34,17 +55,19 @@ export const AsientoGenerator = {
       ]);
       creadas++;
     }
-    return { creadas, total: cfdis?.length || 0 };
+    return { creadas, total: cfdis?.length || 0, corte, desde_efectivo: desdeEfectivo };
   },
 
   async generarDesdePagosCxP(desde?: string, hasta?: string) {
+    const corte = await getFechaCorte();
+    const desdeEfectivo = aplicarCorte(desde, corte);
     const { data: regla } = await supabase
       .from('reglas_contabilizacion').select('*').eq('origen', 'pago_cxp').maybeSingle();
     if (!regla?.cuenta_cargo_id || !regla?.cuenta_abono_id) {
       throw new Error('Configura la regla "pago_cxp".');
     }
-    let q = supabase.from('pagos_cxp').select('id, monto, fecha, compra_id');
-    if (desde) q = q.gte('fecha', desde);
+    let q = supabase.from('pagos_cxp').select('id, monto, fecha, compra_id')
+      .gte('fecha', desdeEfectivo);
     if (hasta) q = q.lte('fecha', hasta);
     const { data: pagos, error } = await q;
     if (error) throw error;
@@ -65,10 +88,12 @@ export const AsientoGenerator = {
       ]);
       creadas++;
     }
-    return { creadas, total: pagos?.length || 0 };
+    return { creadas, total: pagos?.length || 0, corte, desde_efectivo: desdeEfectivo };
   },
 
   async generarDesdeBancos(desde?: string, hasta?: string) {
+    const corte = await getFechaCorte();
+    const desdeEfectivo = aplicarCorte(desde, corte);
     const { data: regla } = await supabase
       .from('reglas_contabilizacion').select('*').eq('origen', 'mov_bancario').maybeSingle();
     if (!regla?.cuenta_cargo_id || !regla?.cuenta_abono_id) {
@@ -76,8 +101,8 @@ export const AsientoGenerator = {
     }
     let q = supabase.from('movimientos_bancarios')
       .select('id, cargo, abono, fecha, concepto, conciliado, cuenta_id, cuentas_bancarias(cuenta_contable_id)')
-      .eq('conciliado', true);
-    if (desde) q = q.gte('fecha', desde);
+      .eq('conciliado', true)
+      .gte('fecha', desdeEfectivo);
     if (hasta) q = q.lte('fecha', hasta);
     const { data: movs, error } = await q;
     if (error) throw error;
@@ -106,6 +131,10 @@ export const AsientoGenerator = {
       ]);
       creadas++;
     }
-    return { creadas, total: movs?.length || 0 };
+    return { creadas, total: movs?.length || 0, corte, desde_efectivo: desdeEfectivo };
+  },
+
+  async getFechaCorte() {
+    return getFechaCorte();
   },
 };
