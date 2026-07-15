@@ -17,18 +17,33 @@ function aplicarCorte(desde: string | undefined, corte: string): string {
   return desde > corte ? desde : corte;
 }
 
+// Carga una regla y valida que esté activa y no marcada PENDIENTE DE CONFIRMAR.
+// Reglas como IMSS patronal, ISN y retención IVA están en la BD con activo=false
+// y descripción "PENDIENTE DE CONFIRMAR CON CONTADOR" — se ignoran hasta que
+// el contador las confirme.
+async function cargarReglaActiva(origen: string) {
+  const { data: regla } = await supabase
+    .from('reglas_contabilizacion')
+    .select('*')
+    .eq('origen', origen)
+    .eq('activo', true)
+    .maybeSingle();
+  if (!regla) return null;
+  if (String(regla.descripcion || '').toUpperCase().includes('PENDIENTE DE CONFIRMAR')) return null;
+  return regla as any;
+}
+
 // Genera pólizas BORRADOR desde CFDIs, pagos CxP y movimientos bancarios.
-// El mapeo de cuentas se lee de reglas_contabilizacion (editable sin código).
+// Idempotente: usa (origen_referencia_tipo, origen_referencia_id) como candado.
 // Todas las funciones respetan `contabilidad_parametros.fecha_corte_automatico`
 // como piso mínimo — nunca contabilizan documentos anteriores al Go-Live.
 export const AsientoGenerator = {
   async generarDesdeCFDIs(desde?: string, hasta?: string) {
     const corte = await getFechaCorte();
     const desdeEfectivo = aplicarCorte(desde, corte);
-    const { data: regla } = await supabase
-      .from('reglas_contabilizacion').select('*').eq('origen', 'cfdi_ingreso').maybeSingle();
+    const regla = await cargarReglaActiva('cfdi_ingreso');
     if (!regla?.cuenta_cargo_id || !regla?.cuenta_abono_id) {
-      throw new Error('Configura la regla "cfdi_ingreso" (cuenta cargo y abono).');
+      throw new Error('Configura la regla activa "cfdi_ingreso" (cuenta cargo y abono).');
     }
     let q = supabase.from('cfdi_emitidos').select('id, total, timbrado_at, folio, uuid_sat')
       .eq('es_demo', false).neq('estado', 'cancelado')
@@ -61,10 +76,9 @@ export const AsientoGenerator = {
   async generarDesdePagosCxP(desde?: string, hasta?: string) {
     const corte = await getFechaCorte();
     const desdeEfectivo = aplicarCorte(desde, corte);
-    const { data: regla } = await supabase
-      .from('reglas_contabilizacion').select('*').eq('origen', 'pago_cxp').maybeSingle();
+    const regla = await cargarReglaActiva('pago_cxp');
     if (!regla?.cuenta_cargo_id || !regla?.cuenta_abono_id) {
-      throw new Error('Configura la regla "pago_cxp".');
+      throw new Error('Configura la regla activa "pago_cxp".');
     }
     let q = supabase.from('pagos_cxp').select('id, monto, fecha, compra_id')
       .gte('fecha', desdeEfectivo);
@@ -94,10 +108,9 @@ export const AsientoGenerator = {
   async generarDesdeBancos(desde?: string, hasta?: string) {
     const corte = await getFechaCorte();
     const desdeEfectivo = aplicarCorte(desde, corte);
-    const { data: regla } = await supabase
-      .from('reglas_contabilizacion').select('*').eq('origen', 'mov_bancario').maybeSingle();
+    const regla = await cargarReglaActiva('mov_bancario');
     if (!regla?.cuenta_cargo_id || !regla?.cuenta_abono_id) {
-      throw new Error('Configura la regla "mov_bancario".');
+      throw new Error('Configura la regla activa "mov_bancario".');
     }
     let q = supabase.from('movimientos_bancarios')
       .select('id, cargo, abono, fecha, concepto, conciliado, cuenta_id, cuentas_bancarias(cuenta_contable_id)')
@@ -132,6 +145,29 @@ export const AsientoGenerator = {
       creadas++;
     }
     return { creadas, total: movs?.length || 0, corte, desde_efectivo: desdeEfectivo };
+  },
+
+  // B4 — Batch: corre las tres fuentes en una sola pasada, para el rango indicado.
+  // No lanza si una fuente no está configurada; sólo la salta y la reporta.
+  // Idempotente por diseño (cada sub-función revisa `origen_referencia_*`).
+  async generarDelDia(desde?: string, hasta?: string) {
+    const detalle: Record<string, any> = {};
+    let creadasTotal = 0;
+    const fuentes = [
+      ['cfdi', () => this.generarDesdeCFDIs(desde, hasta)],
+      ['pagos_cxp', () => this.generarDesdePagosCxP(desde, hasta)],
+      ['bancos', () => this.generarDesdeBancos(desde, hasta)],
+    ] as const;
+    for (const [nombre, fn] of fuentes) {
+      try {
+        const r = await fn();
+        detalle[nombre] = r;
+        creadasTotal += r.creadas;
+      } catch (e: any) {
+        detalle[nombre] = { error: e?.message || String(e), creadas: 0 };
+      }
+    }
+    return { creadasTotal, detalle };
   },
 
   async getFechaCorte() {
