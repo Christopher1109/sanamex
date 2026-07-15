@@ -3,7 +3,7 @@ import { Link, useLocation } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import sanamexLogo from '@/assets/sanamex-logo.png.asset.json';
 import { UserRole } from '@/types';
-import { FASE_2_VISIBLE } from '@/config/featureFlags';
+import { canAccessFase2 } from '@/config/faseAccess';
 import {
   LayoutDashboard, Package, Users, LogOut,
   Warehouse, ArrowLeftRight,
