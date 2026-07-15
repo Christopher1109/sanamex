@@ -3,7 +3,7 @@ import { Link, useLocation } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import sanamexLogo from '@/assets/sanamex-logo.png.asset.json';
 import { UserRole } from '@/types';
-import { FASE_2_VISIBLE } from '@/config/featureFlags';
+import { canAccessFase2 } from '@/config/faseAccess';
 import {
   LayoutDashboard, Package, Users, LogOut,
   Warehouse, ArrowLeftRight,
@@ -113,7 +113,7 @@ const Sidebar = ({ userRole, onLogout }: SidebarProps) => {
   ];
 
   const filtered = menuItems
-    .filter(item => FASE_2_VISIBLE || item.fase !== 2)
+    .filter(item => canAccessFase2(userRole) || item.fase !== 2)
     .filter(item => item.roles.includes(userRole));
   const grouped = filtered.reduce((acc, item) => {
     const cat = item.category || 'Otros';

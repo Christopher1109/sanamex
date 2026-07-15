@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useSucursal } from '@/contexts/SucursalContext';
 import { UserRole } from '@/types';
-import { FASE_2_VISIBLE } from '@/config/featureFlags';
+import { canAccessFase2 } from '@/config/faseAccess';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -167,13 +167,14 @@ const Dashboard = ({ userRole }: DashboardProps) => {
     tesoreria: 'Tesorería',
   };
 
+  const showFase2 = canAccessFase2(userRole);
   useEffect(() => {
-    if (FASE_2_VISIBLE) {
+    if (showFase2) {
       if (selectedSucursal) loadAll();
     } else {
       loadAdminKPIs();
     }
-  }, [selectedSucursal]);
+  }, [selectedSucursal, showFase2]);
 
   const loadAdminKPIs = async () => {
     const now = new Date();
@@ -401,7 +402,7 @@ const Dashboard = ({ userRole }: DashboardProps) => {
       </div>
 
       {/* === Dashboard administrativo (Fase 1) === */}
-      {!FASE_2_VISIBLE && (
+      {!showFase2 && (
         <>
           <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
             <Card>
@@ -532,7 +533,7 @@ const Dashboard = ({ userRole }: DashboardProps) => {
       )}
 
       {/* === Dashboard comercial (Fase 2) === */}
-      {FASE_2_VISIBLE && <>
+      {showFase2 && <>
 
 
       {/* Summary banner */}

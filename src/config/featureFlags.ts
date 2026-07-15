@@ -1,15 +1,10 @@
 // Feature flags centrales del ERP.
-// Flip único: cambiar FASE_2_VISIBLE a true restaura toda la Fase 2
-// (sidebar, rutas, dashboard comercial) sin migraciones ni cambios de BD.
 //
-// Fase 1 (administrativa) — siempre visible:
-//   Facturación CFDI, Cuentas por Pagar, Registro de Actividad,
-//   Super Admin (usuarios/roles/sucursales), Dashboard administrativo.
+// ⚠️ DEPRECADO como gate visual (A1, jul-2026):
+// FASE_2_VISIBLE ya NO oculta rutas / sidebar / dashboard.
+// El acceso a Fase 2 (operativa) ahora se controla por rol vía
+// `canAccessFase2(userRole)` en `src/config/faseAccess.ts`.
 //
-// Fase 2 (operativa/comercial) — oculta por defecto:
-//   Productos, Proveedores, Clientes, Listas de Precios, Compras, OC,
-//   Devoluciones a Proveedor, Ventas, POS, Pedidos, Traspasos, Inventario,
-//   Kardex, Mermas, Caducidades, Ajustes, Cotizador, Rotación,
-//   Rentabilidad, reportes comerciales, módulo offline, cargas masivas,
-//   dashboard comercial.
-export const FASE_2_VISIBLE = false;
+// Se conserva la constante 1 sprint como fallback documental por si
+// hubiera que apagar Fase 2 de emergencia. NO añadir nuevos usos.
+export const FASE_2_VISIBLE = true;
