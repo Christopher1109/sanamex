@@ -113,7 +113,7 @@ const Sidebar = ({ userRole, onLogout }: SidebarProps) => {
   ];
 
   const filtered = menuItems
-    .filter(item => FASE_2_VISIBLE || item.fase !== 2)
+    .filter(item => canAccessFase2(userRole) || item.fase !== 2)
     .filter(item => item.roles.includes(userRole));
   const grouped = filtered.reduce((acc, item) => {
     const cat = item.category || 'Otros';
