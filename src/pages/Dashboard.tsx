@@ -167,13 +167,14 @@ const Dashboard = ({ userRole }: DashboardProps) => {
     tesoreria: 'Tesorería',
   };
 
+  const showFase2 = canAccessFase2(userRole);
   useEffect(() => {
-    if (FASE_2_VISIBLE) {
+    if (showFase2) {
       if (selectedSucursal) loadAll();
     } else {
       loadAdminKPIs();
     }
-  }, [selectedSucursal]);
+  }, [selectedSucursal, showFase2]);
 
   const loadAdminKPIs = async () => {
     const now = new Date();
