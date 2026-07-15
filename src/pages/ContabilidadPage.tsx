@@ -324,6 +324,7 @@ function AutoTab() {
   const [desde, setDesde] = useState('');
   const [hasta, setHasta] = useState('');
   const [busy, setBusy] = useState(false);
+  const [resumen, setResumen] = useState<any>(null);
 
   const run = async (fn: () => Promise<{creadas:number; total:number}>) => {
     setBusy(true);
@@ -333,26 +334,60 @@ function AutoTab() {
     } catch (e: any) { toast.error(e.message); } finally { setBusy(false); }
   };
 
+  const runBatch = async () => {
+    setBusy(true);
+    setResumen(null);
+    try {
+      const r = await AsientoGenerator.generarDelDia(desde || undefined, hasta || undefined);
+      setResumen(r);
+      toast.success(`${r.creadasTotal} pólizas borrador creadas en batch`);
+    } catch (e: any) { toast.error(e.message); } finally { setBusy(false); }
+  };
+
   return (
     <Card>
       <CardHeader><CardTitle>Generador de asientos automáticos</CardTitle></CardHeader>
       <CardContent className="space-y-4">
-        <p className="text-sm text-muted-foreground">Crea pólizas <strong>borrador</strong> (no afectan saldos hasta autorizarlas). Mapeo de cuentas configurable en la pestaña Reglas.</p>
+        <p className="text-sm text-muted-foreground">
+          Crea pólizas <strong>borrador</strong> (no afectan saldos hasta autorizarlas). El botón
+          <strong> "Generar pólizas del día"</strong> corre las tres fuentes en una sola pasada y es
+          idempotente: correrlo de nuevo no duplica pólizas ya generadas. Reglas marcadas
+          "PENDIENTE DE CONFIRMAR" (IMSS patronal, ISN, retención IVA) se omiten hasta que el contador
+          las active.
+        </p>
         <div className="grid grid-cols-2 gap-3 max-w-md">
           <div><Label>Desde</Label><Input type="date" value={desde} onChange={e => setDesde(e.target.value)} /></div>
           <div><Label>Hasta</Label><Input type="date" value={hasta} onChange={e => setHasta(e.target.value)} /></div>
         </div>
         <div className="flex gap-2 flex-wrap">
-          <Button disabled={busy} onClick={() => run(() => AsientoGenerator.generarDesdeCFDIs(desde||undefined, hasta||undefined))}>
-            <Wand2 className="h-4 w-4 mr-2" />Desde CFDIs (ingreso)
+          <Button disabled={busy} onClick={runBatch}>
+            <Wand2 className="h-4 w-4 mr-2" />Generar pólizas del día
           </Button>
-          <Button disabled={busy} onClick={() => run(() => AsientoGenerator.generarDesdePagosCxP(desde||undefined, hasta||undefined))}>
-            <Wand2 className="h-4 w-4 mr-2" />Desde Pagos CxP
+          <Button variant="outline" disabled={busy} onClick={() => run(() => AsientoGenerator.generarDesdeCFDIs(desde||undefined, hasta||undefined))}>
+            Solo CFDIs (ingreso)
           </Button>
-          <Button disabled={busy} onClick={() => run(() => AsientoGenerator.generarDesdeBancos(desde||undefined, hasta||undefined))}>
-            <Wand2 className="h-4 w-4 mr-2" />Desde Bancos conciliados
+          <Button variant="outline" disabled={busy} onClick={() => run(() => AsientoGenerator.generarDesdePagosCxP(desde||undefined, hasta||undefined))}>
+            Solo Pagos CxP
+          </Button>
+          <Button variant="outline" disabled={busy} onClick={() => run(() => AsientoGenerator.generarDesdeBancos(desde||undefined, hasta||undefined))}>
+            Solo Bancos conciliados
           </Button>
         </div>
+        {resumen && (
+          <div className="rounded border p-3 text-sm space-y-1 bg-muted/30">
+            <div className="font-semibold">Resultado batch — {resumen.creadasTotal} pólizas creadas</div>
+            {Object.entries(resumen.detalle).map(([k, v]: any) => (
+              <div key={k} className="flex justify-between font-mono text-xs">
+                <span>{k}</span>
+                <span>
+                  {v.error
+                    ? <Badge variant="destructive">{v.error}</Badge>
+                    : `${v.creadas} nuevas / ${v.total} candidatos (desde ${v.desde_efectivo})`}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
       </CardContent>
     </Card>
   );
