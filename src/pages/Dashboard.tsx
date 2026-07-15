@@ -533,7 +533,7 @@ const Dashboard = ({ userRole }: DashboardProps) => {
       )}
 
       {/* === Dashboard comercial (Fase 2) === */}
-      {FASE_2_VISIBLE && <>
+      {showFase2 && <>
 
 
       {/* Summary banner */}
