@@ -3937,6 +3937,36 @@ export type Database = {
           },
         ]
       }
+      user_module_access: {
+        Row: {
+          created_at: string
+          id: string
+          modulo: string
+          nivel_acceso: string
+          otorgado_por: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          modulo: string
+          nivel_acceso?: string
+          otorgado_por?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          modulo?: string
+          nivel_acceso?: string
+          otorgado_por?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       user_roles: {
         Row: {
           id: string
@@ -4291,6 +4321,10 @@ export type Database = {
       generar_folio_devolucion: { Args: never; Returns: string }
       generar_folio_oc: { Args: never; Returns: string }
       generar_folio_traspaso: { Args: never; Returns: string }
+      has_module_access: {
+        Args: { _min_nivel: string; _modulo: string; _user_id: string }
+        Returns: boolean
+      }
       has_permission: {
         Args: { _modulo: string; _submodulo?: string; _user_id: string }
         Returns: boolean
