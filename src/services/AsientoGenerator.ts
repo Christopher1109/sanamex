@@ -147,9 +147,96 @@ export const AsientoGenerator = {
     return { creadas, total: movs?.length || 0, corte, desde_efectivo: desdeEfectivo };
   },
 
-  // B4 — Batch: corre las tres fuentes en una sola pasada, para el rango indicado.
+  // C1 — Devoluciones a proveedor → póliza (Proveedores CxP → Inventario).
+  // Idempotente por (origen_referencia_tipo='devolucion_proveedor', id).
+  async generarDesdeDevolucionesProveedor(desde?: string, hasta?: string) {
+    const corte = await getFechaCorte();
+    const desdeEfectivo = aplicarCorte(desde, corte);
+    const regla = await cargarReglaActiva('devolucion_proveedor');
+    if (!regla?.cuenta_cargo_id || !regla?.cuenta_abono_id) {
+      throw new Error('Configura la regla activa "devolucion_proveedor" (pendiente de contador).');
+    }
+    let q = supabase.from('devoluciones_proveedor')
+      .select('id, total, fecha, numero_devolucion, motivo')
+      .eq('estado', 'registrada')
+      .gte('fecha', desdeEfectivo);
+    if (hasta) q = q.lte('fecha', hasta);
+    const { data: devs, error } = await q;
+    if (error) throw error;
+    let creadas = 0;
+    for (const d of (devs as any[]) || []) {
+      if (!d.total || Number(d.total) <= 0) continue;
+      const { data: existe } = await supabase.from('polizas').select('id')
+        .eq('origen_referencia_tipo', 'devolucion_proveedor').eq('origen_referencia_id', d.id).maybeSingle();
+      if (existe) continue;
+      const { data: pol } = await supabase.from('polizas').insert({
+        tipo: 'diario', fecha: d.fecha, concepto: `Devolución proveedor ${d.numero_devolucion || ''}`.trim(),
+        estatus: 'borrador', origen: 'automatica',
+        origen_referencia_tipo: 'devolucion_proveedor', origen_referencia_id: d.id,
+      }).select('id').single();
+      if (!pol) continue;
+      await supabase.from('poliza_movimientos').insert([
+        { poliza_id: pol.id, cuenta_id: regla.cuenta_cargo_id, cargo: d.total, abono: 0, concepto: 'Devolución proveedor' },
+        { poliza_id: pol.id, cuenta_id: regla.cuenta_abono_id, cargo: 0, abono: d.total, concepto: 'Salida inventario devuelto' },
+      ]);
+      creadas++;
+    }
+    return { creadas, total: devs?.length || 0, corte, desde_efectivo: desdeEfectivo };
+  },
+
+  // C2 — Costo de ventas AGRUPADO por día (una póliza por fecha).
+  // Fuente: movimientos_inventario tipo='salida_venta' (cantidad negativa).
+  // Idempotente por (origen_referencia_tipo='costo_venta_dia', referencia_id=hash de fecha).
+  async generarCostoVenta(desde?: string, hasta?: string) {
+    const corte = await getFechaCorte();
+    const desdeEfectivo = aplicarCorte(desde, corte);
+    const regla = await cargarReglaActiva('costo_venta');
+    if (!regla?.cuenta_cargo_id || !regla?.cuenta_abono_id) {
+      throw new Error('Configura la regla activa "costo_venta" (pendiente de contador).');
+    }
+    let q = supabase.from('movimientos_inventario')
+      .select('created_at, cantidad, costo_unitario, tipo, referencia_tipo')
+      .in('tipo', ['salida_venta', 'venta']);
+    const desdeIso = new Date(desdeEfectivo + 'T00:00:00').toISOString();
+    q = q.gte('created_at', desdeIso);
+    if (hasta) q = q.lte('created_at', new Date(hasta + 'T23:59:59').toISOString());
+    const { data: movs, error } = await q;
+    if (error) throw error;
+    // Agrupar por día
+    const porDia = new Map<string, number>();
+    for (const m of (movs as any[]) || []) {
+      const fecha = String(m.created_at).slice(0, 10);
+      const monto = Math.abs(Number(m.cantidad) * Number(m.costo_unitario || 0));
+      if (monto <= 0) continue;
+      porDia.set(fecha, (porDia.get(fecha) || 0) + monto);
+    }
+    let creadas = 0;
+    for (const [fecha, monto] of porDia) {
+      // Idempotencia por concepto único: origen_referencia_id derivado del día
+      // (uuid v5 sería ideal; usamos concepto único + búsqueda por concepto+fecha).
+      const concepto = `Costo de ventas del día ${fecha}`;
+      const { data: existe } = await supabase.from('polizas').select('id')
+        .eq('origen_referencia_tipo', 'costo_venta_dia')
+        .eq('concepto', concepto)
+        .eq('fecha', fecha).maybeSingle();
+      if (existe) continue;
+      const { data: pol } = await supabase.from('polizas').insert({
+        tipo: 'diario', fecha, concepto,
+        estatus: 'borrador', origen: 'automatica',
+        origen_referencia_tipo: 'costo_venta_dia',
+      }).select('id').single();
+      if (!pol) continue;
+      await supabase.from('poliza_movimientos').insert([
+        { poliza_id: pol.id, cuenta_id: regla.cuenta_cargo_id, cargo: monto, abono: 0, concepto: 'Costo de ventas' },
+        { poliza_id: pol.id, cuenta_id: regla.cuenta_abono_id, cargo: 0, abono: monto, concepto: 'Salida inventario' },
+      ]);
+      creadas++;
+    }
+    return { creadas, total: porDia.size, corte, desde_efectivo: desdeEfectivo };
+  },
+
+  // B4 — Batch: corre todas las fuentes disponibles en una sola pasada.
   // No lanza si una fuente no está configurada; sólo la salta y la reporta.
-  // Idempotente por diseño (cada sub-función revisa `origen_referencia_*`).
   async generarDelDia(desde?: string, hasta?: string) {
     const detalle: Record<string, any> = {};
     let creadasTotal = 0;
@@ -157,7 +244,10 @@ export const AsientoGenerator = {
       ['cfdi', () => this.generarDesdeCFDIs(desde, hasta)],
       ['pagos_cxp', () => this.generarDesdePagosCxP(desde, hasta)],
       ['bancos', () => this.generarDesdeBancos(desde, hasta)],
+      ['devoluciones_proveedor', () => this.generarDesdeDevolucionesProveedor(desde, hasta)],
+      ['costo_venta', () => this.generarCostoVenta(desde, hasta)],
     ] as const;
+
     for (const [nombre, fn] of fuentes) {
       try {
         const r = await fn();
