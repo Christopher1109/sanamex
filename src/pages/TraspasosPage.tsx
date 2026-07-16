@@ -144,14 +144,61 @@ const TraspasosPage = () => {
     setOpen(false); loadTraspasos();
   };
 
-  const recibir = async (id: string) => {
-    setRecibiendo(id);
-    const { error } = await supabase.rpc('recibir_traspaso', { p_traspaso_id: id });
-    setRecibiendo(null);
+  const abrirRecepcion = async (t: any) => {
+    setRecepcionTraspaso(t);
+    setRecepcionOpen(true);
+    setRecepcionLineas([]);
+    const { data } = await supabase.from('traspaso_lineas')
+      .select('id, cantidad, lote_id, lotes(numero_lote, fecha_caducidad, productos(nombre, sku))')
+      .eq('traspaso_id', t.id);
+    setRecepcionLineas((data || []).map((l: any) => ({
+      id: l.id,
+      cantidad_enviada: l.cantidad,
+      producto_nombre: l.lotes?.productos?.nombre || '—',
+      producto_sku: l.lotes?.productos?.sku || '',
+      numero_lote: l.lotes?.numero_lote || '—',
+      fecha_caducidad: l.lotes?.fecha_caducidad || null,
+      cantidad_recibida_input: String(l.cantidad),
+      merma_input: '0',
+      notas_input: '',
+    })));
+  };
+
+  const confirmarRecepcion = async () => {
+    if (!recepcionTraspaso) return;
+    // Validaciones básicas
+    for (const l of recepcionLineas) {
+      const rec = parseInt(l.cantidad_recibida_input) || 0;
+      const merma = parseInt(l.merma_input) || 0;
+      if (rec < 0 || rec > l.cantidad_enviada) {
+        toast.error(`Cantidad recibida inválida para ${l.producto_nombre}`); return;
+      }
+      if (merma < 0 || merma > rec) {
+        toast.error(`Merma no puede superar la cantidad recibida (${l.producto_nombre})`); return;
+      }
+    }
+    setRecepcionSaving(true);
+    const payload = recepcionLineas.map(l => ({
+      linea_id: l.id,
+      cantidad_recibida: parseInt(l.cantidad_recibida_input) || 0,
+      merma: parseInt(l.merma_input) || 0,
+      notas: l.notas_input || null,
+    }));
+    const { error } = await supabase.rpc('recibir_traspaso_confirmado', {
+      p_traspaso_id: recepcionTraspaso.id,
+      p_lineas: payload,
+    });
+    setRecepcionSaving(false);
     if (error) { toast.error(error.message); return; }
-    toast.success('Traspaso recibido. Stock sumado al almacén.');
+    const totalMerma = payload.reduce((s, p) => s + p.merma, 0);
+    toast.success(totalMerma > 0
+      ? `Traspaso recibido. ${totalMerma} pza en merma se registraron en el módulo de mermas.`
+      : 'Traspaso recibido. Stock sumado al almacén.');
+    setRecepcionOpen(false);
+    setRecepcionTraspaso(null);
     loadTraspasos();
   };
+
 
   const cancelar = async (id: string) => {
     const motivo = prompt('Motivo de cancelación:');
