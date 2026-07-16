@@ -1,17 +1,8 @@
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { ShoppingCart, ClipboardList } from 'lucide-react';
 import ComprasPage from './ComprasPage';
-import OrdenesCompraPage from './OrdenesCompraPage';
 
+// Tab "Órdenes de Compra" (tabla ordenes_compra) oculta a propósito —
+// el flujo unificado vive en la tabla `compras`. No se borra el módulo,
+// solo se oculta del menú para no confundir con dos flujos paralelos.
 export default function ComprasHubPage() {
-  return (
-    <Tabs defaultValue="compras" className="space-y-4">
-      <TabsList>
-        <TabsTrigger value="compras" className="gap-2"><ShoppingCart className="h-4 w-4" /> Compras</TabsTrigger>
-        <TabsTrigger value="ordenes" className="gap-2"><ClipboardList className="h-4 w-4" /> Órdenes de Compra</TabsTrigger>
-      </TabsList>
-      <TabsContent value="compras"><ComprasPage /></TabsContent>
-      <TabsContent value="ordenes"><OrdenesCompraPage /></TabsContent>
-    </Tabs>
-  );
+  return <ComprasPage />;
 }
