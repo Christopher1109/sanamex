@@ -588,8 +588,11 @@ const NuevaFacturaWizard = ({ open, onOpenChange, onSaved, prefill }: Props) => 
         )}
 
         <DialogFooter className="flex justify-between sm:justify-between">
-          <Button variant="outline" onClick={() => paso > 1 ? setPaso(paso - 1) : onOpenChange(false)}>
-            {paso > 1 ? <><ArrowLeft className="h-4 w-4 mr-1" /> Atrás</> : 'Cancelar'}
+          <Button variant="outline" onClick={() => {
+            const minPaso = modoPrefill ? 2 : 1;
+            if (paso > minPaso) setPaso(paso - 1); else onOpenChange(false);
+          }}>
+            {paso > (modoPrefill ? 2 : 1) ? <><ArrowLeft className="h-4 w-4 mr-1" /> Atrás</> : 'Cancelar'}
           </Button>
           {paso === 1 ? (
             <span className="text-xs text-muted-foreground self-center">Elige una opción arriba para continuar</span>
