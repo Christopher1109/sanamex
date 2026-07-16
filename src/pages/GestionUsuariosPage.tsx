@@ -389,10 +389,10 @@ export default function GestionUsuariosPage() {
             </div>
             <div>
               <Label>Sucursal</Label>
-              <Select value={newUser.sucursal_id} onValueChange={v => setNewUser({ ...newUser, sucursal_id: v })}>
+              <Select value={newUser.sucursal_id || 'none'} onValueChange={v => setNewUser({ ...newUser, sucursal_id: v === 'none' ? '' : v })}>
                 <SelectTrigger><SelectValue placeholder="(Sin sucursal)" /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">(Sin sucursal)</SelectItem>
+                  <SelectItem value="none">(Sin sucursal)</SelectItem>
                   {sucursales.map(s => <SelectItem key={s.id} value={s.id}>{s.codigo} — {s.nombre}</SelectItem>)}
                 </SelectContent>
               </Select>
