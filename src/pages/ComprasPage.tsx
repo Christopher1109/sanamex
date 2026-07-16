@@ -10,19 +10,21 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
-import { Plus, Eye, PackageCheck, CreditCard, ChevronRight, Upload, ImageIcon, CheckCircle2, Lock } from 'lucide-react';
+import { Plus, Eye, PackageCheck, CreditCard, Upload, ImageIcon, CheckCircle2, Lock, Send, FileSignature, Search } from 'lucide-react';
 import { toast } from 'sonner';
 import ProductSearchInput from '@/components/ProductSearchInput';
-import NuevaFacturaWizard from '@/components/compras/NuevaFacturaWizard';
+import NuevaFacturaWizard, { CompraPrefill } from '@/components/compras/NuevaFacturaWizard';
 import { FileText } from 'lucide-react';
 
 const estadoConfig: Record<string, { color: string; label: string }> = {
-  ordenada: { color: 'secondary', label: 'Ordenada' },
-  en_transito: { color: 'secondary', label: 'Ordenada' }, // legacy alias
-  pagada: { color: 'default', label: 'Pagada' },
-  recibida: { color: 'outline', label: 'Recibida' },
-  cerrada: { color: 'default', label: 'Cerrada' },
-  cancelada: { color: 'destructive', label: 'Cancelada' },
+  ordenada:    { color: 'secondary', label: 'Ordenada' },
+  en_transito: { color: 'secondary', label: 'Ordenada' }, // alias legacy
+  pedida:      { color: 'default',   label: 'Pedida' },
+  recibida:    { color: 'outline',   label: 'Recibida' },
+  facturada:   { color: 'default',   label: 'Facturada' },
+  pagada:      { color: 'default',   label: 'Pagada' },
+  cerrada:     { color: 'default',   label: 'Cerrada' },
+  cancelada:   { color: 'destructive', label: 'Cancelada' },
 };
 
 const ComprasPage = () => {
@@ -31,6 +33,7 @@ const ComprasPage = () => {
   const [loading, setLoading] = useState(true);
   const [showCreate, setShowCreate] = useState(false);
   const [showWizard, setShowWizard] = useState(false);
+  const [wizardPrefill, setWizardPrefill] = useState<CompraPrefill | null>(null);
   const [showRecepcion, setShowRecepcion] = useState<any>(null);
   const [showDetail, setShowDetail] = useState<any>(null);
   const [lineasDetail, setLineasDetail] = useState<any[]>([]);
@@ -49,8 +52,19 @@ const ComprasPage = () => {
   const [recFechaFactura, setRecFechaFactura] = useState<string>('');
   const [recPlazoProveedor, setRecPlazoProveedor] = useState<number>(0);
 
+  // Filtros
+  const [filtroProveedor, setFiltroProveedor] = useState<string>('all');
+  const [filtroEstado, setFiltroEstado] = useState<string>('all');
+  const [filtroDesde, setFiltroDesde] = useState<string>('');
+  const [filtroHasta, setFiltroHasta] = useState<string>('');
+  const [busqueda, setBusqueda] = useState<string>('');
 
   useEffect(() => { if (selectedSucursal) load(); }, [selectedSucursal]);
+  useEffect(() => {
+    // Cargar proveedores para el filtro (aparte de la carga del diálogo de creación).
+    supabase.from('proveedores').select('id, nombre').eq('activo', true).order('nombre')
+      .then(({ data }) => setProveedores(prev => prev.length ? prev : (data || [])));
+  }, []);
 
   const load = async () => {
     if (!selectedSucursal) return;
@@ -299,7 +313,44 @@ const ComprasPage = () => {
     setLineasDetail(data || []);
   };
 
-  const flowSteps = ['ordenada', 'pagada', 'recibida', 'cerrada'];
+  // "Pedir" — antes decía "Pagar". Solo marca la OC como enviada al
+  // proveedor. NO toca pagada / fecha_pago_real / comprobante. El pago
+  // real se hace después desde CxP (flujo B2).
+  const pedirCompra = async (compra: any) => {
+    const user = (await supabase.auth.getUser()).data.user;
+    const { error } = await supabase.from('compras')
+      .update({ estado: 'pedida' } as any)
+      .eq('id', compra.id);
+    if (error) { toast.error(error.message); return; }
+    await supabase.from('audit_log').insert({
+      entidad: 'compra', accion: 'Pedido enviado al proveedor', entidad_id: compra.id,
+      usuario_id: user?.id, usuario_nombre: user?.email,
+      sucursal_id: compra.sucursal_id,
+    });
+    toast.success(`OC ${compra.numero_compra} — Pedida al proveedor`);
+    load();
+  };
+
+  const openGenerarFactura = async (compra: any) => {
+    const { data: lns } = await supabase.from('compra_lineas')
+      .select('id, producto_id, cantidad_ordenada, precio_unitario_real, precio_unitario_estimado, productos(nombre, sku)')
+      .eq('compra_id', compra.id);
+    if (!lns?.length) { toast.error('Esta OC no tiene líneas'); return; }
+    setWizardPrefill({
+      compra_id: compra.id,
+      numero_compra: compra.numero_compra,
+      proveedor_id: compra.proveedor_id,
+      lineas: lns.map((l: any) => ({
+        linea_id: l.id,
+        producto_id: l.producto_id,
+        producto_nombre: (l.productos as any)?.nombre || '',
+        producto_sku: (l.productos as any)?.sku || '',
+        cantidad: l.cantidad_ordenada,
+        precio_estimado: Number(l.precio_unitario_real ?? l.precio_unitario_estimado ?? 0),
+      })),
+    });
+    setShowWizard(true);
+  };
 
   const cerrarCompra = async (compra: any) => {
     const user = (await supabase.auth.getUser()).data.user;
@@ -313,77 +364,164 @@ const ComprasPage = () => {
     load();
   };
 
+  // ---- Filtros aplicados en memoria ----
+  const comprasFiltradas = compras.filter(c => {
+    if (filtroProveedor !== 'all' && c.proveedor_id !== filtroProveedor) return false;
+    if (filtroEstado !== 'all') {
+      // "ordenada" también matchea el alias legacy "en_transito"
+      if (filtroEstado === 'ordenada') {
+        if (c.estado !== 'ordenada' && c.estado !== 'en_transito') return false;
+      } else if (c.estado !== filtroEstado) return false;
+    }
+    const fecha = c.fecha_factura || c.created_at?.slice(0, 10);
+    if (filtroDesde && fecha < filtroDesde) return false;
+    if (filtroHasta && fecha > filtroHasta) return false;
+    if (busqueda) {
+      const q = busqueda.toLowerCase();
+      const enNumero = (c.numero_compra || '').toLowerCase().includes(q);
+      const enFolio = (c.folio_factura || '').toLowerCase().includes(q);
+      const enProv = ((c.proveedores as any)?.nombre || '').toLowerCase().includes(q);
+      if (!enNumero && !enFolio && !enProv) return false;
+    }
+    return true;
+  });
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div><h1 className="text-2xl font-bold">Compras</h1><p className="text-muted-foreground">{selectedSucursal?.nombre}</p></div>
         <div className="flex gap-2">
-          <Button onClick={() => setShowWizard(true)}><FileText className="h-4 w-4 mr-2" />Nueva Factura (XML / Manual)</Button>
+          <Button onClick={() => { setWizardPrefill(null); setShowWizard(true); }}>
+            <FileText className="h-4 w-4 mr-2" />Nueva Factura (XML / Manual)
+          </Button>
           <Button variant="outline" onClick={openCreate}><Plus className="h-4 w-4 mr-2" />Nueva OC</Button>
         </div>
       </div>
 
-      <NuevaFacturaWizard open={showWizard} onOpenChange={setShowWizard} onSaved={load} />
+      <NuevaFacturaWizard
+        open={showWizard}
+        onOpenChange={(v) => { setShowWizard(v); if (!v) setWizardPrefill(null); }}
+        onSaved={load}
+        prefill={wizardPrefill}
+      />
 
+      {/* Filtros */}
       <Card>
-        <CardContent className="p-4">
-          <div className="flex items-center justify-between">
-            {flowSteps.map((step, i) => {
-              const count = compras.filter(c => c.estado === step || (step === 'ordenada' && c.estado === 'en_transito')).length;
-              const cfg = estadoConfig[step];
-              return (
-                <div key={step} className="flex items-center">
-                  <div className="text-center">
-                    <div className={`rounded-full w-12 h-12 flex items-center justify-center text-lg font-bold ${count > 0 ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'}`}>
-                      {count}
-                    </div>
-                    <p className="text-xs mt-1 font-medium">{cfg.label}</p>
-                  </div>
-                  {i < flowSteps.length - 1 && <ChevronRight className="h-5 w-5 text-muted-foreground mx-4" />}
-                </div>
-              );
-            })}
+        <CardContent className="p-3 grid grid-cols-1 md:grid-cols-5 gap-3 items-end">
+          <div className="md:col-span-2">
+            <Label className="text-xs">Buscar (# OC / folio / proveedor)</Label>
+            <div className="relative">
+              <Search className="h-4 w-4 absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground" />
+              <Input value={busqueda} onChange={e => setBusqueda(e.target.value)} placeholder="OC-… / A-1234 / nombre" className="pl-8" />
+            </div>
+          </div>
+          <div>
+            <Label className="text-xs">Proveedor</Label>
+            <Select value={filtroProveedor} onValueChange={setFiltroProveedor}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos</SelectItem>
+                {proveedores.map(p => <SelectItem key={p.id} value={p.id}>{p.nombre}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <Label className="text-xs">Estado</Label>
+            <Select value={filtroEstado} onValueChange={setFiltroEstado}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos</SelectItem>
+                <SelectItem value="ordenada">Ordenada</SelectItem>
+                <SelectItem value="pedida">Pedida</SelectItem>
+                <SelectItem value="recibida">Recibida</SelectItem>
+                <SelectItem value="facturada">Facturada</SelectItem>
+                <SelectItem value="pagada">Pagada</SelectItem>
+                <SelectItem value="cerrada">Cerrada</SelectItem>
+                <SelectItem value="cancelada">Cancelada</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <Label className="text-xs">Desde</Label>
+              <Input type="date" value={filtroDesde} onChange={e => setFiltroDesde(e.target.value)} />
+            </div>
+            <div>
+              <Label className="text-xs">Hasta</Label>
+              <Input type="date" value={filtroHasta} onChange={e => setFiltroHasta(e.target.value)} />
+            </div>
           </div>
         </CardContent>
       </Card>
-
-      <div className="grid grid-cols-4 gap-4">
-        <Card><CardContent className="p-4"><p className="text-sm text-muted-foreground">Ordenadas</p><p className="text-2xl font-bold text-primary">{compras.filter(c => c.estado === 'ordenada' || c.estado === 'en_transito').length}</p><p className="text-xs text-muted-foreground">Pendientes de pago</p></CardContent></Card>
-        <Card><CardContent className="p-4"><p className="text-sm text-muted-foreground">Pagadas</p><p className="text-2xl font-bold">{compras.filter(c => c.estado === 'pagada').length}</p><p className="text-xs text-muted-foreground">Esperando mercancía</p></CardContent></Card>
-        <Card><CardContent className="p-4"><p className="text-sm text-muted-foreground">Recibidas</p><p className="text-2xl font-bold">{compras.filter(c => c.estado === 'recibida').length}</p><p className="text-xs text-muted-foreground">Listas para cerrar</p></CardContent></Card>
-        <Card><CardContent className="p-4"><p className="text-sm text-muted-foreground">Total Cerradas</p><p className="text-2xl font-bold">${compras.filter(c => c.estado === 'cerrada').reduce((s, c) => s + Number(c.total), 0).toLocaleString('es-MX', { minimumFractionDigits: 2 })}</p></CardContent></Card>
-      </div>
 
       <Card>
         <CardContent className="p-0">
           <Table>
             <TableHeader><TableRow>
-              <TableHead># OC</TableHead><TableHead>Proveedor</TableHead><TableHead>Fecha</TableHead>
-              <TableHead>Total</TableHead><TableHead>Estado</TableHead><TableHead>Acciones</TableHead>
+              <TableHead># OC</TableHead><TableHead>Proveedor</TableHead>
+              <TableHead>Folio factura</TableHead><TableHead>Fecha</TableHead>
+              <TableHead className="text-right">Total</TableHead><TableHead>Estado</TableHead>
+              <TableHead>Acciones</TableHead>
             </TableRow></TableHeader>
             <TableBody>
-              {loading ? <TableRow><TableCell colSpan={6} className="text-center py-8">Cargando...</TableCell></TableRow> :
-               compras.length === 0 ? <TableRow><TableCell colSpan={6} className="text-center py-8 text-muted-foreground">Sin compras</TableCell></TableRow> :
-               compras.map(c => {
+              {loading ? <TableRow><TableCell colSpan={7} className="text-center py-8">Cargando...</TableCell></TableRow> :
+               comprasFiltradas.length === 0 ? <TableRow><TableCell colSpan={7} className="text-center py-8 text-muted-foreground">Sin compras que coincidan con los filtros</TableCell></TableRow> :
+               comprasFiltradas.map(c => {
                 const cfg = estadoConfig[c.estado] || { color: 'secondary', label: c.estado };
+                const yaFacturada = !!c.folio_factura || !!c.uuid_cfdi;
                 return (
                 <TableRow key={c.id}>
                   <TableCell className="font-mono font-bold">{c.numero_compra}</TableCell>
                   <TableCell>{(c.proveedores as any)?.nombre}</TableCell>
+                  <TableCell className="text-xs font-mono">{c.folio_factura || '—'}</TableCell>
                   <TableCell className="text-sm">{new Date(c.created_at).toLocaleDateString('es-MX')}</TableCell>
-                  <TableCell className="font-bold">${Number(c.total).toFixed(2)}</TableCell>
+                  <TableCell className="text-right font-bold">${Number(c.total).toFixed(2)}</TableCell>
                   <TableCell><Badge variant={(cfg.color || 'secondary') as any}>{cfg.label}</Badge></TableCell>
                   <TableCell className="space-x-1">
                     <Button size="sm" variant="ghost" onClick={() => viewDetail(c)}><Eye className="h-4 w-4" /></Button>
+
+                    {/* 1) Ordenada → Pedir */}
                     {(c.estado === 'ordenada' || c.estado === 'en_transito') && (
-                      <Button size="sm" onClick={() => openPago(c)}><CreditCard className="h-4 w-4 mr-1" />Pagar</Button>
+                      <Button size="sm" onClick={() => pedirCompra(c)}>
+                        <Send className="h-4 w-4 mr-1" />Pedir
+                      </Button>
                     )}
-                    {c.estado === 'pagada' && (
-                      <Button size="sm" onClick={() => openRecepcion(c)}><PackageCheck className="h-4 w-4 mr-1" />Recibir</Button>
+
+                    {/* 2) Pedida (o legacy pagada pre-recepción) → Recibir */}
+                    {(c.estado === 'pedida' || c.estado === 'pagada' && !yaFacturada && !c.fecha_factura) && (
+                      <Button size="sm" onClick={() => openRecepcion(c)}>
+                        <PackageCheck className="h-4 w-4 mr-1" />Recibir
+                      </Button>
                     )}
-                    {c.estado === 'recibida' && (
-                      <Button size="sm" variant="outline" onClick={() => cerrarCompra(c)}><CheckCircle2 className="h-4 w-4 mr-1" />Cerrar</Button>
+
+                    {/* 3) Recibida (sin factura aún) → Generar Factura */}
+                    {c.estado === 'recibida' && !yaFacturada && (
+                      <Button size="sm" onClick={() => openGenerarFactura(c)}>
+                        <FileSignature className="h-4 w-4 mr-1" />Generar Factura
+                      </Button>
                     )}
+
+                    {/* 3b) Recibida legacy con factura ya cargada → Pagar directo */}
+                    {c.estado === 'recibida' && yaFacturada && (
+                      <Button size="sm" onClick={() => openPago(c)}>
+                        <CreditCard className="h-4 w-4 mr-1" />Pagar
+                      </Button>
+                    )}
+
+                    {/* 4) Facturada → Pagar (marca pago local; el flujo formal es vía CxP/B2) */}
+                    {c.estado === 'facturada' && (
+                      <Button size="sm" onClick={() => openPago(c)}>
+                        <CreditCard className="h-4 w-4 mr-1" />Pagar
+                      </Button>
+                    )}
+
+                    {/* 5) Pagada → Cerrar */}
+                    {c.estado === 'pagada' && (yaFacturada || c.fecha_factura) && (
+                      <Button size="sm" variant="outline" onClick={() => cerrarCompra(c)}>
+                        <CheckCircle2 className="h-4 w-4 mr-1" />Cerrar
+                      </Button>
+                    )}
+
                     {c.estado === 'cerrada' && (
                       <Badge variant="outline" className="ml-2"><Lock className="h-3 w-3 mr-1" />Cerrada</Badge>
                     )}

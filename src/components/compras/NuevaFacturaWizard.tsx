@@ -15,10 +15,29 @@ import { toast } from 'sonner';
 import { parseCfdiXml, CfdiParsed } from '@/lib/cfdiParser';
 import ProductSearchInput from '@/components/ProductSearchInput';
 
+export interface CompraPrefill {
+  compra_id: string;
+  numero_compra: string;
+  proveedor_id: string;
+  lineas: Array<{
+    linea_id: string;
+    producto_id: string;
+    producto_nombre: string;
+    producto_sku: string;
+    cantidad: number;
+    precio_estimado: number;
+  }>;
+}
+
 interface Props {
   open: boolean;
   onOpenChange: (v: boolean) => void;
   onSaved?: () => void;
+  /** Si se pasa, el wizard entra en modo "Generar Factura desde OC recibida":
+   *  arranca en paso 2, con proveedor y líneas ya pre-llenadas de la OC.
+   *  Al guardar, ACTUALIZA la fila existente de `compras` (no crea otra
+   *  ni toca inventario — la recepción ya se hizo). */
+  prefill?: CompraPrefill | null;
 }
 
 type Origen = 'xml' | 'manual' | null;
@@ -36,7 +55,7 @@ interface Linea {
   fecha_caducidad: string;    // YYYY-MM-DD
 }
 
-const NuevaFacturaWizard = ({ open, onOpenChange, onSaved }: Props) => {
+const NuevaFacturaWizard = ({ open, onOpenChange, onSaved, prefill }: Props) => {
   const { selectedSucursal } = useSucursal();
   const [paso, setPaso] = useState(1);
   const [origen, setOrigen] = useState<Origen>(null);
@@ -57,18 +76,43 @@ const NuevaFacturaWizard = ({ open, onOpenChange, onSaved }: Props) => {
   const [saving, setSaving] = useState(false);
   const [productos, setProductos] = useState<any[]>([]);
 
+  const modoPrefill = !!prefill;
+
   useEffect(() => {
     if (open) {
-      setPaso(1); setOrigen(null); setCfdi(null); setXmlFile(null);
-      setProveedorId(''); setFolioFactura(''); setFechaFactura(new Date().toISOString().slice(0, 10));
-      setMetodoPago('contado'); setDiasCredito('30'); setNotas('');
-      setLineas([]);
+      if (prefill) {
+        // Modo "Generar Factura desde OC ya recibida":
+        // saltamos paso 1, pre-llenamos proveedor y líneas de la compra existente.
+        setPaso(2);
+        setOrigen('manual');
+        setProveedorId(prefill.proveedor_id);
+        setFolioFactura('');
+        setFechaFactura(new Date().toISOString().slice(0, 10));
+        setMetodoPago('contado'); setDiasCredito('30'); setNotas('');
+        setCfdi(null); setXmlFile(null);
+        setLineas(prefill.lineas.map(l => ({
+          clave_origen: l.producto_sku,
+          descripcion_origen: l.producto_nombre,
+          cantidad: l.cantidad,
+          precio_unitario: l.precio_estimado,
+          producto_id: l.producto_id,
+          producto_nombre: l.producto_nombre,
+          estado_match: 'matched',
+          numero_lote: '',
+          fecha_caducidad: '',
+        })));
+      } else {
+        setPaso(1); setOrigen(null); setCfdi(null); setXmlFile(null);
+        setProveedorId(''); setFolioFactura(''); setFechaFactura(new Date().toISOString().slice(0, 10));
+        setMetodoPago('contado'); setDiasCredito('30'); setNotas('');
+        setLineas([]);
+      }
       supabase.from('proveedores').select('id, nombre, rfc, plazo_pago_dias').eq('activo', true).order('nombre')
         .then(({ data }) => setProveedores(data || []));
       supabase.from('productos').select('id, nombre, sku, precio_base').eq('activo', true).limit(5000)
         .then(({ data }) => setProductos(data || []));
     }
-  }, [open]);
+  }, [open, prefill]);
 
   // -------- Paso 1: origen ----------
   const handleXmlFile = async (file: File) => {
@@ -173,6 +217,92 @@ const NuevaFacturaWizard = ({ open, onOpenChange, onSaved }: Props) => {
 
     setSaving(true);
     try {
+      // ============================================================
+      // MODO PREFILL: Generar factura desde OC ya recibida.
+      // Actualiza la fila EXISTENTE de `compras` (folio, fecha_factura,
+      // metodo_pago, dias_credito, uuid, xml_url, estado='facturada').
+      // NO se toca inventario (ya se movió en la recepción). NO se
+      // crean compra_lineas nuevas — solo se sincronizan los precios.
+      // El trigger B1 (compras_to_cxp_trg) escucha UPDATE de estos
+      // campos y creará/sincronizará la CxP automáticamente.
+      // ============================================================
+      if (modoPrefill && prefill) {
+        // Subir XML si aplica
+        let xml_url: string | null = null;
+        if (xmlFile && cfdi?.uuid) {
+          const path = `${proveedorId}/${cfdi.uuid}.xml`;
+          const { error: upErr } = await supabase.storage.from('comprobantes-pago')
+            .upload(path, xmlFile, { upsert: true, contentType: 'application/xml' });
+          if (!upErr) xml_url = path;
+        }
+
+        // Recalcular totales con posibles ajustes de precio
+        const nuevoSubtotal = subtotal;
+        const nuevoTotal = total;
+
+        // Actualizar precio real por línea (si el usuario ajustó)
+        for (const l of lineasMapeadas) {
+          const orig = prefill.lineas.find(x => x.producto_id === l.producto_id);
+          if (orig) {
+            await supabase.from('compra_lineas')
+              .update({ precio_unitario_real: l.precio_unitario })
+              .eq('id', orig.linea_id);
+          }
+        }
+
+        // Calcular fecha_pago_limite si es crédito
+        const dias = metodoPago === 'credito' ? parseInt(diasCredito) || 0 : 0;
+        const fechaLimite = dias > 0
+          ? new Date(new Date(fechaFactura + 'T00:00:00').getTime() + dias * 86400000).toISOString().slice(0, 10)
+          : null;
+
+        const { error: upErr } = await supabase.from('compras').update({
+          folio_factura: folioFactura || null,
+          fecha_factura: fechaFactura,
+          rfc_emisor: cfdi?.rfcEmisor || null,
+          uuid_cfdi: cfdi?.uuid || null,
+          xml_url,
+          metodo_pago: metodoPago,
+          dias_credito: dias,
+          fecha_pago_limite: fechaLimite,
+          subtotal: nuevoSubtotal,
+          impuestos: iva,
+          total: nuevoTotal,
+          estado: 'facturada',
+          notas: notas
+            ? `${notas}\n[Facturada desde OC recibida ${prefill.numero_compra}]`
+            : `[Facturada desde OC recibida ${prefill.numero_compra}]`,
+        } as any).eq('id', prefill.compra_id);
+
+        if (upErr) throw upErr;
+
+        // Si el trigger B1 acaba de crear una CxP retroactiva, marcarla
+        // con nota clara para trazabilidad futura (solo si es crédito).
+        if (metodoPago === 'credito' && dias > 0) {
+          const { data: cxpNueva } = await supabase.from('cuentas_por_pagar')
+            .select('id, notas')
+            .eq('compra_id', prefill.compra_id)
+            .limit(1)
+            .maybeSingle();
+          if (cxpNueva) {
+            const marcador = 'Generada retroactivo al facturar OC ya recibida';
+            if (!(cxpNueva.notas || '').includes(marcador)) {
+              await supabase.from('cuentas_por_pagar').update({
+                notas: `${cxpNueva.notas || ''} — ${marcador} (${prefill.numero_compra})`.trim(),
+              }).eq('id', cxpNueva.id);
+            }
+          }
+        }
+
+        toast.success(`Factura registrada sobre ${prefill.numero_compra} — Total $${nuevoTotal.toFixed(2)}`);
+        onSaved?.();
+        onOpenChange(false);
+        return;
+      }
+
+      // ============================================================
+      // MODO NORMAL: registrar compra nueva vía RPC.
+      // ============================================================
       const { data: alm, error: almErr } = await supabase.from('almacenes')
         .select('id, activo').eq('sucursal_id', selectedSucursal.id).order('activo', { ascending: false }).limit(1);
       if (almErr) throw almErr;
@@ -183,7 +313,6 @@ const NuevaFacturaWizard = ({ open, onOpenChange, onSaved }: Props) => {
         throw new Error(`El almacén de la sucursal "${selectedSucursal.nombre}" está inactivo. Contacta al admin.`);
       }
 
-      // Subir XML al storage si aplica
       let xml_url: string | null = null;
       if (xmlFile && cfdi?.uuid) {
         const path = `${proveedorId}/${cfdi.uuid}.xml`;
@@ -231,7 +360,11 @@ const NuevaFacturaWizard = ({ open, onOpenChange, onSaved }: Props) => {
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Nueva Factura de Compra — Paso {paso} de 4</DialogTitle>
+          <DialogTitle>
+            {modoPrefill
+              ? `Generar Factura — OC ${prefill?.numero_compra}`
+              : `Nueva Factura de Compra — Paso ${paso} de 4`}
+          </DialogTitle>
         </DialogHeader>
 
         {/* Paso 1: Origen */}
@@ -455,8 +588,11 @@ const NuevaFacturaWizard = ({ open, onOpenChange, onSaved }: Props) => {
         )}
 
         <DialogFooter className="flex justify-between sm:justify-between">
-          <Button variant="outline" onClick={() => paso > 1 ? setPaso(paso - 1) : onOpenChange(false)}>
-            {paso > 1 ? <><ArrowLeft className="h-4 w-4 mr-1" /> Atrás</> : 'Cancelar'}
+          <Button variant="outline" onClick={() => {
+            const minPaso = modoPrefill ? 2 : 1;
+            if (paso > minPaso) setPaso(paso - 1); else onOpenChange(false);
+          }}>
+            {paso > (modoPrefill ? 2 : 1) ? <><ArrowLeft className="h-4 w-4 mr-1" /> Atrás</> : 'Cancelar'}
           </Button>
           {paso === 1 ? (
             <span className="text-xs text-muted-foreground self-center">Elige una opción arriba para continuar</span>
