@@ -33,6 +33,7 @@ const ComprasPage = () => {
   const [loading, setLoading] = useState(true);
   const [showCreate, setShowCreate] = useState(false);
   const [showWizard, setShowWizard] = useState(false);
+  const [wizardPrefill, setWizardPrefill] = useState<CompraPrefill | null>(null);
   const [showRecepcion, setShowRecepcion] = useState<any>(null);
   const [showDetail, setShowDetail] = useState<any>(null);
   const [lineasDetail, setLineasDetail] = useState<any[]>([]);
@@ -51,8 +52,19 @@ const ComprasPage = () => {
   const [recFechaFactura, setRecFechaFactura] = useState<string>('');
   const [recPlazoProveedor, setRecPlazoProveedor] = useState<number>(0);
 
+  // Filtros
+  const [filtroProveedor, setFiltroProveedor] = useState<string>('all');
+  const [filtroEstado, setFiltroEstado] = useState<string>('all');
+  const [filtroDesde, setFiltroDesde] = useState<string>('');
+  const [filtroHasta, setFiltroHasta] = useState<string>('');
+  const [busqueda, setBusqueda] = useState<string>('');
 
   useEffect(() => { if (selectedSucursal) load(); }, [selectedSucursal]);
+  useEffect(() => {
+    // Cargar proveedores para el filtro (aparte de la carga del diálogo de creación).
+    supabase.from('proveedores').select('id, nombre').eq('activo', true).order('nombre')
+      .then(({ data }) => setProveedores(prev => prev.length ? prev : (data || [])));
+  }, []);
 
   const load = async () => {
     if (!selectedSucursal) return;
