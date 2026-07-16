@@ -15,10 +15,29 @@ import { toast } from 'sonner';
 import { parseCfdiXml, CfdiParsed } from '@/lib/cfdiParser';
 import ProductSearchInput from '@/components/ProductSearchInput';
 
+export interface CompraPrefill {
+  compra_id: string;
+  numero_compra: string;
+  proveedor_id: string;
+  lineas: Array<{
+    linea_id: string;
+    producto_id: string;
+    producto_nombre: string;
+    producto_sku: string;
+    cantidad: number;
+    precio_estimado: number;
+  }>;
+}
+
 interface Props {
   open: boolean;
   onOpenChange: (v: boolean) => void;
   onSaved?: () => void;
+  /** Si se pasa, el wizard entra en modo "Generar Factura desde OC recibida":
+   *  arranca en paso 2, con proveedor y líneas ya pre-llenadas de la OC.
+   *  Al guardar, ACTUALIZA la fila existente de `compras` (no crea otra
+   *  ni toca inventario — la recepción ya se hizo). */
+  prefill?: CompraPrefill | null;
 }
 
 type Origen = 'xml' | 'manual' | null;
