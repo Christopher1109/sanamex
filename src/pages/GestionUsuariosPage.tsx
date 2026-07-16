@@ -55,16 +55,17 @@ export default function GestionUsuariosPage() {
   const [newUser, setNewUser] = useState({ email: '', password: '', nombre: '', username: '', role: 'ventas' as Rol, sucursal_id: '' });
   const [newAccess, setNewAccess] = useState<Record<string, NivelAcceso>>(defaultAccessForRole('ventas'));
 
-  // Solo super_admin
-  if (currentRole && currentRole !== 'super_admin') {
+  useEffect(() => { load(); }, []);
+
+  // Solo super_admin (evaluación de acceso después de hooks)
+  const notAllowed = currentRole && currentRole !== 'super_admin';
+  if (notAllowed) {
     return (
       <Card className="p-8 text-center">
         <p className="text-muted-foreground">Solo el Super Administrador puede acceder a esta pantalla.</p>
       </Card>
     );
   }
-
-  useEffect(() => { load(); }, []);
 
   async function load() {
     setLoading(true);
