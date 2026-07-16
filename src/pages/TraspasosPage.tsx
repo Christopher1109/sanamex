@@ -218,10 +218,11 @@ const TraspasosPage = () => {
       <TableCell className="text-xs max-w-md truncate" title={t.notas}>{t.notas}</TableCell>
       <TableCell className="text-right">
         {esEntrante && t.estado === 'enviado' && (
-          <Button size="sm" onClick={() => recibir(t.id)} disabled={recibiendo === t.id}>
-            {recibiendo === t.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <><PackageCheck className="h-4 w-4 mr-1" /> Recibir</>}
+          <Button size="sm" onClick={() => abrirRecepcion(t)}>
+            <PackageCheck className="h-4 w-4 mr-1" /> Recibir
           </Button>
         )}
+
         {!esEntrante && t.estado === 'enviado' && (
           <Button size="sm" variant="outline" onClick={() => cancelar(t.id)}>Cancelar</Button>
         )}
