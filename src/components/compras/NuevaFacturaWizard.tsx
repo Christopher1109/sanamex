@@ -360,7 +360,11 @@ const NuevaFacturaWizard = ({ open, onOpenChange, onSaved, prefill }: Props) => 
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Nueva Factura de Compra — Paso {paso} de 4</DialogTitle>
+          <DialogTitle>
+            {modoPrefill
+              ? `Generar Factura — OC ${prefill?.numero_compra}`
+              : `Nueva Factura de Compra — Paso ${paso} de 4`}
+          </DialogTitle>
         </DialogHeader>
 
         {/* Paso 1: Origen */}
