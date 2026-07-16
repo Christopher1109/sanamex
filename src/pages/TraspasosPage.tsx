@@ -383,7 +383,70 @@ const TraspasosPage = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Recepción de traspaso: confirmar lote/caducidad/cantidad + reportar mermas */}
+      <Dialog open={recepcionOpen} onOpenChange={(v) => { setRecepcionOpen(v); if (!v) setRecepcionTraspaso(null); }}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Recibir traspaso — {recepcionTraspaso?.numero_traspaso}</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground mb-2">
+            Confirme cada lote, caducidad y cantidad. Reporte mermas si llegó algo roto o incompleto — se registrarán automáticamente en el módulo de Mermas. El stock del almacén se actualizará solo con lo que confirme como recibido en buen estado.
+          </p>
+          <div className="border rounded-lg overflow-hidden">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Producto</TableHead>
+                  <TableHead>Lote</TableHead>
+                  <TableHead>Caducidad</TableHead>
+                  <TableHead className="text-right">Enviado</TableHead>
+                  <TableHead className="w-28">Recibido *</TableHead>
+                  <TableHead className="w-28">Merma</TableHead>
+                  <TableHead>Notas</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {recepcionLineas.map((l, i) => (
+                  <TableRow key={l.id}>
+                    <TableCell className="text-sm">
+                      <div className="font-medium">{l.producto_nombre}</div>
+                      <div className="text-xs text-muted-foreground">{l.producto_sku}</div>
+                    </TableCell>
+                    <TableCell className="font-mono text-xs">{l.numero_lote}</TableCell>
+                    <TableCell className="text-xs">{l.fecha_caducidad || '—'}</TableCell>
+                    <TableCell className="text-right font-mono">{l.cantidad_enviada}</TableCell>
+                    <TableCell>
+                      <Input type="number" min={0} max={l.cantidad_enviada} value={l.cantidad_recibida_input}
+                        onChange={e => { const nl = [...recepcionLineas]; nl[i] = { ...l, cantidad_recibida_input: e.target.value }; setRecepcionLineas(nl); }} />
+                    </TableCell>
+                    <TableCell>
+                      <Input type="number" min={0} value={l.merma_input}
+                        onChange={e => { const nl = [...recepcionLineas]; nl[i] = { ...l, merma_input: e.target.value }; setRecepcionLineas(nl); }} />
+                    </TableCell>
+                    <TableCell>
+                      <Input placeholder="Roto, mojado, faltante…" value={l.notas_input}
+                        onChange={e => { const nl = [...recepcionLineas]; nl[i] = { ...l, notas_input: e.target.value }; setRecepcionLineas(nl); }} />
+                    </TableCell>
+                  </TableRow>
+                ))}
+                {recepcionLineas.length === 0 && (
+                  <TableRow><TableCell colSpan={7} className="text-center py-6 text-muted-foreground">Cargando líneas…</TableCell></TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRecepcionOpen(false)}>Cancelar</Button>
+            <Button onClick={confirmarRecepcion} disabled={recepcionSaving || recepcionLineas.length === 0}>
+              {recepcionSaving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              <PackageCheck className="h-4 w-4 mr-1" /> Confirmar recepción
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
+
   );
 };
 
