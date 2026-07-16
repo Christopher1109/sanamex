@@ -42,7 +42,11 @@ const TraspasosPage = () => {
   const [saving, setSaving] = useState(false);
 
   // Recepción
-  const [recibiendo, setRecibiendo] = useState<string | null>(null);
+  const [recepcionOpen, setRecepcionOpen] = useState(false);
+  const [recepcionTraspaso, setRecepcionTraspaso] = useState<any>(null);
+  const [recepcionLineas, setRecepcionLineas] = useState<any[]>([]);
+  const [recepcionSaving, setRecepcionSaving] = useState(false);
+
 
   useEffect(() => { loadSucursales(); }, []);
   useEffect(() => { if (selectedSucursal) loadTraspasos(); }, [selectedSucursal]);
