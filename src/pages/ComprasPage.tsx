@@ -314,8 +314,13 @@ const ComprasPage = () => {
       sucursal_id: compra.sucursal_id,
     });
     toast.success(`OC ${compra.numero_compra} — Pedida al proveedor`);
-    load();
+    await load();
+    // Preguntar si desea generar la factura de una vez
+    if (window.confirm(`¿Deseas generar la factura de ${compra.numero_compra} ahora?\n\nSi la tienes a mano puedes capturarla ya. Si no, el botón "Generar Factura" quedará disponible para hacerlo después.`)) {
+      openGenerarFactura({ ...compra, estado: 'pedida' });
+    }
   };
+
 
   const openGenerarFactura = async (compra: any) => {
     const { data: lns } = await supabase.from('compra_lineas')
