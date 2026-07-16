@@ -3809,23 +3809,32 @@ export type Database = {
       traspaso_lineas: {
         Row: {
           cantidad: number
+          cantidad_recibida: number | null
           created_at: string | null
           id: string
           lote_id: string
+          merma_recepcion: number
+          notas_recepcion: string | null
           traspaso_id: string
         }
         Insert: {
           cantidad: number
+          cantidad_recibida?: number | null
           created_at?: string | null
           id?: string
           lote_id: string
+          merma_recepcion?: number
+          notas_recepcion?: string | null
           traspaso_id: string
         }
         Update: {
           cantidad?: number
+          cantidad_recibida?: number | null
           created_at?: string | null
           id?: string
           lote_id?: string
+          merma_recepcion?: number
+          notas_recepcion?: string | null
           traspaso_id?: string
         }
         Relationships: [
@@ -4407,6 +4416,10 @@ export type Database = {
         Returns: Json
       }
       recibir_traspaso: { Args: { p_traspaso_id: string }; Returns: Json }
+      recibir_traspaso_confirmado: {
+        Args: { p_lineas: Json; p_traspaso_id: string }
+        Returns: Json
+      }
       recomendar_proveedor: {
         Args: {
           p_cantidad_requerida: number

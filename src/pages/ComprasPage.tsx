@@ -49,8 +49,7 @@ const ComprasPage = () => {
   const [addItem, setAddItem] = useState({ producto_id: '', cantidad: '1', precio: '' });
 
   const [recLineas, setRecLineas] = useState<any[]>([]);
-  const [recFechaFactura, setRecFechaFactura] = useState<string>('');
-  const [recPlazoProveedor, setRecPlazoProveedor] = useState<number>(0);
+
 
   // Filtros
   const [filtroProveedor, setFiltroProveedor] = useState<string>('all');
@@ -139,10 +138,6 @@ const ComprasPage = () => {
 
   const openRecepcion = async (compra: any) => {
     setShowRecepcion(compra);
-    setRecFechaFactura(compra.fecha_factura || new Date().toISOString().slice(0, 10));
-    // Cargar plazo del proveedor
-    const { data: prov } = await supabase.from('proveedores').select('plazo_pago_dias').eq('id', compra.proveedor_id).single();
-    setRecPlazoProveedor(prov?.plazo_pago_dias ?? 0);
     const { data } = await supabase.from('compra_lineas')
       .select('*, productos(nombre, sku)').eq('compra_id', compra.id);
     setRecLineas((data || []).map(l => ({
@@ -156,16 +151,10 @@ const ComprasPage = () => {
 
   const processRecepcion = async () => {
     if (!showRecepcion) return;
-    if (!recFechaFactura) { toast.error('Captura la fecha de factura del proveedor'); return; }
     const user = (await supabase.auth.getUser()).data.user;
     const { data: alm } = await supabase.from('almacenes').select('id').eq('sucursal_id', showRecepcion.sucursal_id).limit(1);
     if (!alm?.length) { toast.error('Sin almacén configurado'); return; }
 
-    // Calcular fecha de pago al proveedor
-    const fechaFacturaDate = new Date(recFechaFactura + 'T00:00:00');
-    const fechaPagoLimite = new Date(fechaFacturaDate);
-    fechaPagoLimite.setDate(fechaPagoLimite.getDate() + (recPlazoProveedor || 0));
-    const fechaPagoLimiteStr = fechaPagoLimite.toISOString().slice(0, 10);
     const fechaRecepcionStr = new Date().toISOString().slice(0, 10);
 
     for (const linea of recLineas) {
@@ -180,7 +169,6 @@ const ComprasPage = () => {
         costo_unitario: costoReal, proveedor_id: showRecepcion.proveedor_id,
         compra_id: showRecepcion.id,
         fecha_recepcion: fechaRecepcionStr,
-        fecha_pago_proveedor: fechaPagoLimiteStr,
       } as any).select().single();
 
       if (!lote) continue;
@@ -216,8 +204,6 @@ const ComprasPage = () => {
 
     await supabase.from('compras').update({
       estado: 'recibida',
-      fecha_factura: recFechaFactura,
-      fecha_pago_limite: fechaPagoLimiteStr,
     } as any).eq('id', showRecepcion.id);
 
     // Log activity
@@ -225,13 +211,13 @@ const ComprasPage = () => {
       entidad: 'compra', accion: 'Recepción completada', entidad_id: showRecepcion.id,
       usuario_id: user?.id, usuario_nombre: user?.email,
       sucursal_id: showRecepcion.sucursal_id,
-      datos_despues: { fecha_factura: recFechaFactura, fecha_pago_limite: fechaPagoLimiteStr },
     });
 
-    toast.success(`Recepción completada — pago al proveedor: ${fechaPagoLimiteStr}`);
+    toast.success('Recepción completada. Genera la factura del proveedor cuando la tengas.');
     setShowRecepcion(null);
     load();
   };
+
 
   const openPago = (compra: any) => {
     setShowPago(compra);
@@ -328,8 +314,13 @@ const ComprasPage = () => {
       sucursal_id: compra.sucursal_id,
     });
     toast.success(`OC ${compra.numero_compra} — Pedida al proveedor`);
-    load();
+    await load();
+    // Preguntar si desea generar la factura de una vez
+    if (window.confirm(`¿Deseas generar la factura de ${compra.numero_compra} ahora?\n\nSi la tienes a mano puedes capturarla ya. Si no, el botón "Generar Factura" quedará disponible para hacerlo después.`)) {
+      openGenerarFactura({ ...compra, estado: 'pedida' });
+    }
   };
+
 
   const openGenerarFactura = async (compra: any) => {
     const { data: lns } = await supabase.from('compra_lineas')
@@ -494,12 +485,14 @@ const ComprasPage = () => {
                       </Button>
                     )}
 
-                    {/* 3) Recibida (sin factura aún) → Generar Factura */}
-                    {c.estado === 'recibida' && !yaFacturada && (
-                      <Button size="sm" onClick={() => openGenerarFactura(c)}>
+                    {/* 3) Pedida o Recibida (sin factura aún) → Generar Factura
+                        El botón sigue disponible mientras no se haya facturado. */}
+                    {(c.estado === 'pedida' || c.estado === 'recibida') && !yaFacturada && (
+                      <Button size="sm" variant="secondary" onClick={() => openGenerarFactura(c)}>
                         <FileSignature className="h-4 w-4 mr-1" />Generar Factura
                       </Button>
                     )}
+
 
                     {/* 3b) Recibida legacy con factura ya cargada → Pagar directo */}
                     {c.estado === 'recibida' && yaFacturada && (
@@ -590,30 +583,8 @@ const ComprasPage = () => {
       <Dialog open={!!showRecepcion} onOpenChange={() => setShowRecepcion(null)}>
         <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>Recepción — {showRecepcion?.numero_compra}</DialogTitle></DialogHeader>
-          <p className="text-sm text-muted-foreground mb-4">Capture lote, caducidad y costo real por cada producto. Las mermas en recepción se registran automáticamente.</p>
+          <p className="text-sm text-muted-foreground mb-4">Confirme lote, caducidad, cantidad recibida y reporte mermas por producto. La factura del proveedor se captura por separado en "Generar Factura".</p>
 
-          {/* Fecha de factura del proveedor */}
-          <Card className="mb-4 border-primary/30 bg-primary/5">
-            <CardContent className="p-4">
-              <Label className="text-sm font-semibold">Fecha de factura del proveedor *</Label>
-              <div className="flex items-center gap-3 mt-2">
-                <Input type="date" value={recFechaFactura} onChange={e => setRecFechaFactura(e.target.value)} className="max-w-[200px]" />
-                <div className="text-sm">
-                  <span className="text-muted-foreground">Plazo proveedor: </span>
-                  <strong>{recPlazoProveedor} días</strong>
-                  {recFechaFactura && (
-                    <span className="ml-3 text-muted-foreground">→ Pago al proveedor: </span>
-                  )}
-                  {recFechaFactura && (
-                    <strong className="text-primary">
-                      {new Date(new Date(recFechaFactura + 'T00:00:00').getTime() + recPlazoProveedor * 86400000).toISOString().slice(0,10)}
-                    </strong>
-                  )}
-                </div>
-              </div>
-              <p className="text-xs text-muted-foreground mt-2">Esta fecha se asigna a cada lote recibido para calcular recuperación antes del vencimiento y alertas de riesgo.</p>
-            </CardContent>
-          </Card>
 
           <div className="space-y-4">
 
