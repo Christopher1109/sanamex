@@ -485,12 +485,14 @@ const ComprasPage = () => {
                       </Button>
                     )}
 
-                    {/* 3) Recibida (sin factura aún) → Generar Factura */}
-                    {c.estado === 'recibida' && !yaFacturada && (
-                      <Button size="sm" onClick={() => openGenerarFactura(c)}>
+                    {/* 3) Pedida o Recibida (sin factura aún) → Generar Factura
+                        El botón sigue disponible mientras no se haya facturado. */}
+                    {(c.estado === 'pedida' || c.estado === 'recibida') && !yaFacturada && (
+                      <Button size="sm" variant="secondary" onClick={() => openGenerarFactura(c)}>
                         <FileSignature className="h-4 w-4 mr-1" />Generar Factura
                       </Button>
                     )}
+
 
                     {/* 3b) Recibida legacy con factura ya cargada → Pagar directo */}
                     {c.estado === 'recibida' && yaFacturada && (
