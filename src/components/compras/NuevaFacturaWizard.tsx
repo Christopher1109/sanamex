@@ -431,8 +431,17 @@ const NuevaFacturaWizard = ({ open, onOpenChange, onSaved, prefill }: Props) => 
               )}
             </div>
             <div>
-              <Label>Folio de factura</Label>
-              <Input value={folioFactura} onChange={e => setFolioFactura(e.target.value)} placeholder="A-1234" />
+              <Label>{modoPrefill ? 'Orden de compra / Folio' : 'Folio de factura'}</Label>
+              <Input
+                value={folioFactura}
+                onChange={e => setFolioFactura(e.target.value)}
+                placeholder={modoPrefill ? prefill?.numero_compra || 'OC-XXXX' : 'A-1234'}
+              />
+              {modoPrefill && (
+                <p className="text-xs text-muted-foreground mt-1">
+                  Pre-llenado con el número de OC. Edítalo si tu factura fiscal usa otro folio.
+                </p>
+              )}
             </div>
             <div>
               <Label>Fecha de factura *</Label>
