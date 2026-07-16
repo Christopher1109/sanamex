@@ -55,7 +55,7 @@ interface Linea {
   fecha_caducidad: string;    // YYYY-MM-DD
 }
 
-const NuevaFacturaWizard = ({ open, onOpenChange, onSaved }: Props) => {
+const NuevaFacturaWizard = ({ open, onOpenChange, onSaved, prefill }: Props) => {
   const { selectedSucursal } = useSucursal();
   const [paso, setPaso] = useState(1);
   const [origen, setOrigen] = useState<Origen>(null);
@@ -76,18 +76,43 @@ const NuevaFacturaWizard = ({ open, onOpenChange, onSaved }: Props) => {
   const [saving, setSaving] = useState(false);
   const [productos, setProductos] = useState<any[]>([]);
 
+  const modoPrefill = !!prefill;
+
   useEffect(() => {
     if (open) {
-      setPaso(1); setOrigen(null); setCfdi(null); setXmlFile(null);
-      setProveedorId(''); setFolioFactura(''); setFechaFactura(new Date().toISOString().slice(0, 10));
-      setMetodoPago('contado'); setDiasCredito('30'); setNotas('');
-      setLineas([]);
+      if (prefill) {
+        // Modo "Generar Factura desde OC ya recibida":
+        // saltamos paso 1, pre-llenamos proveedor y líneas de la compra existente.
+        setPaso(2);
+        setOrigen('manual');
+        setProveedorId(prefill.proveedor_id);
+        setFolioFactura('');
+        setFechaFactura(new Date().toISOString().slice(0, 10));
+        setMetodoPago('contado'); setDiasCredito('30'); setNotas('');
+        setCfdi(null); setXmlFile(null);
+        setLineas(prefill.lineas.map(l => ({
+          clave_origen: l.producto_sku,
+          descripcion_origen: l.producto_nombre,
+          cantidad: l.cantidad,
+          precio_unitario: l.precio_estimado,
+          producto_id: l.producto_id,
+          producto_nombre: l.producto_nombre,
+          estado_match: 'matched',
+          numero_lote: '',
+          fecha_caducidad: '',
+        })));
+      } else {
+        setPaso(1); setOrigen(null); setCfdi(null); setXmlFile(null);
+        setProveedorId(''); setFolioFactura(''); setFechaFactura(new Date().toISOString().slice(0, 10));
+        setMetodoPago('contado'); setDiasCredito('30'); setNotas('');
+        setLineas([]);
+      }
       supabase.from('proveedores').select('id, nombre, rfc, plazo_pago_dias').eq('activo', true).order('nombre')
         .then(({ data }) => setProveedores(data || []));
       supabase.from('productos').select('id, nombre, sku, precio_base').eq('activo', true).limit(5000)
         .then(({ data }) => setProductos(data || []));
     }
-  }, [open]);
+  }, [open, prefill]);
 
   // -------- Paso 1: origen ----------
   const handleXmlFile = async (file: File) => {
