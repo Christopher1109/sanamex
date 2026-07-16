@@ -23,6 +23,7 @@ import POSPage from './pages/POSPage';
 import CaducidadesPage from './pages/CaducidadesPage';
 import ConflictosPage from './pages/ConflictosPage';
 import SuperAdminPage from './pages/SuperAdminPage';
+import GestionUsuariosPage from './pages/GestionUsuariosPage';
 import RecomendacionesPage from './pages/RecomendacionesPage';
 import FiscalPage from './pages/FiscalPage';
 import CargasMasivasPage from './pages/CargasMasivasPage';
