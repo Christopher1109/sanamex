@@ -217,6 +217,92 @@ const NuevaFacturaWizard = ({ open, onOpenChange, onSaved, prefill }: Props) => 
 
     setSaving(true);
     try {
+      // ============================================================
+      // MODO PREFILL: Generar factura desde OC ya recibida.
+      // Actualiza la fila EXISTENTE de `compras` (folio, fecha_factura,
+      // metodo_pago, dias_credito, uuid, xml_url, estado='facturada').
+      // NO se toca inventario (ya se movió en la recepción). NO se
+      // crean compra_lineas nuevas — solo se sincronizan los precios.
+      // El trigger B1 (compras_to_cxp_trg) escucha UPDATE de estos
+      // campos y creará/sincronizará la CxP automáticamente.
+      // ============================================================
+      if (modoPrefill && prefill) {
+        // Subir XML si aplica
+        let xml_url: string | null = null;
+        if (xmlFile && cfdi?.uuid) {
+          const path = `${proveedorId}/${cfdi.uuid}.xml`;
+          const { error: upErr } = await supabase.storage.from('comprobantes-pago')
+            .upload(path, xmlFile, { upsert: true, contentType: 'application/xml' });
+          if (!upErr) xml_url = path;
+        }
+
+        // Recalcular totales con posibles ajustes de precio
+        const nuevoSubtotal = subtotal;
+        const nuevoTotal = total;
+
+        // Actualizar precio real por línea (si el usuario ajustó)
+        for (const l of lineasMapeadas) {
+          const orig = prefill.lineas.find(x => x.producto_id === l.producto_id);
+          if (orig) {
+            await supabase.from('compra_lineas')
+              .update({ precio_unitario_real: l.precio_unitario })
+              .eq('id', orig.linea_id);
+          }
+        }
+
+        // Calcular fecha_pago_limite si es crédito
+        const dias = metodoPago === 'credito' ? parseInt(diasCredito) || 0 : 0;
+        const fechaLimite = dias > 0
+          ? new Date(new Date(fechaFactura + 'T00:00:00').getTime() + dias * 86400000).toISOString().slice(0, 10)
+          : null;
+
+        const { error: upErr } = await supabase.from('compras').update({
+          folio_factura: folioFactura || null,
+          fecha_factura: fechaFactura,
+          rfc_emisor: cfdi?.rfcEmisor || null,
+          uuid_cfdi: cfdi?.uuid || null,
+          xml_url,
+          metodo_pago: metodoPago,
+          dias_credito: dias,
+          fecha_pago_limite: fechaLimite,
+          subtotal: nuevoSubtotal,
+          impuestos: iva,
+          total: nuevoTotal,
+          estado: 'facturada',
+          notas: notas
+            ? `${notas}\n[Facturada desde OC recibida ${prefill.numero_compra}]`
+            : `[Facturada desde OC recibida ${prefill.numero_compra}]`,
+        } as any).eq('id', prefill.compra_id);
+
+        if (upErr) throw upErr;
+
+        // Si el trigger B1 acaba de crear una CxP retroactiva, marcarla
+        // con nota clara para trazabilidad futura (solo si es crédito).
+        if (metodoPago === 'credito' && dias > 0) {
+          const { data: cxpNueva } = await supabase.from('cuentas_por_pagar')
+            .select('id, notas')
+            .eq('compra_id', prefill.compra_id)
+            .limit(1)
+            .maybeSingle();
+          if (cxpNueva) {
+            const marcador = 'Generada retroactivo al facturar OC ya recibida';
+            if (!(cxpNueva.notas || '').includes(marcador)) {
+              await supabase.from('cuentas_por_pagar').update({
+                notas: `${cxpNueva.notas || ''} — ${marcador} (${prefill.numero_compra})`.trim(),
+              }).eq('id', cxpNueva.id);
+            }
+          }
+        }
+
+        toast.success(`Factura registrada sobre ${prefill.numero_compra} — Total $${nuevoTotal.toFixed(2)}`);
+        onSaved?.();
+        onOpenChange(false);
+        return;
+      }
+
+      // ============================================================
+      // MODO NORMAL: registrar compra nueva vía RPC.
+      // ============================================================
       const { data: alm, error: almErr } = await supabase.from('almacenes')
         .select('id, activo').eq('sucursal_id', selectedSucursal.id).order('activo', { ascending: false }).limit(1);
       if (almErr) throw almErr;
@@ -227,7 +313,6 @@ const NuevaFacturaWizard = ({ open, onOpenChange, onSaved, prefill }: Props) => 
         throw new Error(`El almacén de la sucursal "${selectedSucursal.nombre}" está inactivo. Contacta al admin.`);
       }
 
-      // Subir XML al storage si aplica
       let xml_url: string | null = null;
       if (xmlFile && cfdi?.uuid) {
         const path = `${proveedorId}/${cfdi.uuid}.xml`;
