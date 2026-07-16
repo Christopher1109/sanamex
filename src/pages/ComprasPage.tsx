@@ -10,19 +10,21 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
-import { Plus, Eye, PackageCheck, CreditCard, ChevronRight, Upload, ImageIcon, CheckCircle2, Lock } from 'lucide-react';
+import { Plus, Eye, PackageCheck, CreditCard, Upload, ImageIcon, CheckCircle2, Lock, Send, FileSignature, Search } from 'lucide-react';
 import { toast } from 'sonner';
 import ProductSearchInput from '@/components/ProductSearchInput';
-import NuevaFacturaWizard from '@/components/compras/NuevaFacturaWizard';
+import NuevaFacturaWizard, { CompraPrefill } from '@/components/compras/NuevaFacturaWizard';
 import { FileText } from 'lucide-react';
 
 const estadoConfig: Record<string, { color: string; label: string }> = {
-  ordenada: { color: 'secondary', label: 'Ordenada' },
-  en_transito: { color: 'secondary', label: 'Ordenada' }, // legacy alias
-  pagada: { color: 'default', label: 'Pagada' },
-  recibida: { color: 'outline', label: 'Recibida' },
-  cerrada: { color: 'default', label: 'Cerrada' },
-  cancelada: { color: 'destructive', label: 'Cancelada' },
+  ordenada:    { color: 'secondary', label: 'Ordenada' },
+  en_transito: { color: 'secondary', label: 'Ordenada' }, // alias legacy
+  pedida:      { color: 'default',   label: 'Pedida' },
+  recibida:    { color: 'outline',   label: 'Recibida' },
+  facturada:   { color: 'default',   label: 'Facturada' },
+  pagada:      { color: 'default',   label: 'Pagada' },
+  cerrada:     { color: 'default',   label: 'Cerrada' },
+  cancelada:   { color: 'destructive', label: 'Cancelada' },
 };
 
 const ComprasPage = () => {
