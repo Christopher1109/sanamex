@@ -94,6 +94,7 @@ const AppContent = () => {
               {/* Fase 1 (siempre visibles) */}
               <Route path="/actividad" element={<AuditoriaPage />} />
               <Route path="/super-admin" element={<SuperAdminPage />} />
+              <Route path="/super-admin/usuarios" element={<GestionUsuariosPage />} />
               <Route path="/cuentas-por-pagar" element={<CuentasPorPagarPage />} />
               <Route path="/bancos" element={<BancosPage />} />
               <Route path="/conciliacion" element={<ConciliacionPage />} />
