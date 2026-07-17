@@ -741,6 +741,7 @@ export type Database = {
           codigo_sat: string | null
           created_at: string
           descripcion: string
+          es_base: boolean
           formula: string | null
           grava_imss: boolean
           grava_isr: boolean
@@ -753,6 +754,7 @@ export type Database = {
           codigo_sat?: string | null
           created_at?: string
           descripcion: string
+          es_base?: boolean
           formula?: string | null
           grava_imss?: boolean
           grava_isr?: boolean
@@ -765,6 +767,7 @@ export type Database = {
           codigo_sat?: string | null
           created_at?: string
           descripcion?: string
+          es_base?: boolean
           formula?: string | null
           grava_imss?: boolean
           grava_isr?: boolean
@@ -3343,12 +3346,14 @@ export type Database = {
           folio: string | null
           id: string
           neto_pagado: number
+          pdf_storage_path: string | null
           periodo_fin: string
           periodo_inicio: string
           total_deducciones: number
           total_otros_pagos: number
           total_percepciones: number
           updated_at: string
+          xml_storage_path: string | null
         }
         Insert: {
           cfdi_id?: string | null
@@ -3360,12 +3365,14 @@ export type Database = {
           folio?: string | null
           id?: string
           neto_pagado?: number
+          pdf_storage_path?: string | null
           periodo_fin: string
           periodo_inicio: string
           total_deducciones?: number
           total_otros_pagos?: number
           total_percepciones?: number
           updated_at?: string
+          xml_storage_path?: string | null
         }
         Update: {
           cfdi_id?: string | null
@@ -3377,12 +3384,14 @@ export type Database = {
           folio?: string | null
           id?: string
           neto_pagado?: number
+          pdf_storage_path?: string | null
           periodo_fin?: string
           periodo_inicio?: string
           total_deducciones?: number
           total_otros_pagos?: number
           total_percepciones?: number
           updated_at?: string
+          xml_storage_path?: string | null
         }
         Relationships: [
           {
