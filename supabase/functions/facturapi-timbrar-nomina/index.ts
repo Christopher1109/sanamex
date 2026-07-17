@@ -127,14 +127,26 @@ Deno.serve(async (req) => {
       created_by: userId,
     }).select('id').single();
 
+    let stored = { xml_storage_path: null as string | null, pdf_storage_path: null as string | null, errors: [] as string[] };
     if (cfdi) {
-      try { await fetchAndStoreCfdiArtifacts(admin, apiKey, cfdi.id, pacResp.id); } catch {}
+      try {
+        stored = await fetchAndStoreCfdiArtifacts({
+          admin, apiKey, facturapiId: pacResp.id, rfcEmisor: emp.rfc || 'SIN_RFC',
+        });
+        // Guardar rutas también en cfdi_emitidos
+        await admin.from('cfdi_emitidos').update({
+          xml_storage_path: stored.xml_storage_path,
+          pdf_storage_path: stored.pdf_storage_path,
+        }).eq('id', cfdi.id);
+      } catch (e) { /* soft-fail */ }
       await admin.from('recibos_nomina').update({
         estatus: 'timbrado', cfdi_id: cfdi.id, es_prueba: false,
+        xml_storage_path: stored.xml_storage_path,
+        pdf_storage_path: stored.pdf_storage_path,
       }).eq('id', body.recibo_id);
     }
 
-    return json({ ok: true, prueba: false, cfdi_id: cfdi?.id, uuid: pacResp.uuid });
+    return json({ ok: true, prueba: false, cfdi_id: cfdi?.id, uuid: pacResp.uuid, xml: stored.xml_storage_path, pdf: stored.pdf_storage_path, storage_errors: stored.errors });
   } catch (e) {
     return json({ error: String(e) }, 500);
   }
