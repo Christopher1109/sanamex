@@ -180,9 +180,14 @@ const Dashboard = ({ userRole }: DashboardProps) => {
     repartidor: 'Repartidor',
     
     auditoria: 'Auditoría',
+    auditor: 'Auditor',
     contador: 'Contador',
+    contabilidad: 'Contabilidad',
     contraloria: 'Contraloría',
     tesoreria: 'Tesorería',
+    direccion: 'Dirección',
+    cajero: 'Cajero',
+    compras: 'Compras',
   };
 
   const showFase2 = canAccessFase2(userRole);
