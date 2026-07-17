@@ -1657,6 +1657,39 @@ export type Database = {
           },
         ]
       }
+      isn_tasas_estado: {
+        Row: {
+          confirmado: boolean
+          created_at: string
+          estado: string
+          id: string
+          nota: string | null
+          tasa_pct: number
+          updated_at: string
+          vigencia_desde: string
+        }
+        Insert: {
+          confirmado?: boolean
+          created_at?: string
+          estado: string
+          id?: string
+          nota?: string | null
+          tasa_pct: number
+          updated_at?: string
+          vigencia_desde?: string
+        }
+        Update: {
+          confirmado?: boolean
+          created_at?: string
+          estado?: string
+          id?: string
+          nota?: string | null
+          tasa_pct?: number
+          updated_at?: string
+          vigencia_desde?: string
+        }
+        Relationships: []
+      }
       lista_precio_cargas: {
         Row: {
           archivo_nombre: string
@@ -3688,6 +3721,8 @@ export type Database = {
           direccion: string | null
           es_cedis: boolean
           es_fiscal: boolean
+          estado: string | null
+          estado_confirmado: boolean
           id: string
           nombre: string
           telefono: string | null
@@ -3701,6 +3736,8 @@ export type Database = {
           direccion?: string | null
           es_cedis?: boolean
           es_fiscal?: boolean
+          estado?: string | null
+          estado_confirmado?: boolean
           id?: string
           nombre: string
           telefono?: string | null
@@ -3714,6 +3751,8 @@ export type Database = {
           direccion?: string | null
           es_cedis?: boolean
           es_fiscal?: boolean
+          estado?: string | null
+          estado_confirmado?: boolean
           id?: string
           nombre?: string
           telefono?: string | null
@@ -4298,6 +4337,15 @@ export type Database = {
       clasificacion_abc_productos: {
         Args: { p_dias_ventana?: number }
         Returns: undefined
+      }
+      dispersar_nomina: {
+        Args: {
+          p_cuenta_bancaria_id: string
+          p_periodo_fin: string
+          p_periodo_inicio: string
+          p_sucursal_id: string
+        }
+        Returns: Json
       }
       enviar_traspaso: {
         Args: {
