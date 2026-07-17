@@ -146,10 +146,21 @@ function IsnTab() {
     <Card>
       <CardHeader><Periodo anio={anio} mes={mes} setAnio={setAnio} setMes={setMes} /></CardHeader>
       <CardContent className="space-y-3 max-w-xl">
-        <h3 className="font-semibold">ISN (Impuesto Sobre Nómina)</h3>
+        <h3 className="font-semibold">ISN (Impuesto Sobre Nómina) — por estado</h3>
         {isn && <>
-          <Row k="Base (percepciones gravadas)" v={isn.base} />
-          <Row k={`Tasa (${(isn.tasa*100).toFixed(2)}%)`} v={isn.causado} bold />
+          {Object.entries(isn.por_estado || {}).map(([estado, d]: any) => (
+            <div key={estado} className="border rounded p-2 mb-2">
+              <div className="flex justify-between items-center">
+                <span className="font-medium">{estado} {d.codigo ? <span className="text-xs text-muted-foreground">({d.codigo})</span> : null}</span>
+                <Badge variant={d.confirmado ? 'default' : 'secondary'}>
+                  {d.confirmado ? `Tasa ${(d.tasa*100).toFixed(2)}%` : `Tasa ${(d.tasa*100).toFixed(2)}% — PENDIENTE`}
+                </Badge>
+              </div>
+              <Row k="Base (percepciones)" v={d.base} />
+              <Row k="ISN causado" v={d.causado} bold />
+            </div>
+          ))}
+          <Row k="TOTAL ISN causado" v={isn.causado} bold />
         </>}
         <h3 className="font-semibold mt-4">Retenciones (tasas configurables)</h3>
         {ret && <>

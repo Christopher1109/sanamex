@@ -68,15 +68,33 @@ export const ImpuestosCalculator = {
   },
 
   async isn(anio: number, mes: number) {
-    const { data: params } = await supabase.from('impuestos_parametros').select('*').eq('id', 1).single();
-    const tasa = Number(params?.isn_tasa_pct || 3) / 100;
     const desde = `${anio}-${String(mes).padStart(2, '0')}-01`;
     const hasta = new Date(anio, mes, 0).toISOString().slice(0, 10);
+    // Recibos con empleado y sucursal (para obtener el estado)
     const { data: recibos } = await supabase.from('recibos_nomina')
-      .select('total_percepciones').eq('estatus', 'timbrado').eq('es_prueba', false)
+      .select('total_percepciones, empleados:empleado_id(sucursal_id, entidad_federativa, sucursales:sucursal_id(estado, estado_confirmado, codigo))')
+      .in('estatus', ['timbrado','pagado'])
+      .eq('es_prueba', false)
       .gte('periodo_inicio', desde).lte('periodo_fin', hasta);
-    const base = ((recibos as any[]) || []).reduce((s, r) => s + Number(r.total_percepciones || 0), 0);
-    return { base, tasa, causado: base * tasa };
+    const { data: tasas } = await supabase.from('isn_tasas_estado').select('*');
+    const tasaMap = new Map<string, { tasa: number; confirmado: boolean }>();
+    for (const t of (tasas as any[]) || []) {
+      tasaMap.set(String(t.estado).toUpperCase(), { tasa: Number(t.tasa_pct)/100, confirmado: !!t.confirmado });
+    }
+    const porEstado: Record<string, { base: number; tasa: number; causado: number; confirmado: boolean; codigo?: string }> = {};
+    let base_total = 0, causado_total = 0;
+    for (const r of (recibos as any[]) || []) {
+      const suc = r.empleados?.sucursales;
+      const estado = String(suc?.estado || r.empleados?.entidad_federativa || 'SIN_ESTADO').toUpperCase();
+      const info = tasaMap.get(estado) || { tasa: 0, confirmado: false };
+      const importe = Number(r.total_percepciones || 0);
+      const causado = importe * info.tasa;
+      if (!porEstado[estado]) porEstado[estado] = { base: 0, tasa: info.tasa, causado: 0, confirmado: info.confirmado, codigo: suc?.codigo };
+      porEstado[estado].base += importe;
+      porEstado[estado].causado += causado;
+      base_total += importe; causado_total += causado;
+    }
+    return { por_estado: porEstado, base: base_total, causado: causado_total };
   },
 
   async retenciones(anio: number, mes: number) {
