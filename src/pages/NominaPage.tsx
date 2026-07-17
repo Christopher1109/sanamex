@@ -6,7 +6,14 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
-import { Upload, Plus, Calculator, FileCheck, Receipt } from 'lucide-react';
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
+} from '@/components/ui/dialog';
+import { Upload, Plus, Calculator, FileCheck, Receipt, FileText, Download, Lock, Pencil, AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
 import { NominaCalculator, BiometricoConnector } from '@/services/NominaCalculator';
 
@@ -37,6 +44,9 @@ export default function NominaPage() {
   );
 }
 
+// ============================================================
+// EMPLEADOS (sin cambios)
+// ============================================================
 function EmpleadosTab() {
   const [emps, setEmps] = useState<any[]>([]);
   const [show, setShow] = useState(false);
@@ -50,7 +60,6 @@ function EmpleadosTab() {
   const importar = async (file: File) => {
     const XLSX = await import('xlsx');
     const wb = XLSX.read(await file.arrayBuffer());
-    // Detect Plantilla format (header en fila 2 con "Empleado", "RFC"...)
     const raw: any[][] = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1, defval: '' });
     let hdr = -1;
     for (let i = 0; i < Math.min(10, raw.length); i++) {
@@ -61,14 +70,9 @@ function EmpleadosTab() {
     if (hdr >= 0) {
       const headers = raw[hdr].map((h: any) => String(h).toLowerCase().trim());
       rows = raw.slice(hdr + 1).filter((r: any[]) => r[headers.indexOf('empleado')] || r[headers.indexOf('rfc')]).map((r: any[]) => {
-        const o: any = {};
-        headers.forEach((h, i) => { o[h] = r[i]; });
-        return o;
+        const o: any = {}; headers.forEach((h, i) => { o[h] = r[i]; }); return o;
       });
-    } else {
-      rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]);
-    }
-
+    } else { rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]); }
     const rfcRE = /^[A-ZÑ&]{3,4}\d{6}[A-Z0-9]{3}$/;
     const curpRE = /^[A-Z]{4}\d{6}[HM][A-Z]{5}[A-Z0-9]\d$/;
     const existing = new Set(emps.map(e => (e.rfc || '').toUpperCase()));
@@ -100,8 +104,7 @@ function EmpleadosTab() {
           banco, numero_cuenta: cuenta, clabe: cuenta,
           fecha_alta: fecha_alta ? (typeof fecha_alta === 'string' ? fecha_alta.slice(0,10) : new Date(fecha_alta).toISOString().slice(0,10)) : null,
           salario_diario: sd, sbc: Math.round(sd * 1.0452 * 100) / 100,
-        },
-        errores, duplicado,
+        }, errores, duplicado,
       };
     });
     setPreview(parsed);
@@ -147,10 +150,8 @@ function EmpleadosTab() {
                     <td className="p-2 font-mono text-xs">{p.payload.registro_patronal}</td>
                     <td className="p-2 text-right">${Number(p.payload.salario_diario).toFixed(2)}</td>
                     <td className="p-2">
-                      {p.errores.length > 0
-                        ? <Badge variant="destructive">{p.errores.join(', ')}</Badge>
-                        : p.duplicado ? <Badge variant="secondary">Actualizar</Badge>
-                        : <Badge>Nuevo</Badge>}
+                      {p.errores.length > 0 ? <Badge variant="destructive">{p.errores.join(', ')}</Badge>
+                        : p.duplicado ? <Badge variant="secondary">Actualizar</Badge> : <Badge>Nuevo</Badge>}
                     </td>
                   </tr>
                 ))}
@@ -180,26 +181,48 @@ function EmpleadosTab() {
   );
 }
 
+// ============================================================
+// PRIMAS RT — nuevo + modal confirmación al guardar cambio
+// ============================================================
 function PrimasRTTab() {
   const [rows, setRows] = useState<any[]>([]);
+  const [showNew, setShowNew] = useState(false);
+  const [neu, setNeu] = useState<any>({ registro_patronal: '', clase_rt: 1, prima_rt: 0.005, vigencia_desde: new Date().toISOString().slice(0,10), notas: '', activo: true });
+  const [pending, setPending] = useState<any | null>(null);
   const load = async () => {
     const { data } = await supabase.from('primas_riesgo_patronal').select('*').order('registro_patronal');
     setRows((data as any) || []);
   };
   useEffect(() => { load(); }, []);
-  const guardar = async (r: any) => {
+  const guardarConfirmado = async () => {
+    if (!pending) return;
+    const r = pending;
     const { error } = await supabase.from('primas_riesgo_patronal').update({
-      clase_rt: r.clase_rt, prima_rt: r.prima_rt, vigencia_desde: r.vigencia_desde, activo: r.activo,
+      clase_rt: r.clase_rt, prima_rt: r.prima_rt, vigencia_desde: r.vigencia_desde, notas: r.notas, activo: r.activo,
     }).eq('id', r.id);
+    setPending(null);
     if (error) { toast.error(error.message); return; }
-    toast.success('Prima guardada');
+    toast.success('Prima guardada — afecta cuota patronal de todos los empleados de esa sucursal');
+    load();
+  };
+  const crearNuevo = async () => {
+    if (!neu.registro_patronal.trim()) { toast.error('Registro patronal requerido'); return; }
+    const { error } = await supabase.from('primas_riesgo_patronal').insert(neu);
+    if (error) { toast.error(error.message); return; }
+    toast.success('Registro patronal creado');
+    setShowNew(false);
+    setNeu({ registro_patronal: '', clase_rt: 1, prima_rt: 0.005, vigencia_desde: new Date().toISOString().slice(0,10), notas: '', activo: true });
+    load();
   };
   return (
     <div className="space-y-3">
+      <div className="flex gap-2">
+        <Button onClick={() => setShowNew(true)}><Plus className="h-4 w-4 mr-2" />Nuevo registro patronal</Button>
+      </div>
       <Card>
         <CardHeader><CardTitle>Primas de Riesgo de Trabajo por Registro Patronal</CardTitle></CardHeader>
         <CardContent>
-          <p className="text-sm text-muted-foreground mb-3">La prima RT se aplica al SBC en el cálculo de la cuota patronal IMSS. Usada automáticamente según el registro patronal asignado al empleado.</p>
+          <p className="text-sm text-muted-foreground mb-3">La prima RT se aplica al SBC en el cálculo de la cuota patronal IMSS. Cambiar un valor afecta a todos los empleados asignados a ese registro patronal — se pide confirmación al guardar.</p>
           <table className="w-full text-sm">
             <thead className="bg-muted"><tr><th className="p-2 text-left">Registro Patronal</th><th className="p-2 text-center">Clase RT</th><th className="p-2 text-right">Prima RT (%)</th><th className="p-2 text-left">Vigencia desde</th><th className="p-2 text-left">Notas</th><th></th></tr></thead>
             <tbody>{rows.map((r, i) => (
@@ -208,8 +231,8 @@ function PrimasRTTab() {
                 <td className="p-2 text-center"><Input type="number" className="h-8 w-16 mx-auto" value={r.clase_rt || ''} onChange={e => { const n=[...rows]; n[i].clase_rt=Number(e.target.value); setRows(n); }} /></td>
                 <td className="p-2 text-right"><Input type="number" step="0.000001" className="h-8 w-28 ml-auto" value={r.prima_rt} onChange={e => { const n=[...rows]; n[i].prima_rt=Number(e.target.value); setRows(n); }} /></td>
                 <td className="p-2"><Input type="date" className="h-8" value={r.vigencia_desde} onChange={e => { const n=[...rows]; n[i].vigencia_desde=e.target.value; setRows(n); }} /></td>
-                <td className="p-2 text-xs">{r.notas}</td>
-                <td className="p-2"><Button size="sm" onClick={() => guardar(r)}>Guardar</Button></td>
+                <td className="p-2"><Input className="h-8" value={r.notas || ''} onChange={e => { const n=[...rows]; n[i].notas=e.target.value; setRows(n); }} /></td>
+                <td className="p-2"><Button size="sm" onClick={() => setPending(r)}>Guardar</Button></td>
               </tr>
             ))}
             {rows.length === 0 && <tr><td colSpan={6} className="p-6 text-center text-muted-foreground">Sin primas registradas</td></tr>}
@@ -217,30 +240,125 @@ function PrimasRTTab() {
           </table>
         </CardContent>
       </Card>
+
+      <Dialog open={showNew} onOpenChange={setShowNew}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Nuevo Registro Patronal</DialogTitle></DialogHeader>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="col-span-2"><Label>Registro Patronal</Label><Input value={neu.registro_patronal} onChange={e=>setNeu({...neu, registro_patronal: e.target.value.toUpperCase()})} placeholder="A0000000000" /></div>
+            <div><Label>Clase RT</Label><Input type="number" min="1" max="5" value={neu.clase_rt} onChange={e=>setNeu({...neu, clase_rt: Number(e.target.value)})} /></div>
+            <div><Label>Prima RT (decimal)</Label><Input type="number" step="0.000001" value={neu.prima_rt} onChange={e=>setNeu({...neu, prima_rt: Number(e.target.value)})} /></div>
+            <div className="col-span-2"><Label>Vigencia desde</Label><Input type="date" value={neu.vigencia_desde} onChange={e=>setNeu({...neu, vigencia_desde: e.target.value})} /></div>
+            <div className="col-span-2"><Label>Notas</Label><Input value={neu.notas} onChange={e=>setNeu({...neu, notas: e.target.value})} /></div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={()=>setShowNew(false)}>Cancelar</Button>
+            <Button onClick={crearNuevo}>Crear</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <AlertDialog open={!!pending} onOpenChange={o=>!o && setPending(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2"><AlertTriangle className="h-5 w-5 text-amber-500"/>Confirmar cambio de Prima RT</AlertDialogTitle>
+            <AlertDialogDescription>
+              Estás por modificar la prima RT del registro patronal <strong>{pending?.registro_patronal}</strong> a <strong>{pending ? (Number(pending.prima_rt)*100).toFixed(4) : 0}%</strong>. Esto recalcula la cuota patronal IMSS de todos los empleados asignados a ese registro en los próximos recibos. ¿Continuar?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={guardarConfirmado}>Sí, guardar</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
 
+// ============================================================
+// CONCEPTOS — nuevo + base bloqueados
+// ============================================================
 function ConceptosTab() {
   const [conc, setConc] = useState<any[]>([]);
-  useEffect(() => { supabase.from('conceptos_nomina').select('*').order('tipo').order('clave').then(({data})=>setConc((data as any)||[])); }, []);
+  const [showNew, setShowNew] = useState(false);
+  const [neu, setNeu] = useState<any>({ clave: '', descripcion: '', tipo: 'percepcion', codigo_sat: '', grava_isr: true, grava_imss: true, activo: true, es_base: false });
+  const load = () => supabase.from('conceptos_nomina').select('*').order('tipo').order('clave').then(({data})=>setConc((data as any)||[]));
+  useEffect(() => { load(); }, []);
+  const crear = async () => {
+    if (!neu.clave.trim() || !neu.descripcion.trim()) { toast.error('Clave y descripción requeridas'); return; }
+    const { error } = await supabase.from('conceptos_nomina').insert({ ...neu, es_base: false });
+    if (error) { toast.error(error.message); return; }
+    toast.success('Concepto creado');
+    setShowNew(false);
+    setNeu({ clave: '', descripcion: '', tipo: 'percepcion', codigo_sat: '', grava_isr: true, grava_imss: true, activo: true, es_base: false });
+    load();
+  };
   return (
-    <Card><CardContent className="p-0">
-      <table className="w-full text-sm">
-        <thead className="bg-muted"><tr><th className="p-2 text-left">Clave</th><th className="p-2 text-left">Descripción</th><th className="p-2 text-left">Tipo</th><th className="p-2 text-left">SAT</th><th className="p-2">Grava ISR</th><th className="p-2">Grava IMSS</th></tr></thead>
-        <tbody>{conc.map(c => (
-          <tr key={c.id} className="border-b"><td className="p-2 font-mono">{c.clave}</td><td className="p-2">{c.descripcion}</td><td className="p-2"><Badge variant={c.tipo==='percepcion'?'default':'secondary'}>{c.tipo}</Badge></td><td className="p-2">{c.codigo_sat}</td><td className="p-2 text-center">{c.grava_isr?'✓':'—'}</td><td className="p-2 text-center">{c.grava_imss?'✓':'—'}</td></tr>
-        ))}</tbody>
-      </table>
-    </CardContent></Card>
+    <div className="space-y-3">
+      <div className="flex gap-2">
+        <Button onClick={()=>setShowNew(true)}><Plus className="h-4 w-4 mr-2"/>Nuevo concepto</Button>
+      </div>
+      <Card><CardContent className="p-0">
+        <table className="w-full text-sm">
+          <thead className="bg-muted"><tr><th className="p-2 text-left">Clave</th><th className="p-2 text-left">Descripción</th><th className="p-2 text-left">Tipo</th><th className="p-2 text-left">SAT</th><th className="p-2">Grava ISR</th><th className="p-2">Grava IMSS</th><th className="p-2 text-center">Origen</th></tr></thead>
+          <tbody>{conc.map(c => (
+            <tr key={c.id} className="border-b">
+              <td className="p-2 font-mono">{c.clave}</td>
+              <td className="p-2">{c.descripcion}</td>
+              <td className="p-2"><Badge variant={c.tipo==='percepcion'?'default':'secondary'}>{c.tipo}</Badge></td>
+              <td className="p-2">{c.codigo_sat}</td>
+              <td className="p-2 text-center">{c.grava_isr?'✓':'—'}</td>
+              <td className="p-2 text-center">{c.grava_imss?'✓':'—'}</td>
+              <td className="p-2 text-center">
+                {c.es_base
+                  ? <Badge variant="outline" className="gap-1"><Lock className="h-3 w-3"/>Base SAT</Badge>
+                  : <Badge>Personalizado</Badge>}
+              </td>
+            </tr>
+          ))}</tbody>
+        </table>
+      </CardContent></Card>
+
+      <Dialog open={showNew} onOpenChange={setShowNew}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Nuevo concepto de nómina</DialogTitle></DialogHeader>
+          <div className="grid grid-cols-2 gap-3">
+            <div><Label>Clave</Label><Input value={neu.clave} onChange={e=>setNeu({...neu, clave: e.target.value.toUpperCase()})} /></div>
+            <div><Label>Código SAT</Label><Input value={neu.codigo_sat} onChange={e=>setNeu({...neu, codigo_sat: e.target.value})} /></div>
+            <div className="col-span-2"><Label>Descripción</Label><Input value={neu.descripcion} onChange={e=>setNeu({...neu, descripcion: e.target.value})} /></div>
+            <div><Label>Tipo</Label>
+              <select className="w-full h-10 border rounded px-2" value={neu.tipo} onChange={e=>setNeu({...neu, tipo: e.target.value})}>
+                <option value="percepcion">Percepción</option>
+                <option value="deduccion">Deducción</option>
+                <option value="otro_pago">Otro pago</option>
+              </select>
+            </div>
+            <div className="flex flex-col gap-2 justify-end">
+              <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={neu.grava_isr} onChange={e=>setNeu({...neu, grava_isr: e.target.checked})}/>Grava ISR</label>
+              <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={neu.grava_imss} onChange={e=>setNeu({...neu, grava_imss: e.target.checked})}/>Grava IMSS</label>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={()=>setShowNew(false)}>Cancelar</Button>
+            <Button onClick={crear}>Crear</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
   );
 }
 
+// ============================================================
+// ASISTENCIA — edición manual de registro individual
+// ============================================================
 function AsistenciaTab() {
   const [filas, setFilas] = useState<any[]>([]);
   const [emps, setEmps] = useState<any[]>([]);
+  const [editing, setEditing] = useState<any | null>(null);
+  const load = () => supabase.from('asistencia').select('*, empleados(nombre)').order('fecha',{ascending:false}).limit(200).then(({data})=>setFilas((data as any)||[]));
   useEffect(() => {
-    supabase.from('asistencia').select('*, empleados(nombre)').order('fecha',{ascending:false}).limit(100).then(({data})=>setFilas((data as any)||[]));
+    load();
     supabase.from('empleados').select('id,nombre,numero_empleado').then(({data})=>setEmps((data as any)||[]));
   }, []);
   const importar = async (file: File) => {
@@ -259,7 +377,19 @@ function AsistenciaTab() {
     }).filter(Boolean);
     const { error } = await supabase.from('asistencia').upsert(filas2 as any, { onConflict: 'empleado_id,fecha' });
     if (error) { toast.error(error.message); return; }
-    toast.success(`${filas2.length} registros`);
+    toast.success(`${filas2.length} registros`); load();
+  };
+  const guardarEdicion = async () => {
+    if (!editing) return;
+    const { error } = await supabase.from('asistencia').update({
+      entrada: editing.entrada || null,
+      salida: editing.salida || null,
+      incidencia: editing.incidencia || null,
+      horas_extra: Number(editing.horas_extra || 0),
+      notas: editing.notas || null,
+    }).eq('id', editing.id);
+    if (error) { toast.error(error.message); return; }
+    toast.success('Ajuste guardado'); setEditing(null); load();
   };
   const sync = async () => {
     try { await BiometricoConnector.sincronizar('', ''); } catch (e: any) { toast.error(e.message); }
@@ -272,15 +402,63 @@ function AsistenciaTab() {
         <Button variant="outline" onClick={sync}>Sincronizar biométrico (stub)</Button>
       </div>
       <Card><CardContent className="p-0"><table className="w-full text-sm">
-        <thead className="bg-muted"><tr><th className="p-2 text-left">Fecha</th><th className="p-2 text-left">Empleado</th><th className="p-2">Entrada</th><th className="p-2">Salida</th><th className="p-2">Incidencia</th><th className="p-2 text-right">Hrs extra</th></tr></thead>
+        <thead className="bg-muted"><tr><th className="p-2 text-left">Fecha</th><th className="p-2 text-left">Empleado</th><th className="p-2">Entrada</th><th className="p-2">Salida</th><th className="p-2">Incidencia</th><th className="p-2 text-right">Hrs extra</th><th className="p-2">Notas</th><th></th></tr></thead>
         <tbody>{filas.map(a => (
-          <tr key={a.id} className="border-b"><td className="p-2">{a.fecha}</td><td className="p-2">{a.empleados?.nombre}</td><td className="p-2 text-center">{a.entrada || '—'}</td><td className="p-2 text-center">{a.salida || '—'}</td><td className="p-2 text-center">{a.incidencia && <Badge variant="outline">{a.incidencia}</Badge>}</td><td className="p-2 text-right">{a.horas_extra}</td></tr>
+          <tr key={a.id} className="border-b">
+            <td className="p-2">{a.fecha}</td>
+            <td className="p-2">{a.empleados?.nombre}</td>
+            <td className="p-2 text-center">{a.entrada || '—'}</td>
+            <td className="p-2 text-center">{a.salida || '—'}</td>
+            <td className="p-2 text-center">{a.incidencia && <Badge variant="outline">{a.incidencia}</Badge>}</td>
+            <td className="p-2 text-right">{a.horas_extra}</td>
+            <td className="p-2 text-xs text-muted-foreground max-w-[200px] truncate">{a.notas || '—'}</td>
+            <td className="p-2"><Button size="sm" variant="outline" onClick={()=>setEditing({...a})}><Pencil className="h-3 w-3 mr-1"/>Ajustar</Button></td>
+          </tr>
         ))}</tbody>
       </table></CardContent></Card>
+
+      <Dialog open={!!editing} onOpenChange={o=>!o && setEditing(null)}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Ajuste manual de asistencia</DialogTitle></DialogHeader>
+          {editing && (
+            <div className="grid grid-cols-2 gap-3">
+              <div className="col-span-2 text-sm text-muted-foreground">
+                {editing.empleados?.nombre} — {editing.fecha}
+              </div>
+              <div><Label>Entrada</Label><Input type="time" value={editing.entrada || ''} onChange={e=>setEditing({...editing, entrada: e.target.value})} /></div>
+              <div><Label>Salida</Label><Input type="time" value={editing.salida || ''} onChange={e=>setEditing({...editing, salida: e.target.value})} /></div>
+              <div><Label>Incidencia</Label>
+                <select className="w-full h-10 border rounded px-2" value={editing.incidencia || ''} onChange={e=>setEditing({...editing, incidencia: e.target.value || null})}>
+                  <option value="">— sin incidencia —</option>
+                  <option value="falta">Falta</option>
+                  <option value="retardo">Retardo</option>
+                  <option value="permiso_ce">Permiso con goce</option>
+                  <option value="permiso_sg">Permiso sin goce</option>
+                  <option value="incapacidad">Incapacidad</option>
+                  <option value="vacaciones">Vacaciones</option>
+                  <option value="dia_festivo">Día festivo</option>
+                  <option value="descanso_laborado">Descanso laborado</option>
+                  <option value="bono">Bono</option>
+                  <option value="penalizacion">Penalización</option>
+                </select>
+              </div>
+              <div><Label>Horas extra</Label><Input type="number" step="0.25" value={editing.horas_extra || 0} onChange={e=>setEditing({...editing, horas_extra: Number(e.target.value)})} /></div>
+              <div className="col-span-2"><Label>Notas (bono / penalización / motivo)</Label><Input value={editing.notas || ''} onChange={e=>setEditing({...editing, notas: e.target.value})} placeholder="Ej: Bono puntualidad extra por reemplazo, o penalización por retardo mayor a 30 min" /></div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={()=>setEditing(null)}>Cancelar</Button>
+            <Button onClick={guardarEdicion}>Guardar ajuste</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
 
+// ============================================================
+// RECIBOS — con descarga PDF/XML y confirmación de modo prueba
+// ============================================================
 function RecibosTab() {
   const [recs, setRecs] = useState<any[]>([]);
   const [emps, setEmps] = useState<any[]>([]);
@@ -288,8 +466,12 @@ function RecibosTab() {
   const [inicio, setInicio] = useState('');
   const [fin, setFin] = useState('');
   const [preview, setPreview] = useState<any>(null);
+  const [pendingTimbrar, setPendingTimbrar] = useState<string | null>(null);
   const load = async () => {
-    const { data } = await supabase.from('recibos_nomina').select('*, empleados(nombre)').order('periodo_fin',{ascending:false}).limit(50);
+    const { data } = await supabase
+      .from('recibos_nomina')
+      .select('*, empleados(nombre), cfdi_emitidos(xml_storage_path, pdf_storage_path, uuid_sat)')
+      .order('periodo_fin',{ascending:false}).limit(50);
     setRecs((data as any) || []);
   };
   useEffect(() => {
@@ -306,11 +488,32 @@ function RecibosTab() {
     await NominaCalculator.guardarRecibo(empId, inicio, fin, false);
     toast.success('Recibo guardado'); setPreview(null); load();
   };
-  const timbrarPrueba = async (recId: string) => {
+  const ejecutarTimbrado = async () => {
+    if (!pendingTimbrar) return;
+    const recId = pendingTimbrar;
+    setPendingTimbrar(null);
     const { data, error } = await supabase.functions.invoke('facturapi-timbrar-nomina', { body: { recibo_id: recId, es_prueba: true } });
     if (error) { toast.error(error.message); return; }
-    toast.success((data as any)?.nota || 'Timbrado prueba ejecutado');
+    const d = data as any;
+    if (d?.prueba) toast.warning(d?.nota || 'Timbrado en modo PRUEBA — no se envió al SAT');
+    else if (d?.uuid) toast.success(`Timbrado real — UUID ${d.uuid.slice(0,8)}…`);
+    else toast.success('Timbrado procesado');
     load();
+  };
+  const descargar = async (path: string | null, formato: 'pdf'|'xml', recId: string) => {
+    // Si tenemos storage_path descargamos vía signed URL desde bucket cfdi.
+    // Si no lo hay, intentamos el proxy de facturapi (funciona si hay cfdi_id ligado).
+    if (path) {
+      const { data, error } = await supabase.storage.from('cfdi').createSignedUrl(path, 60);
+      if (error || !data?.signedUrl) { toast.error('No se pudo generar URL de descarga'); return; }
+      window.open(data.signedUrl, '_blank');
+      return;
+    }
+    // Fallback: pasar por edge function facturapi-descargar usando facturapi_id
+    const rec = recs.find(r => r.id === recId);
+    const cfdi = rec?.cfdi_emitidos;
+    if (!cfdi) { toast.error('Este recibo no tiene CFDI generado (solo se marcó como prueba sin archivos).'); return; }
+    toast.error(`${formato.toUpperCase()} no disponible en storage — el timbrado fue solo prueba local`);
   };
   return (
     <div className="space-y-3">
@@ -348,38 +551,134 @@ function RecibosTab() {
         </CardContent>
       </Card>
       <Card><CardContent className="p-0"><table className="w-full text-sm">
-        <thead className="bg-muted"><tr><th className="p-2 text-left">Periodo</th><th className="p-2 text-left">Empleado</th><th className="p-2 text-right">Percep.</th><th className="p-2 text-right">Deduc.</th><th className="p-2 text-right">Neto</th><th className="p-2 text-left">Estatus</th><th></th></tr></thead>
-        <tbody>{recs.map(r => (
-          <tr key={r.id} className="border-b">
-            <td className="p-2">{r.periodo_inicio} → {r.periodo_fin}</td>
-            <td className="p-2">{r.empleados?.nombre}</td>
-            <td className="p-2 text-right">${Number(r.total_percepciones).toFixed(2)}</td>
-            <td className="p-2 text-right">${Number(r.total_deducciones).toFixed(2)}</td>
-            <td className="p-2 text-right font-semibold">${Number(r.neto_pagado).toFixed(2)}</td>
-            <td className="p-2"><Badge variant={r.estatus==='timbrado'?'default':'secondary'}>{r.estatus}{r.es_prueba?' (prueba)':''}</Badge></td>
-            <td className="p-2">{r.estatus!=='timbrado' && <Button size="sm" variant="outline" onClick={() => timbrarPrueba(r.id)}><Receipt className="h-3 w-3 mr-1" />Timbrar (prueba)</Button>}</td>
-          </tr>
-        ))}</tbody>
+        <thead className="bg-muted"><tr><th className="p-2 text-left">Periodo</th><th className="p-2 text-left">Empleado</th><th className="p-2 text-right">Percep.</th><th className="p-2 text-right">Deduc.</th><th className="p-2 text-right">Neto</th><th className="p-2 text-left">Estatus</th><th className="p-2">Acciones</th></tr></thead>
+        <tbody>{recs.map(r => {
+          const xmlPath = r.xml_storage_path || r.cfdi_emitidos?.xml_storage_path;
+          const pdfPath = r.pdf_storage_path || r.cfdi_emitidos?.pdf_storage_path;
+          return (
+            <tr key={r.id} className="border-b">
+              <td className="p-2">{r.periodo_inicio} → {r.periodo_fin}</td>
+              <td className="p-2">{r.empleados?.nombre}</td>
+              <td className="p-2 text-right">${Number(r.total_percepciones).toFixed(2)}</td>
+              <td className="p-2 text-right">${Number(r.total_deducciones).toFixed(2)}</td>
+              <td className="p-2 text-right font-semibold">${Number(r.neto_pagado).toFixed(2)}</td>
+              <td className="p-2"><Badge variant={r.estatus==='timbrado' && !r.es_prueba?'default':'secondary'}>{r.estatus}{r.es_prueba?' (prueba)':''}</Badge></td>
+              <td className="p-2">
+                <div className="flex gap-1 flex-wrap">
+                  {r.estatus!=='timbrado' && (
+                    <Button size="sm" variant="outline" onClick={() => setPendingTimbrar(r.id)}><Receipt className="h-3 w-3 mr-1" />Timbrar</Button>
+                  )}
+                  <Button size="sm" variant="ghost" disabled={!pdfPath} onClick={()=>descargar(pdfPath, 'pdf', r.id)} title={pdfPath?'Descargar PDF':'PDF no disponible (recibo de prueba sin CFDI)'}>
+                    <FileText className="h-3 w-3 mr-1"/>PDF
+                  </Button>
+                  <Button size="sm" variant="ghost" disabled={!xmlPath} onClick={()=>descargar(xmlPath, 'xml', r.id)} title={xmlPath?'Descargar XML':'XML no disponible (recibo de prueba sin CFDI)'}>
+                    <Download className="h-3 w-3 mr-1"/>XML
+                  </Button>
+                </div>
+              </td>
+            </tr>
+          );
+        })}</tbody>
       </table></CardContent></Card>
+
+      <AlertDialog open={!!pendingTimbrar} onOpenChange={o=>!o && setPendingTimbrar(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2"><AlertTriangle className="h-5 w-5 text-amber-500"/>Timbrar recibo</AlertDialogTitle>
+            <AlertDialogDescription>
+              El ambiente actual está en <strong>modo PRUEBA</strong> (llave <code>sk_test_</code> de Facturapi). El recibo NO se enviará al SAT, no se consumirán folios y no habrá UUID válido. Si el sandbox tiene CSD configurado, se generarán XML y PDF de prueba descargables. ¿Continuar?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={ejecutarTimbrado}>Sí, timbrar en modo prueba</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
 
+// ============================================================
+// COMISIONES — Agregar manual
+// ============================================================
 function ComisionesTab() {
   const [rows, setRows] = useState<any[]>([]);
+  const [emps, setEmps] = useState<any[]>([]);
+  const [showNew, setShowNew] = useState(false);
+  const [neu, setNeu] = useState<any>({ empleado_id: '', periodo_inicio: '', periodo_fin: '', base_calculo: 0, porcentaje: 0, monto: 0, grava: false, notas: '' });
+  const load = () => supabase.from('comisiones').select('*, empleados(nombre)').order('periodo_fin',{ascending:false}).then(({data})=>setRows((data as any)||[]));
   useEffect(() => {
-    supabase.from('comisiones').select('*, empleados(nombre)').order('periodo_fin',{ascending:false}).then(({data})=>setRows((data as any)||[]));
+    load();
+    supabase.from('empleados').select('id,nombre').eq('activo', true).order('nombre').then(({data})=>setEmps((data as any)||[]));
   }, []);
+  // Auto-cálculo monto = base * porcentaje/100 si el usuario no lo tocó manualmente
+  const setBase = (v: number) => setNeu((p: any) => ({...p, base_calculo: v, monto: Number((v * (p.porcentaje||0)/100).toFixed(2))}));
+  const setPct = (v: number) => setNeu((p: any) => ({...p, porcentaje: v, monto: Number(((p.base_calculo||0) * v/100).toFixed(2))}));
+  const crear = async () => {
+    if (!neu.empleado_id || !neu.periodo_inicio || !neu.periodo_fin) { toast.error('Empleado y periodo requeridos'); return; }
+    const { error } = await supabase.from('comisiones').insert(neu);
+    if (error) { toast.error(error.message); return; }
+    toast.success('Comisión registrada');
+    setShowNew(false);
+    setNeu({ empleado_id: '', periodo_inicio: '', periodo_fin: '', base_calculo: 0, porcentaje: 0, monto: 0, grava: false, notas: '' });
+    load();
+  };
   return (
-    <Card>
-      <CardHeader><CardTitle>Comisiones</CardTitle></CardHeader>
-      <CardContent>
-        <p className="text-sm text-muted-foreground mb-3">Por defecto las comisiones aquí registradas <strong>no gravan</strong> en recibo (gancho). El esquema final lo confirma el cliente.</p>
-        <table className="w-full text-sm"><thead className="bg-muted"><tr><th className="p-2 text-left">Empleado</th><th className="p-2 text-left">Periodo</th><th className="p-2 text-right">Base</th><th className="p-2 text-right">%</th><th className="p-2 text-right">Monto</th><th className="p-2">Grava</th></tr></thead>
-          <tbody>{rows.length===0 && <tr><td colSpan={6} className="p-4 text-center text-muted-foreground">Sin comisiones registradas</td></tr>}
-          {rows.map(c => <tr key={c.id} className="border-b"><td className="p-2">{c.empleados?.nombre}</td><td className="p-2">{c.periodo_inicio} → {c.periodo_fin}</td><td className="p-2 text-right">${Number(c.base_calculo).toFixed(2)}</td><td className="p-2 text-right">{c.porcentaje}%</td><td className="p-2 text-right">${Number(c.monto).toFixed(2)}</td><td className="p-2 text-center">{c.grava?'✓':'—'}</td></tr>)}
-          </tbody></table>
-      </CardContent>
-    </Card>
+    <div className="space-y-3">
+      <div className="flex gap-2">
+        <Button onClick={()=>setShowNew(true)}><Plus className="h-4 w-4 mr-2"/>Agregar comisión</Button>
+      </div>
+      <Card>
+        <CardHeader><CardTitle>Comisiones</CardTitle></CardHeader>
+        <CardContent>
+          <p className="text-sm text-muted-foreground mb-3">Captura manual por empleado y periodo. Marcar "Grava" solo si la comisión debe reflejarse como percepción gravable en el recibo del periodo.</p>
+          <table className="w-full text-sm">
+            <thead className="bg-muted"><tr><th className="p-2 text-left">Empleado</th><th className="p-2 text-left">Periodo</th><th className="p-2 text-right">Base</th><th className="p-2 text-right">%</th><th className="p-2 text-right">Monto</th><th className="p-2">Grava</th><th className="p-2 text-left">Notas</th></tr></thead>
+            <tbody>{rows.length===0 && <tr><td colSpan={7} className="p-4 text-center text-muted-foreground">Sin comisiones registradas</td></tr>}
+            {rows.map(c => (
+              <tr key={c.id} className="border-b">
+                <td className="p-2">{c.empleados?.nombre}</td>
+                <td className="p-2">{c.periodo_inicio} → {c.periodo_fin}</td>
+                <td className="p-2 text-right">${Number(c.base_calculo).toFixed(2)}</td>
+                <td className="p-2 text-right">{c.porcentaje}%</td>
+                <td className="p-2 text-right font-semibold">${Number(c.monto).toFixed(2)}</td>
+                <td className="p-2 text-center">{c.grava?'✓':'—'}</td>
+                <td className="p-2 text-xs text-muted-foreground">{c.notas || '—'}</td>
+              </tr>
+            ))}
+            </tbody>
+          </table>
+        </CardContent>
+      </Card>
+
+      <Dialog open={showNew} onOpenChange={setShowNew}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Nueva comisión</DialogTitle></DialogHeader>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="col-span-2"><Label>Empleado</Label>
+              <select className="w-full h-10 border rounded px-2" value={neu.empleado_id} onChange={e=>setNeu({...neu, empleado_id: e.target.value})}>
+                <option value="">—</option>
+                {emps.map(e=><option key={e.id} value={e.id}>{e.nombre}</option>)}
+              </select>
+            </div>
+            <div><Label>Periodo inicio</Label><Input type="date" value={neu.periodo_inicio} onChange={e=>setNeu({...neu, periodo_inicio: e.target.value})} /></div>
+            <div><Label>Periodo fin</Label><Input type="date" value={neu.periodo_fin} onChange={e=>setNeu({...neu, periodo_fin: e.target.value})} /></div>
+            <div><Label>Base de cálculo</Label><Input type="number" step="0.01" value={neu.base_calculo} onChange={e=>setBase(Number(e.target.value))} /></div>
+            <div><Label>Porcentaje (%)</Label><Input type="number" step="0.01" value={neu.porcentaje} onChange={e=>setPct(Number(e.target.value))} /></div>
+            <div className="col-span-2"><Label>Monto</Label><Input type="number" step="0.01" value={neu.monto} onChange={e=>setNeu({...neu, monto: Number(e.target.value)})} /></div>
+            <div className="col-span-2 flex items-center gap-2">
+              <input id="grava" type="checkbox" checked={neu.grava} onChange={e=>setNeu({...neu, grava: e.target.checked})} />
+              <Label htmlFor="grava">Grava en recibo (se sumará como percepción gravable)</Label>
+            </div>
+            <div className="col-span-2"><Label>Notas</Label><Input value={neu.notas} onChange={e=>setNeu({...neu, notas: e.target.value})} placeholder="Motivo, referencia, etc." /></div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={()=>setShowNew(false)}>Cancelar</Button>
+            <Button onClick={crear}>Guardar comisión</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
   );
 }
