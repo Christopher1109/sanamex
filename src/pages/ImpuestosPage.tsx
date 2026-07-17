@@ -147,6 +147,7 @@ function IsnTab() {
       <CardHeader><Periodo anio={anio} mes={mes} setAnio={setAnio} setMes={setMes} /></CardHeader>
       <CardContent className="space-y-3 max-w-xl">
         <h3 className="font-semibold">ISN (Impuesto Sobre Nómina) — por estado</h3>
+        <p className="text-xs text-muted-foreground">Vista de cálculo. Para editar tasas ve a la pestaña <b>Parámetros</b>.</p>
         {isn && <>
           {Object.entries(isn.por_estado || {}).map(([estado, d]: any) => (
             <div key={estado} className="border rounded p-2 mb-2">
@@ -268,8 +269,74 @@ function ParametrosTab() {
             </SelectContent>
           </Select>
         </div>
-        <Button onClick={save}>Guardar</Button>
+        <Button onClick={save}>Guardar parámetros</Button>
+      </CardContent>
+      <CardContent>
+        <IsnTasasEditor />
       </CardContent>
     </Card>
+  );
+}
+
+function IsnTasasEditor() {
+  const [rows, setRows] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const load = async () => {
+    setLoading(true);
+    const { data } = await supabase.from('isn_tasas_estado').select('*').order('estado');
+    setRows((data as any) || []);
+    setLoading(false);
+  };
+  useEffect(() => { load(); }, []);
+  const update = (id: string, patch: any) =>
+    setRows(rs => rs.map(r => r.id === id ? { ...r, ...patch, _dirty: true } : r));
+  const save = async (r: any) => {
+    const { error } = await supabase.from('isn_tasas_estado').update({
+      tasa_pct: Number(r.tasa_pct), nota: r.nota || null, confirmado: true,
+    }).eq('id', r.id);
+    if (error) return toast.error(error.message);
+    toast.success(`ISN ${r.estado} guardado y confirmado`);
+    load();
+  };
+  const addNuevo = async () => {
+    const estado = prompt('Código de estado (ej. MEX, CDMX, JAL):')?.trim().toUpperCase();
+    if (!estado) return;
+    const { error } = await supabase.from('isn_tasas_estado').insert({
+      estado, tasa_pct: 3, confirmado: false, vigencia_desde: new Date().toISOString().slice(0,10),
+      nota: 'Nuevo — confirmar tasa con contador',
+    });
+    if (error) return toast.error(error.message);
+    load();
+  };
+  return (
+    <div className="mt-4 space-y-2">
+      <div className="flex items-center justify-between">
+        <h3 className="font-semibold">Tasas ISN por estado</h3>
+        <Button size="sm" variant="outline" onClick={addNuevo}>+ Nuevo estado</Button>
+      </div>
+      <p className="text-xs text-muted-foreground">Edita la tasa por estado. Al guardar queda marcada como <b>confirmada</b> y se aplica al cálculo por sucursal.</p>
+      {loading ? <p>Cargando...</p> : (
+        <table className="w-full text-sm border">
+          <thead className="bg-muted"><tr>
+            <th className="p-2 text-left">Estado</th>
+            <th className="p-2 text-left">Tasa %</th>
+            <th className="p-2 text-left">Nota</th>
+            <th className="p-2 text-left">Estatus</th>
+            <th className="p-2"></th>
+          </tr></thead>
+          <tbody>
+            {rows.map(r => (
+              <tr key={r.id} className="border-b">
+                <td className="p-2 font-medium">{r.estado}</td>
+                <td className="p-2"><Input type="number" step="0.01" value={r.tasa_pct} onChange={e=>update(r.id,{tasa_pct:e.target.value})} className="w-24" /></td>
+                <td className="p-2"><Input value={r.nota || ''} onChange={e=>update(r.id,{nota:e.target.value})} /></td>
+                <td className="p-2"><Badge variant={r.confirmado ? 'default':'secondary'}>{r.confirmado?'Confirmado':'Pendiente'}</Badge></td>
+                <td className="p-2 text-right"><Button size="sm" disabled={!r._dirty} onClick={()=>save(r)}>Guardar</Button></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </div>
   );
 }
