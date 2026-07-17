@@ -1,7 +1,7 @@
-import { useEffect, useState } from 'react';
-import { User, Session } from '@supabase/supabase-js';
-import { supabase } from '@/integrations/supabase/client';
-import { UserRole } from '@/types';
+import { useEffect, useState } from "react";
+import { User, Session } from "@supabase/supabase-js";
+import { supabase } from "@/integrations/supabase/client";
+import { UserRole } from "@/types";
 
 export const useAuth = () => {
   const [user, setUser] = useState<User | null>(null);
@@ -11,18 +11,18 @@ export const useAuth = () => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (_event, session) => {
-        setSession(session);
-        setUser(session?.user ?? null);
-        if (session?.user) {
-          setTimeout(() => fetchUserRole(session.user.id), 0);
-        } else {
-          setUserRole(null);
-          setLoading(false);
-        }
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSession(session);
+      setUser(session?.user ?? null);
+      if (session?.user) {
+        setTimeout(() => fetchUserRole(session.user.id), 0);
+      } else {
+        setUserRole(null);
+        setLoading(false);
       }
-    );
+    });
 
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
@@ -39,15 +39,12 @@ export const useAuth = () => {
 
   const fetchUserRole = async (userId: string) => {
     try {
-      const { data, error } = await supabase
-        .from('user_roles')
-        .select('role')
-        .eq('user_id', userId);
+      const { data, error } = await supabase.from("user_roles").select("role").eq("user_id", userId);
 
       const { data: profileData } = await supabase
-        .from('profiles')
-        .select('nombre, username')
-        .eq('id', userId)
+        .from("profiles")
+        .select("nombre, username")
+        .eq("id", userId)
         .maybeSingle();
 
       if (profileData) {
@@ -55,22 +52,37 @@ export const useAuth = () => {
       }
 
       if (error) {
-        console.error('Error fetching user role:', error);
-        setUserRole('ventas');
+        console.error("Error fetching user role:", error);
+        setUserRole("ventas");
       } else if (data && data.length > 0) {
         const roleHierarchy: UserRole[] = [
-          'super_admin', 'admin', 'gerente', 'subgerente', 'supervisor',
-          'auditoria', 'almacen_ventas', 'almacen',
-          'ventas', 'repartidor',
+          "super_admin",
+          "admin",
+          "direccion",
+          "gerente",
+          "subgerente",
+          "contabilidad",
+          "contador",
+          "contraloria",
+          "tesoreria",
+          "supervisor",
+          "auditoria",
+          "auditor",
+          "almacen_ventas",
+          "almacen",
+          "compras",
+          "ventas",
+          "cajero",
+          "repartidor",
         ];
-        const highestRole = roleHierarchy.find(role => data.some(r => r.role === role));
-        setUserRole(highestRole || 'ventas');
+        const highestRole = roleHierarchy.find((role) => data.some((r) => r.role === role));
+        setUserRole(highestRole || "ventas");
       } else {
-        setUserRole('ventas');
+        setUserRole("ventas");
       }
     } catch (error) {
-      console.error('Error fetching user role:', error);
-      setUserRole('ventas');
+      console.error("Error fetching user role:", error);
+      setUserRole("ventas");
     } finally {
       setLoading(false);
     }
