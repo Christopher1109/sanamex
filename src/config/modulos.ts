@@ -47,12 +47,10 @@ export const MODULOS: ModuloDef[] = [
   { key: 'ventas', label: 'Ventas', categoria: 'Operaciones', path: '/pedidos', niveles: OP },
   { key: 'pos', label: 'Punto de Venta', categoria: 'Operaciones', path: '/pos', niveles: OP },
   { key: 'traspasos', label: 'Traspasos', categoria: 'Operaciones', path: '/traspasos', niveles: OP },
-  { key: 'devoluciones_proveedor', label: 'Devoluciones a Proveedor', categoria: 'Operaciones', path: '/devoluciones-proveedor', niveles: OP },
   // Inventario
   { key: 'inventario', label: 'Inventario', categoria: 'Inventario', path: '/inventario', niveles: OP },
   { key: 'caducidades', label: 'Caducidades', categoria: 'Inventario', path: '/caducidades', niveles: OP },
   // Análisis
-  { key: 'rotacion', label: 'Inteligencia de Rotación', categoria: 'Análisis', path: '/rotacion', niveles: SIMPLE },
   { key: 'rentabilidad_lotes', label: 'Rentabilidad por Lote', categoria: 'Análisis', path: '/rentabilidad-lotes', niveles: SIMPLE },
   { key: 'reportes', label: 'Reportes', categoria: 'Análisis', path: '/reportes', niveles: SIMPLE },
   // Finanzas
