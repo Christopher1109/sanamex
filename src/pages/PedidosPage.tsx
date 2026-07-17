@@ -302,23 +302,6 @@ const PedidosPage = () => {
               </Select>
             </div>
 
-            <div>
-              <Label>Ruta de Entrega</Label>
-              <Select value={form.ruta_id} onValueChange={v => setForm({...form, ruta_id: v})}>
-                <SelectTrigger><SelectValue placeholder="Seleccionar ruta (opcional)..." /></SelectTrigger>
-                <SelectContent>
-                  {rutas.length === 0 ? (
-                    <SelectItem value="__none" disabled>No hay rutas en preparación</SelectItem>
-                  ) : (
-                    rutas.map(r => (
-                      <SelectItem key={r.id} value={r.id}>
-                        {r.fecha} — {r.notas?.split('\n')[0] || 'Ruta'} ({(r.profiles as any)?.nombre || 'Sin repartidor'})
-                      </SelectItem>
-                    ))
-                  )}
-                </SelectContent>
-              </Select>
-            </div>
 
             <div className="border rounded-lg p-3 space-y-3">
               <Label>Agregar Productos</Label>
