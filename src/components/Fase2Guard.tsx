@@ -1,24 +1,52 @@
 import { ReactNode } from 'react';
-import { Navigate } from 'react-router-dom';
+import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
+import { useModuleAccess } from '@/hooks/useModuleAccess';
 import { canAccessFase2 } from '@/config/faseAccess';
+import { MODULOS } from '@/config/modulos';
 
 interface Fase2GuardProps {
   children: ReactNode;
 }
 
 /**
- * Intercepta el render de rutas de Fase 2 cuando el rol activo no
- * tiene acceso operativo. NO desmonta código ni imports; redirige a
- * /dashboard. Sustituye al flag global FASE_2_VISIBLE.
+ * Guardia unificado de acceso a rutas.
+ *
+ * Regla:
+ *   1. Si el usuario tiene un nivel de acceso (≠ sin_acceso) en el módulo
+ *      cuyo path coincide con la ruta actual → permite entrar.
+ *   2. Si no, cae al filtro por rol (canAccessFase2) como respaldo para
+ *      rutas que no están mapeadas 1:1 a un módulo.
+ *
+ * Esto elimina la inconsistencia donde el sidebar mostraba módulos que el
+ * guard bloqueaba (ej. contraloría, contabilidad, tesorería con nivel
+ * "consultar" en artículos, inventario, etc.).
  */
 const Fase2Guard = ({ children }: Fase2GuardProps) => {
-  const { userRole, loading } = useAuth();
-  if (loading) return null;
-  if (!canAccessFase2(userRole)) {
-    return <Navigate to="/dashboard" replace />;
+  const { user, userRole, loading } = useAuth();
+  const { can, loading: accessLoading, isBypass } = useModuleAccess(user?.id, userRole);
+  const location = useLocation();
+
+  if (loading || accessLoading) return null;
+  if (isBypass) return <>{children}</>;
+
+  // 1. Buscar módulo por path exacto o prefijo (para /reporte-* que cuelgan de /reportes, etc.)
+  const path = location.pathname;
+  const modulo =
+    MODULOS.find(m => m.path === path) ||
+    MODULOS.find(m => path.startsWith(m.path + '/')) ||
+    MODULOS.find(m => m.path !== '/' && path.startsWith(m.path));
+
+  if (modulo && can(modulo.key, 'consultar')) {
+    return <>{children}</>;
   }
-  return <>{children}</>;
+
+  // 2. Fallback por rol (rutas sin módulo mapeado, ej. /kardex, /consultas/*, /cotizador)
+  if (!modulo && canAccessFase2(userRole)) {
+    return <>{children}</>;
+  }
+
+  return <Navigate to="/dashboard" replace />;
 };
 
 export default Fase2Guard;
