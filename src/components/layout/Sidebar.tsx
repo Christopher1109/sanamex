@@ -59,10 +59,12 @@ const Sidebar = ({ userRole, onLogout }: SidebarProps) => {
   }, [esAprobador]);
 
   const roleLabels: Record<UserRole, string> = {
-    super_admin: 'Super Administrador', admin: 'Administrador',
+    super_admin: 'Super Administrador', admin: 'Administrador', direccion: 'Dirección',
     gerente: 'Gerente', subgerente: 'Subgerente', supervisor: 'Supervisor',
-    ventas: 'Ventas', almacen: 'Almacén', almacen_ventas: 'Almacén y Ventas',
-    repartidor: 'Repartidor', auditoria: 'Auditoría', contador: 'Contador',
+    ventas: 'Ventas', cajero: 'Cajero', almacen: 'Almacén', almacen_ventas: 'Almacén y Ventas',
+    compras: 'Compras', repartidor: 'Repartidor',
+    auditoria: 'Auditoría', auditor: 'Auditor',
+    contabilidad: 'Contabilidad', contador: 'Contador',
     contraloria: 'Contraloría', tesoreria: 'Tesorería',
   };
 

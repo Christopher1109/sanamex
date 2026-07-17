@@ -118,6 +118,24 @@ const quickActionsByRole: Record<UserRole, Array<{
     { path: '/conciliacion', icon: Activity, label: 'Conciliación', description: 'Banco vs documentos' },
     { path: '/cuentas-por-pagar', icon: ShoppingCart, label: 'Cuentas por Pagar', description: 'Autorizar pagos' },
   ],
+  direccion: [
+    { path: '/reportes-admin', icon: FileSpreadsheet, label: 'Reportes admin', description: 'Vista ejecutiva' },
+    { path: '/actividad', icon: Activity, label: 'Actividad', description: 'Auditoría' },
+  ],
+  contabilidad: [
+    { path: '/contabilidad', icon: Activity, label: 'Contabilidad', description: 'Pólizas' },
+    { path: '/nomina', icon: FileSpreadsheet, label: 'Nómina', description: 'Recibos' },
+    { path: '/fiscal', icon: FileSpreadsheet, label: 'CFDI', description: 'Timbrado' },
+  ],
+  auditor: [
+    { path: '/actividad', icon: Activity, label: 'Auditoría', description: 'Ver logs' },
+  ],
+  cajero: [
+    { path: '/pos', icon: Package, label: 'Punto de Venta', description: 'Vender' },
+  ],
+  compras: [
+    { path: '/compras', icon: ShoppingCart, label: 'Compras', description: 'Órdenes de compra' },
+  ],
 };
 
 const estadoBadge = (estado: string) => {
@@ -162,9 +180,14 @@ const Dashboard = ({ userRole }: DashboardProps) => {
     repartidor: 'Repartidor',
     
     auditoria: 'Auditoría',
+    auditor: 'Auditor',
     contador: 'Contador',
+    contabilidad: 'Contabilidad',
     contraloria: 'Contraloría',
     tesoreria: 'Tesorería',
+    direccion: 'Dirección',
+    cajero: 'Cajero',
+    compras: 'Compras',
   };
 
   const showFase2 = canAccessFase2(userRole);
