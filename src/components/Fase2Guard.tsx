@@ -24,25 +24,32 @@ interface Fase2GuardProps {
  */
 const Fase2Guard = ({ children }: Fase2GuardProps) => {
   const { user, userRole, loading } = useAuth();
-  const { can, loading: accessLoading, isBypass } = useModuleAccess(user?.id, userRole);
+  const { access, can, loading: accessLoading, isBypass } = useModuleAccess(user?.id, userRole);
   const location = useLocation();
 
   if (loading || accessLoading) return null;
   if (isBypass) return <>{children}</>;
 
-  // 1. Buscar módulo por path exacto o prefijo (para /reporte-* que cuelgan de /reportes, etc.)
+  // Legacy: usuarios sin filas en user_module_access → fallback por rol
+  // para no romper a los 26 usuarios previos a la migración de permisos granulares.
+  const isLegacy = Object.keys(access).length === 0;
+
   const path = location.pathname;
   const modulo =
     MODULOS.find(m => m.path === path) ||
     MODULOS.find(m => path.startsWith(m.path + '/')) ||
     MODULOS.find(m => m.path !== '/' && path.startsWith(m.path));
 
-  if (modulo && can(modulo.key, 'consultar')) {
-    return <>{children}</>;
+  if (!isLegacy) {
+    // Fuente única de verdad: user_module_access
+    if (modulo && can(modulo.key, 'consultar')) return <>{children}</>;
+    // Rutas sin módulo mapeado (kardex, cotizador, consultas): permitir por rol
+    if (!modulo && canAccessFase2(userRole)) return <>{children}</>;
+    return <Navigate to="/dashboard" replace />;
   }
 
-  // 2. Fallback por rol (rutas sin módulo mapeado, ej. /kardex, /consultas/*, /cotizador)
-  if (!modulo && canAccessFase2(userRole)) {
+  // Legacy: comportamiento anterior por rol
+  if (canAccessFase2(userRole)) {
     return <>{children}</>;
   }
 
