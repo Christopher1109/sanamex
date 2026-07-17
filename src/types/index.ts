@@ -1,14 +1,19 @@
 export type UserRole =
   | 'super_admin'
   | 'admin'
+  | 'direccion'
   | 'gerente'
   | 'subgerente'
   | 'supervisor'
   | 'almacen'          // almacenista puro: recepción, traspasos, mermas, kardex; NO opera POS
   | 'almacen_ventas'   // almacenista que ALSO opera POS para cobertura en caja
   | 'ventas'           // operador POS (anteriormente 'cajero', consolidado)
+  | 'cajero'           // legacy: cajero puro (mapea a ventas en la práctica)
+  | 'compras'          // rol de compras
   | 'repartidor'
   | 'auditoria'        // auditoría operativa (anteriormente 'auditor', consolidado)
+  | 'auditor'          // legacy alias de auditoria
+  | 'contabilidad'    // contabilidad
   | 'contador'        // contador / finanzas (CxP, bancos, conciliación, fiscal)
   | 'contraloria'     // contraloría: solo lectura financiera / contable
   | 'tesoreria';      // tesorería: bancos, conciliación, CxP con autorización
