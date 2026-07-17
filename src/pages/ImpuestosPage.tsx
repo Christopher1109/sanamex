@@ -147,6 +147,7 @@ function IsnTab() {
       <CardHeader><Periodo anio={anio} mes={mes} setAnio={setAnio} setMes={setMes} /></CardHeader>
       <CardContent className="space-y-3 max-w-xl">
         <h3 className="font-semibold">ISN (Impuesto Sobre Nómina) — por estado</h3>
+        <p className="text-xs text-muted-foreground">Vista de cálculo. Para editar tasas ve a la pestaña <b>Parámetros</b>.</p>
         {isn && <>
           {Object.entries(isn.por_estado || {}).map(([estado, d]: any) => (
             <div key={estado} className="border rounded p-2 mb-2">
