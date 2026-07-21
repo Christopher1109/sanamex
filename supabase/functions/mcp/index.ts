@@ -30,15 +30,8 @@ var whoami_default = defineTool({
 });
 
 // src/lib/mcp/tools/search-products.ts
-import { createClient } from "npm:@supabase/supabase-js@^2.80.0";
 import { defineTool as defineTool2 } from "npm:@lovable.dev/mcp-js@0.24.0";
 import { z } from "npm:zod@^3.25.76";
-function client(ctx) {
-  return createClient(process.env.SUPABASE_URL, process.env.SUPABASE_PUBLISHABLE_KEY, {
-    global: { headers: { Authorization: `Bearer ${ctx.getToken()}` } },
-    auth: { persistSession: false, autoRefreshToken: false }
-  });
-}
 var search_products_default = defineTool2({
   name: "search_products",
   title: "Buscar productos",
@@ -60,15 +53,8 @@ var search_products_default = defineTool2({
 });
 
 // src/lib/mcp/tools/get-inventory.ts
-import { createClient as createClient2 } from "npm:@supabase/supabase-js@^2.80.0";
 import { defineTool as defineTool3 } from "npm:@lovable.dev/mcp-js@0.24.0";
 import { z as z2 } from "npm:zod@^3.25.76";
-function client2(ctx) {
-  return createClient2(process.env.SUPABASE_URL, process.env.SUPABASE_PUBLISHABLE_KEY, {
-    global: { headers: { Authorization: `Bearer ${ctx.getToken()}` } },
-    auth: { persistSession: false, autoRefreshToken: false }
-  });
-}
 var get_inventory_default = defineTool3({
   name: "get_inventory",
   title: "Consultar inventario",
@@ -80,7 +66,7 @@ var get_inventory_default = defineTool3({
   annotations: { readOnlyHint: true, idempotentHint: true, openWorldHint: false },
   handler: async ({ sku, sucursal_codigo }, ctx) => {
     if (!ctx.isAuthenticated()) return { content: [{ type: "text", text: "No autenticado" }], isError: true };
-    const supabase = client2(ctx);
+    const supabase = client(ctx);
     const { data: prod, error: pErr } = await supabase.from("productos").select("id, sku, nombre").eq("sku", sku).maybeSingle();
     if (pErr) return { content: [{ type: "text", text: pErr.message }], isError: true };
     if (!prod) return { content: [{ type: "text", text: `SKU no encontrado: ${sku}` }], isError: true };
@@ -96,15 +82,8 @@ var get_inventory_default = defineTool3({
 });
 
 // src/lib/mcp/tools/list-expiring-lots.ts
-import { createClient as createClient3 } from "npm:@supabase/supabase-js@^2.80.0";
 import { defineTool as defineTool4 } from "npm:@lovable.dev/mcp-js@0.24.0";
 import { z as z3 } from "npm:zod@^3.25.76";
-function client3(ctx) {
-  return createClient3(process.env.SUPABASE_URL, process.env.SUPABASE_PUBLISHABLE_KEY, {
-    global: { headers: { Authorization: `Bearer ${ctx.getToken()}` } },
-    auth: { persistSession: false, autoRefreshToken: false }
-  });
-}
 var list_expiring_lots_default = defineTool4({
   name: "list_expiring_lots",
   title: "Lotes pr\xF3ximos a caducar",
@@ -115,7 +94,7 @@ var list_expiring_lots_default = defineTool4({
   annotations: { readOnlyHint: true, idempotentHint: true, openWorldHint: false },
   handler: async ({ dias }, ctx) => {
     if (!ctx.isAuthenticated()) return { content: [{ type: "text", text: "No autenticado" }], isError: true };
-    const supabase = client3(ctx);
+    const supabase = client(ctx);
     const horizon = new Date(Date.now() + (dias ?? 60) * 864e5).toISOString().slice(0, 10);
     const { data, error } = await supabase.from("lotes").select("cantidad, fecha_caducidad, numero_lote, productos(sku, nombre), sucursales(codigo, nombre)").gt("cantidad", 0).lte("fecha_caducidad", horizon).order("fecha_caducidad", { ascending: true }).limit(100);
     if (error) return { content: [{ type: "text", text: error.message }], isError: true };
@@ -127,15 +106,8 @@ var list_expiring_lots_default = defineTool4({
 });
 
 // src/lib/mcp/tools/list-recent-sales.ts
-import { createClient as createClient4 } from "npm:@supabase/supabase-js@^2.80.0";
 import { defineTool as defineTool5 } from "npm:@lovable.dev/mcp-js@0.24.0";
 import { z as z4 } from "npm:zod@^3.25.76";
-function client4(ctx) {
-  return createClient4(process.env.SUPABASE_URL, process.env.SUPABASE_PUBLISHABLE_KEY, {
-    global: { headers: { Authorization: `Bearer ${ctx.getToken()}` } },
-    auth: { persistSession: false, autoRefreshToken: false }
-  });
-}
 var list_recent_sales_default = defineTool5({
   name: "list_recent_sales",
   title: "Ventas recientes",
@@ -147,7 +119,7 @@ var list_recent_sales_default = defineTool5({
   annotations: { readOnlyHint: true, idempotentHint: true, openWorldHint: false },
   handler: async ({ sucursal_codigo, dias }, ctx) => {
     if (!ctx.isAuthenticated()) return { content: [{ type: "text", text: "No autenticado" }], isError: true };
-    const supabase = client4(ctx);
+    const supabase = client(ctx);
     const since = new Date(Date.now() - (dias ?? 7) * 864e5).toISOString();
     let q = supabase.from("ventas").select("id, folio, fecha, total, estado, sucursales!inner(codigo, nombre)").gte("fecha", since).order("fecha", { ascending: false }).limit(50);
     if (sucursal_codigo) q = q.eq("sucursales.codigo", sucursal_codigo);
@@ -161,14 +133,7 @@ var list_recent_sales_default = defineTool5({
 });
 
 // src/lib/mcp/tools/list-pending-purchase-orders.ts
-import { createClient as createClient5 } from "npm:@supabase/supabase-js@^2.80.0";
 import { defineTool as defineTool6 } from "npm:@lovable.dev/mcp-js@0.24.0";
-function client5(ctx) {
-  return createClient5(process.env.SUPABASE_URL, process.env.SUPABASE_PUBLISHABLE_KEY, {
-    global: { headers: { Authorization: `Bearer ${ctx.getToken()}` } },
-    auth: { persistSession: false, autoRefreshToken: false }
-  });
-}
 var list_pending_purchase_orders_default = defineTool6({
   name: "list_pending_purchase_orders",
   title: "\xD3rdenes de compra pendientes",
@@ -177,7 +142,7 @@ var list_pending_purchase_orders_default = defineTool6({
   annotations: { readOnlyHint: true, idempotentHint: true, openWorldHint: false },
   handler: async (_input, ctx) => {
     if (!ctx.isAuthenticated()) return { content: [{ type: "text", text: "No autenticado" }], isError: true };
-    const supabase = client5(ctx);
+    const supabase = client(ctx);
     const { data, error } = await supabase.from("ordenes_compra").select("id, folio, fecha, total, estado, proveedores(nombre)").eq("estado", "pendiente_aprobacion").order("fecha", { ascending: false }).limit(50);
     if (error) return { content: [{ type: "text", text: error.message }], isError: true };
     return {
