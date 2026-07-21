@@ -32,6 +32,17 @@ var whoami_default = defineTool({
 // src/lib/mcp/tools/search-products.ts
 import { defineTool as defineTool2 } from "npm:@lovable.dev/mcp-js@0.24.0";
 import { z } from "npm:zod@^3.25.76";
+
+// src/lib/mcp/supabase-client.ts
+import { createClient } from "npm:@supabase/supabase-js@^2.80.0";
+function supabaseForUser(ctx) {
+  return createClient(process.env.SUPABASE_URL, process.env.SUPABASE_PUBLISHABLE_KEY, {
+    global: { headers: { Authorization: `Bearer ${ctx.getToken()}` } },
+    auth: { persistSession: false, autoRefreshToken: false }
+  });
+}
+
+// src/lib/mcp/tools/search-products.ts
 var search_products_default = defineTool2({
   name: "search_products",
   title: "Buscar productos",
@@ -42,7 +53,7 @@ var search_products_default = defineTool2({
   annotations: { readOnlyHint: true, idempotentHint: true, openWorldHint: false },
   handler: async ({ query }, ctx) => {
     if (!ctx.isAuthenticated()) return { content: [{ type: "text", text: "No autenticado" }], isError: true };
-    const supabase = client(ctx);
+    const supabase = supabaseForUser(ctx);
     const { data, error } = await supabase.from("productos").select("id, sku, nombre, precio_venta, costo_promedio, stock_minimo").or(`sku.ilike.%${query}%,nombre.ilike.%${query}%`).limit(25);
     if (error) return { content: [{ type: "text", text: error.message }], isError: true };
     return {
@@ -66,7 +77,7 @@ var get_inventory_default = defineTool3({
   annotations: { readOnlyHint: true, idempotentHint: true, openWorldHint: false },
   handler: async ({ sku, sucursal_codigo }, ctx) => {
     if (!ctx.isAuthenticated()) return { content: [{ type: "text", text: "No autenticado" }], isError: true };
-    const supabase = client(ctx);
+    const supabase = supabaseForUser(ctx);
     const { data: prod, error: pErr } = await supabase.from("productos").select("id, sku, nombre").eq("sku", sku).maybeSingle();
     if (pErr) return { content: [{ type: "text", text: pErr.message }], isError: true };
     if (!prod) return { content: [{ type: "text", text: `SKU no encontrado: ${sku}` }], isError: true };
@@ -94,7 +105,7 @@ var list_expiring_lots_default = defineTool4({
   annotations: { readOnlyHint: true, idempotentHint: true, openWorldHint: false },
   handler: async ({ dias }, ctx) => {
     if (!ctx.isAuthenticated()) return { content: [{ type: "text", text: "No autenticado" }], isError: true };
-    const supabase = client(ctx);
+    const supabase = supabaseForUser(ctx);
     const horizon = new Date(Date.now() + (dias ?? 60) * 864e5).toISOString().slice(0, 10);
     const { data, error } = await supabase.from("lotes").select("cantidad, fecha_caducidad, numero_lote, productos(sku, nombre), sucursales(codigo, nombre)").gt("cantidad", 0).lte("fecha_caducidad", horizon).order("fecha_caducidad", { ascending: true }).limit(100);
     if (error) return { content: [{ type: "text", text: error.message }], isError: true };
@@ -119,7 +130,7 @@ var list_recent_sales_default = defineTool5({
   annotations: { readOnlyHint: true, idempotentHint: true, openWorldHint: false },
   handler: async ({ sucursal_codigo, dias }, ctx) => {
     if (!ctx.isAuthenticated()) return { content: [{ type: "text", text: "No autenticado" }], isError: true };
-    const supabase = client(ctx);
+    const supabase = supabaseForUser(ctx);
     const since = new Date(Date.now() - (dias ?? 7) * 864e5).toISOString();
     let q = supabase.from("ventas").select("id, folio, fecha, total, estado, sucursales!inner(codigo, nombre)").gte("fecha", since).order("fecha", { ascending: false }).limit(50);
     if (sucursal_codigo) q = q.eq("sucursales.codigo", sucursal_codigo);
@@ -142,7 +153,7 @@ var list_pending_purchase_orders_default = defineTool6({
   annotations: { readOnlyHint: true, idempotentHint: true, openWorldHint: false },
   handler: async (_input, ctx) => {
     if (!ctx.isAuthenticated()) return { content: [{ type: "text", text: "No autenticado" }], isError: true };
-    const supabase = client(ctx);
+    const supabase = supabaseForUser(ctx);
     const { data, error } = await supabase.from("ordenes_compra").select("id, folio, fecha, total, estado, proveedores(nombre)").eq("estado", "pendiente_aprobacion").order("fecha", { ascending: false }).limit(50);
     if (error) return { content: [{ type: "text", text: error.message }], isError: true };
     return {

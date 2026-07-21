@@ -14,7 +14,7 @@ export default defineTool({
   annotations: { readOnlyHint: true, idempotentHint: true, openWorldHint: false },
   handler: async ({ sucursal_codigo, dias }, ctx) => {
     if (!ctx.isAuthenticated()) return { content: [{ type: "text", text: "No autenticado" }], isError: true };
-    const supabase = client(ctx);
+    const supabase = supabaseForUser(ctx);
     const since = new Date(Date.now() - (dias ?? 7) * 86400000).toISOString();
     let q = supabase
       .from("ventas")

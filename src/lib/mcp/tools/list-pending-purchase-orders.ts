@@ -10,7 +10,7 @@ export default defineTool({
   annotations: { readOnlyHint: true, idempotentHint: true, openWorldHint: false },
   handler: async (_input, ctx) => {
     if (!ctx.isAuthenticated()) return { content: [{ type: "text", text: "No autenticado" }], isError: true };
-    const supabase = client(ctx);
+    const supabase = supabaseForUser(ctx);
     const { data, error } = await supabase
       .from("ordenes_compra")
       .select("id, folio, fecha, total, estado, proveedores(nombre)")

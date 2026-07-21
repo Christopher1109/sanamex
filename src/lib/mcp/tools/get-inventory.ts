@@ -14,7 +14,7 @@ export default defineTool({
   annotations: { readOnlyHint: true, idempotentHint: true, openWorldHint: false },
   handler: async ({ sku, sucursal_codigo }, ctx) => {
     if (!ctx.isAuthenticated()) return { content: [{ type: "text", text: "No autenticado" }], isError: true };
-    const supabase = client(ctx);
+    const supabase = supabaseForUser(ctx);
     const { data: prod, error: pErr } = await supabase
       .from("productos").select("id, sku, nombre").eq("sku", sku).maybeSingle();
     if (pErr) return { content: [{ type: "text", text: pErr.message }], isError: true };

@@ -13,7 +13,7 @@ export default defineTool({
   annotations: { readOnlyHint: true, idempotentHint: true, openWorldHint: false },
   handler: async ({ dias }, ctx) => {
     if (!ctx.isAuthenticated()) return { content: [{ type: "text", text: "No autenticado" }], isError: true };
-    const supabase = client(ctx);
+    const supabase = supabaseForUser(ctx);
     const horizon = new Date(Date.now() + (dias ?? 60) * 86400000).toISOString().slice(0, 10);
     const { data, error } = await supabase
       .from("lotes")
