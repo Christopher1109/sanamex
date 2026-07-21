@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -40,6 +40,7 @@ const ROLES = [
 const Auth = () => {
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
+  const [params] = useSearchParams();
 
   const loginForm = useForm<LoginFormValues>({ resolver: zodResolver(loginSchema) });
 
@@ -54,7 +55,10 @@ const Auth = () => {
         return;
       }
       toast.success("¡Bienvenido!");
-      navigate("/dashboard");
+      // Preserve OAuth consent redirect (or any other same-origin target).
+      const nextRaw = params.get("next");
+      const next = nextRaw && nextRaw.startsWith("/") && !nextRaw.startsWith("//") ? nextRaw : "/dashboard";
+      window.location.href = next;
     } catch {
       toast.error("Error inesperado");
     } finally {

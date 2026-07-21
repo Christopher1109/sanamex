@@ -1,0 +1,161 @@
+{
+  "version": 1,
+  "sdk_version": "0.24.0",
+  "path": "/functions/v1/mcp",
+  "auth": {
+    "type": "oauth",
+    "issuer": "https://rcvqgpfbkkuiljitywpd.supabase.co/auth/v1",
+    "accepted_audiences": [
+      "authenticated"
+    ]
+  },
+  "mcp": {
+    "server": {
+      "name": "sanamex-erp-mcp",
+      "version": "0.1.0",
+      "title": "Sanamex ERP"
+    },
+    "tools": [
+      {
+        "name": "whoami",
+        "title": "Usuario actual",
+        "description": "Devuelve el usuario autenticado del ERP Sanamex.",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "http://json-schema.org/draft-07/schema#",
+          "type": "object",
+          "properties": {}
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "search_products",
+        "title": "Buscar productos",
+        "description": "Busca productos por SKU o nombre (coincidencia parcial). Devuelve hasta 25 resultados con precio y costo.",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "query": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Texto a buscar en SKU o nombre del producto"
+            }
+          },
+          "required": [
+            "query"
+          ],
+          "additionalProperties": false,
+          "$schema": "http://json-schema.org/draft-07/schema#"
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "get_inventory",
+        "title": "Consultar inventario",
+        "description": "Consulta el stock actual por sucursal para un SKU. Devuelve stock por lote con fecha de caducidad.",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "sku": {
+              "type": "string",
+              "minLength": 1,
+              "description": "SKU del producto a consultar"
+            },
+            "sucursal_codigo": {
+              "type": "string",
+              "description": "Código de sucursal opcional (ej. sv, f36). Si se omite, retorna todas."
+            }
+          },
+          "required": [
+            "sku"
+          ],
+          "additionalProperties": false,
+          "$schema": "http://json-schema.org/draft-07/schema#"
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "list_expiring_lots",
+        "title": "Lotes próximos a caducar",
+        "description": "Lista lotes con stock que caducan dentro de los próximos N días (por defecto 60).",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "dias": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 365,
+              "description": "Horizonte en días (1-365, default 60)"
+            }
+          },
+          "additionalProperties": false,
+          "$schema": "http://json-schema.org/draft-07/schema#"
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "list_recent_sales",
+        "title": "Ventas recientes",
+        "description": "Lista las ventas más recientes (últimas 50) con folio, sucursal, total y estado.",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "sucursal_codigo": {
+              "type": "string",
+              "description": "Filtrar por código de sucursal (opcional)"
+            },
+            "dias": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 90,
+              "description": "Ventana en días (default 7)"
+            }
+          },
+          "additionalProperties": false,
+          "$schema": "http://json-schema.org/draft-07/schema#"
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "list_pending_purchase_orders",
+        "title": "Órdenes de compra pendientes",
+        "description": "Lista las órdenes de compra con estado 'pendiente_aprobacion'.",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "http://json-schema.org/draft-07/schema#",
+          "type": "object",
+          "properties": {}
+        },
+        "outputSchema": null
+      }
+    ]
+  }
+}
