@@ -54,6 +54,7 @@ import ContabilidadPage from './pages/ContabilidadPage';
 import ReportesAdminPage from './pages/ReportesAdminPage';
 import ImpuestosPage from './pages/ImpuestosPage';
 import NominaPage from './pages/NominaPage';
+import OAuthConsent from './pages/OAuthConsent';
 
 
 const queryClient = new QueryClient({
@@ -77,7 +78,12 @@ const AppContent = () => {
   }
 
   if (!user || !userRole) {
-    return <Routes><Route path="*" element={<Auth />} /></Routes>;
+    return (
+      <Routes>
+        <Route path="/.lovable/oauth/consent" element={<OAuthConsent />} />
+        <Route path="*" element={<Auth />} />
+      </Routes>
+    );
   }
 
   return (
@@ -135,6 +141,7 @@ const AppContent = () => {
               <Route path="/consultas/traspasos-salida" element={<Fase2Guard><StubPage title="Traspasos de Salida" description="Traspasos donde la sucursal activa es el origen." /></Fase2Guard>} />
               <Route path="/consultas/traspasos-entrada" element={<Fase2Guard><StubPage title="Traspasos de Entrada" description="Traspasos donde la sucursal activa es el destino." /></Fase2Guard>} />
               <Route path="/consultas/compras" element={<Fase2Guard><StubPage title="Compras Históricas" description="Listado completo de compras con filtros por fecha y proveedor." /></Fase2Guard>} />
+              <Route path="/.lovable/oauth/consent" element={<OAuthConsent />} />
               <Route path="/auth" element={<Navigate to="/dashboard" replace />} />
               <Route path="*" element={<Navigate to="/dashboard" replace />} />
             </Routes>
