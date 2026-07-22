@@ -6,13 +6,15 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { Search, AlertTriangle, Warehouse, Bell, WifiOff } from 'lucide-react';
+import { Search, AlertTriangle, Warehouse, Bell, WifiOff, Eye } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { useOnlineStatus } from '@/hooks/useOnlineStatus';
 import { offlineDB } from '@/lib/offline/db';
 
 const InventarioPage = () => {
   const { selectedSucursal } = useSucursal();
+  const navigate = useNavigate();
   const onlineStatus = useOnlineStatus();
   const isOffline = onlineStatus === 'offline';
   const [inventario, setInventario] = useState<any[]>([]);
@@ -100,10 +102,10 @@ const InventarioPage = () => {
   const vencidos = filtered.filter(inv => isExpired(inv.lotes?.fecha_caducidad)).length;
   const proximos = filtered.filter(inv => isNearExpiry(inv.lotes?.fecha_caducidad)).length;
 
-  const solicitarReabastecimiento = async (producto: { nombre: string; sku: string; total: number; minimo: number }) => {
-    // In a real app, this would create a notification/request to CDMX central
-    toast.success(`Solicitud enviada a CDMX: ${producto.nombre} — Stock actual: ${producto.total}, Mínimo: ${producto.minimo}`);
-  };
+  // El reabastecimiento ya NO se solicita de forma individual por sucursal —
+  // administración genera las órdenes de compra desde el Cotizador y las
+  // envía al gerente de cada sucursal para su confirmación (ver Órdenes de
+  // Compra). Este botón solo lleva a ver ese flujo. Pedido Alejandro, 21-jul-2026.
 
   return (
     <div className="space-y-6">
@@ -128,6 +130,10 @@ const InventarioPage = () => {
               <Bell className="h-5 w-5" />
               <h3 className="font-semibold">Productos por debajo del mínimo</h3>
             </div>
+            <p className="text-xs text-muted-foreground">
+              El reabastecimiento se gestiona desde el Cotizador central: administración genera la orden de
+              compra y te llega para confirmar cantidades. Ya no se solicita de forma individual por sucursal.
+            </p>
           </CardHeader>
           <CardContent>
             <div className="space-y-2">
@@ -137,8 +143,8 @@ const InventarioPage = () => {
                     <p className="font-medium">{p.nombre}</p>
                     <p className="text-xs text-muted-foreground">{p.sku} — Stock: <span className="font-bold text-destructive">{p.total}</span> / Mínimo: {p.minimo}</p>
                   </div>
-                  <Button size="sm" variant="outline" onClick={() => solicitarReabastecimiento(p)}>
-                    <Bell className="h-3 w-3 mr-1" /> Solicitar a CDMX
+                  <Button size="sm" variant="outline" onClick={() => navigate('/ordenes-compra')}>
+                    <Eye className="h-3 w-3 mr-1" /> Ver órdenes de compra
                   </Button>
                 </div>
               ))}
