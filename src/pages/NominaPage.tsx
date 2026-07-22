@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
@@ -49,6 +50,7 @@ export default function NominaPage() {
 // ============================================================
 function EmpleadosTab() {
   const [emps, setEmps] = useState<any[]>([]);
+  const [perfiles, setPerfiles] = useState<any[]>([]);
   const [show, setShow] = useState(false);
   const [preview, setPreview] = useState<any[] | null>(null);
   const [n, setN] = useState<any>({ nombre: '', rfc: '', salario_diario: 0, sbc: 0, periodicidad_pago: 'quincenal' });
@@ -56,7 +58,17 @@ function EmpleadosTab() {
     const { data } = await supabase.from('empleados').select('*').order('nombre');
     setEmps((data as any) || []);
   };
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    load();
+    supabase.from('profiles').select('id, nombre, email').eq('activo', true).order('nombre')
+      .then(({ data }) => setPerfiles(data || []));
+  }, []);
+  const vincularUsuario = async (empleadoId: string, userId: string) => {
+    const { error } = await supabase.from('empleados').update({ user_id: userId || null }).eq('id', empleadoId);
+    if (error) { toast.error(error.message); return; }
+    toast.success(userId ? 'Usuario vinculado — ya puede ver su "Mi Nómina"' : 'Vínculo quitado');
+    load();
+  };
   const importar = async (file: File) => {
     const XLSX = await import('xlsx');
     const wb = XLSX.read(await file.arrayBuffer());
@@ -171,9 +183,19 @@ function EmpleadosTab() {
       )}
       <Card><CardContent className="p-0">
         <table className="w-full text-sm">
-          <thead className="bg-muted"><tr><th className="p-2 text-left">Nombre</th><th className="p-2 text-left">RFC</th><th className="p-2 text-left">Reg. Patronal</th><th className="p-2 text-left">Puesto</th><th className="p-2 text-right">SD</th><th className="p-2 text-right">SBC</th><th className="p-2 text-left">Estatus</th></tr></thead>
+          <thead className="bg-muted"><tr><th className="p-2 text-left">Nombre</th><th className="p-2 text-left">RFC</th><th className="p-2 text-left">Reg. Patronal</th><th className="p-2 text-left">Puesto</th><th className="p-2 text-right">SD</th><th className="p-2 text-right">SBC</th><th className="p-2 text-left">Estatus</th><th className="p-2 text-left">Usuario vinculado</th></tr></thead>
           <tbody>{emps.map(e => (
-            <tr key={e.id} className="border-b"><td className="p-2">{e.nombre}</td><td className="p-2 font-mono text-xs">{e.rfc}</td><td className="p-2 font-mono text-xs">{e.registro_patronal || '—'}</td><td className="p-2">{e.puesto}</td><td className="p-2 text-right">${Number(e.salario_diario).toFixed(2)}</td><td className="p-2 text-right">${Number(e.sbc).toFixed(2)}</td><td className="p-2"><Badge variant={e.activo?'default':'secondary'}>{e.activo?'Activo':'Baja'}</Badge></td></tr>
+            <tr key={e.id} className="border-b"><td className="p-2">{e.nombre}</td><td className="p-2 font-mono text-xs">{e.rfc}</td><td className="p-2 font-mono text-xs">{e.registro_patronal || '—'}</td><td className="p-2">{e.puesto}</td><td className="p-2 text-right">${Number(e.salario_diario).toFixed(2)}</td><td className="p-2 text-right">${Number(e.sbc).toFixed(2)}</td><td className="p-2"><Badge variant={e.activo?'default':'secondary'}>{e.activo?'Activo':'Baja'}</Badge></td>
+            <td className="p-2">
+              <Select value={e.user_id || '__none__'} onValueChange={v => vincularUsuario(e.id, v === '__none__' ? '' : v)}>
+                <SelectTrigger className="h-8 w-[180px] text-xs"><SelectValue placeholder="Sin vincular" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">Sin vincular</SelectItem>
+                  {perfiles.map(p => <SelectItem key={p.id} value={p.id}>{p.nombre || p.email}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </td>
+            </tr>
           ))}</tbody>
         </table>
       </CardContent></Card>
