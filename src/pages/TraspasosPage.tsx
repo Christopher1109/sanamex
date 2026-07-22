@@ -69,7 +69,7 @@ const TraspasosPage = () => {
     setIncidencias(propias);
   };
 
-  const resolverIncidencia = async (id: string, accion: 'autorizar_merma' | 'generar_complementario' | 'rechazar') => {
+  const resolverIncidencia = async (id: string, accion: 'autorizar_merma' | 'autorizar_ajuste' | 'generar_complementario' | 'rechazar') => {
     setResolviendo(true);
     const { data, error } = await (supabase as any).rpc('resolver_incidencia_traspaso', {
       p_incidencia_id: id, p_accion: accion, p_notas: notasResolucion || null,
@@ -77,8 +77,9 @@ const TraspasosPage = () => {
     setResolviendo(false);
     if (error) return toast.error(error.message);
     const msgs: Record<string, string> = {
-      autorizar_merma: 'Faltante autorizado como pérdida.',
-      generar_complementario: `Traspaso complementario ${data?.nuevo_folio || ''} generado y enviado.`,
+      autorizar_merma: 'Faltante confirmado como pérdida.',
+      autorizar_ajuste: 'Sobrante confirmado — se queda en el inventario de destino.',
+      generar_complementario: data?.nuevo_folio ? `Traspaso complementario ${data.nuevo_folio} generado y enviado.` : 'Corrección aplicada al inventario de origen.',
       rechazar: 'Incidencia rechazada.',
     };
     toast.success(msgs[accion]);
@@ -204,15 +205,21 @@ const TraspasosPage = () => {
   const confirmarRecepcion = async () => {
     if (!recepcionTraspaso) return;
     // Validaciones básicas
+    let incidenciasQueSeGeneraran = 0;
     for (const l of recepcionLineas) {
       const rec = parseInt(l.cantidad_recibida_input) || 0;
       const merma = parseInt(l.merma_input) || 0;
-      if (rec < 0 || rec > l.cantidad_enviada) {
+      if (rec < 0) {
         toast.error(`Cantidad recibida inválida para ${l.producto_nombre}`); return;
       }
       if (merma < 0 || merma > rec) {
         toast.error(`Merma no puede superar la cantidad recibida (${l.producto_nombre})`); return;
       }
+      if (rec !== l.cantidad_enviada) incidenciasQueSeGeneraran++;
+    }
+    if (incidenciasQueSeGeneraran > 0) {
+      const ok = confirm(`${incidenciasQueSeGeneraran} línea(s) no coinciden exactamente con lo enviado y van a generar una incidencia para que gerencia/administración las autorice. ¿Continuar?`);
+      if (!ok) return;
     }
     setRecepcionSaving(true);
     const payload = recepcionLineas.map(l => ({
@@ -228,7 +235,9 @@ const TraspasosPage = () => {
     setRecepcionSaving(false);
     if (error) { toast.error(error.message); return; }
     const totalMerma = payload.reduce((s, p) => s + p.merma, 0);
-    toast.success(totalMerma > 0
+    toast.success(incidenciasQueSeGeneraran > 0
+      ? `Traspaso recibido. ${incidenciasQueSeGeneraran} incidencia(s) quedaron pendientes de autorización.`
+      : totalMerma > 0
       ? `Traspaso recibido. ${totalMerma} pza en merma se registraron en el módulo de mermas.`
       : 'Traspaso recibido. Stock sumado al almacén.');
     setRecepcionOpen(false);
@@ -325,18 +334,27 @@ const TraspasosPage = () => {
           <TabsContent value="incidencias" className="space-y-3">
             {incidencias.length === 0 ? (
               <Card><CardContent className="p-6 text-center text-muted-foreground">Sin incidencias pendientes.</CardContent></Card>
-            ) : incidencias.map((inc: any) => (
-              <Card key={inc.id} className="border-amber-300">
+            ) : incidencias.map((inc: any) => {
+              const esFaltante = inc.tipo === 'faltante';
+              return (
+              <Card key={inc.id} className={esFaltante ? 'border-rose-300' : 'border-blue-300'}>
                 <CardContent className="p-4 space-y-3">
                   <div className="flex items-start justify-between gap-4">
                     <div>
                       <p className="font-medium flex items-center gap-2">
-                        <AlertTriangle className="h-4 w-4 text-amber-600" />
-                        Faltante en traspaso {inc.traspaso?.numero_traspaso}
+                        <AlertTriangle className={`h-4 w-4 ${esFaltante ? 'text-rose-600' : 'text-blue-600'}`} />
+                        {esFaltante ? 'Faltante' : 'Sobrante'} en traspaso {inc.traspaso?.numero_traspaso}
                       </p>
                       <p className="text-sm text-muted-foreground mt-1">
                         {inc.lote?.productos?.nombre} ({inc.lote?.productos?.sku}) · Lote {inc.lote?.numero_lote} ·
-                        <span className="font-semibold text-amber-700"> faltan {inc.cantidad} unidades</span>
+                        <span className={`font-semibold ${esFaltante ? 'text-rose-700' : 'text-blue-700'}`}>
+                          {' '}{esFaltante ? 'faltaron' : 'llegaron de más'} {inc.cantidad} unidades
+                        </span>
+                      </p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        {esFaltante
+                          ? 'El destino ya se descontó de origen — hay que decidir si se dio por perdido o si aún se puede enviar.'
+                          : 'El sobrante ya se sumó al inventario de destino — hay que decidir si se queda ahí o si se corrige el inventario de origen.'}
                       </p>
                       {inc.notas_reporte && <p className="text-xs text-muted-foreground mt-1">Nota de quien recibió: "{inc.notas_reporte}"</p>}
                     </div>
@@ -350,9 +368,14 @@ const TraspasosPage = () => {
                       <div className="flex flex-wrap gap-2 justify-end">
                         <Button size="sm" variant="ghost" onClick={() => { setResolviendoId(null); setNotasResolucion(''); }} disabled={resolviendo}>Cancelar</Button>
                         <Button size="sm" variant="destructive" onClick={() => resolverIncidencia(inc.id, 'rechazar')} disabled={resolviendo}>Rechazar</Button>
-                        <Button size="sm" variant="outline" onClick={() => resolverIncidencia(inc.id, 'autorizar_merma')} disabled={resolviendo}>Autorizar como pérdida</Button>
+                        {esFaltante ? (
+                          <Button size="sm" variant="outline" onClick={() => resolverIncidencia(inc.id, 'autorizar_merma')} disabled={resolviendo}>Confirmar pérdida</Button>
+                        ) : (
+                          <Button size="sm" variant="outline" onClick={() => resolverIncidencia(inc.id, 'autorizar_ajuste')} disabled={resolviendo}>Dejarlo en destino</Button>
+                        )}
                         <Button size="sm" className="gap-1" onClick={() => resolverIncidencia(inc.id, 'generar_complementario')} disabled={resolviendo}>
-                          <Truck className="h-3.5 w-3.5" /> Generar traspaso complementario
+                          <Truck className="h-3.5 w-3.5" />
+                          {esFaltante ? 'Generar traspaso complementario' : 'Corregir inventario de origen'}
                         </Button>
                       </div>
                     </div>
@@ -363,7 +386,8 @@ const TraspasosPage = () => {
                   )}
                 </CardContent>
               </Card>
-            ))}
+              );
+            })}
           </TabsContent>
         )}
       </Tabs>
@@ -480,7 +504,9 @@ const TraspasosPage = () => {
             <DialogTitle>Recibir traspaso — {recepcionTraspaso?.numero_traspaso}</DialogTitle>
           </DialogHeader>
           <p className="text-sm text-muted-foreground mb-2">
-            Confirme cada lote, caducidad y cantidad. Reporte mermas si llegó algo roto o incompleto — se registrarán automáticamente en el módulo de Mermas. El stock del almacén se actualizará solo con lo que confirme como recibido en buen estado.
+            Captura cuánto llegó FÍSICAMENTE en total (sea igual, menos o más de lo enviado) y, de eso, cuánto llegó
+            dañado (merma). Si recibido + nada de merma no cierra con lo enviado, se genera automáticamente una
+            incidencia para que gerencia/administración la revise — no se pierde nada, solo queda pendiente de autorizar.
           </p>
           <div className="border rounded-lg overflow-hidden">
             <Table>
@@ -490,8 +516,8 @@ const TraspasosPage = () => {
                   <TableHead>Lote</TableHead>
                   <TableHead>Caducidad</TableHead>
                   <TableHead className="text-right">Enviado</TableHead>
-                  <TableHead className="w-28">Recibido *</TableHead>
-                  <TableHead className="w-28">Merma</TableHead>
+                  <TableHead className="w-28">Recibido total *</TableHead>
+                  <TableHead className="w-28">De eso, dañado</TableHead>
                   <TableHead>Notas</TableHead>
                 </TableRow>
               </TableHeader>
@@ -506,15 +532,21 @@ const TraspasosPage = () => {
                     <TableCell className="text-xs">{l.fecha_caducidad || '—'}</TableCell>
                     <TableCell className="text-right font-mono">{l.cantidad_enviada}</TableCell>
                     <TableCell>
-                      <Input type="number" min={0} max={l.cantidad_enviada} value={l.cantidad_recibida_input}
+                      <Input type="number" min={0} value={l.cantidad_recibida_input}
                         onChange={e => { const nl = [...recepcionLineas]; nl[i] = { ...l, cantidad_recibida_input: e.target.value }; setRecepcionLineas(nl); }} />
+                      {parseInt(l.cantidad_recibida_input) > l.cantidad_enviada && (
+                        <p className="text-[11px] text-amber-600 mt-0.5">Sobrante — se levantará incidencia</p>
+                      )}
+                      {parseInt(l.cantidad_recibida_input) < l.cantidad_enviada && (parseInt(l.merma_input) || 0) < (l.cantidad_enviada - (parseInt(l.cantidad_recibida_input) || 0)) && (
+                        <p className="text-[11px] text-amber-600 mt-0.5">Faltante sin explicar — se levantará incidencia</p>
+                      )}
                     </TableCell>
                     <TableCell>
                       <Input type="number" min={0} value={l.merma_input}
                         onChange={e => { const nl = [...recepcionLineas]; nl[i] = { ...l, merma_input: e.target.value }; setRecepcionLineas(nl); }} />
                     </TableCell>
                     <TableCell>
-                      <Input placeholder="Roto, mojado, faltante…" value={l.notas_input}
+                      <Input placeholder="Roto, mojado…" value={l.notas_input}
                         onChange={e => { const nl = [...recepcionLineas]; nl[i] = { ...l, notas_input: e.target.value }; setRecepcionLineas(nl); }} />
                     </TableCell>
                   </TableRow>

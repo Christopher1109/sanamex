@@ -50,6 +50,7 @@ export const MODULOS: ModuloDef[] = [
   // Inventario
   { key: 'inventario', label: 'Inventario', categoria: 'Inventario', path: '/inventario', niveles: OP },
   { key: 'caducidades', label: 'Caducidades', categoria: 'Inventario', path: '/caducidades', niveles: OP },
+  { key: 'ajustes_inventario', label: 'Ajustes de Inventario', categoria: 'Inventario', path: '/ajustes-inventario', niveles: OP },
   // Análisis
   { key: 'rentabilidad_lotes', label: 'Rentabilidad por Lote', categoria: 'Análisis', path: '/rentabilidad-lotes', niveles: SIMPLE },
   { key: 'reportes', label: 'Reportes', categoria: 'Análisis', path: '/reportes', niveles: SIMPLE },
@@ -124,7 +125,7 @@ export const DEFAULTS_POR_ROL: Record<string, Partial<Record<string, NivelAcceso
     caducidades: 'consultar', rotacion: 'consultar', rentabilidad_lotes: 'consultar',
     reportes: 'consultar', cuentas_por_pagar: 'consultar', bancos: 'consultar',
     conciliacion: 'consultar', contabilidad: 'consultar', cfdi: 'consultar',
-    actividad: 'consultar', reportes_admin: 'consultar',
+    actividad: 'consultar', reportes_admin: 'consultar', ajustes_inventario: 'administrar',
   },
 
   // Matriz confirmada por Alejandro para roles financieros
