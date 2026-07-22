@@ -38,6 +38,10 @@ interface CartItem {
   subtotal: number;
   lotes_disponibles: LoteOption[];
   lote_id_seleccionado: string | null;
+  /** Si se agregó vía código alterno de lote (precio especial por caducidad corta) */
+  codigo_lote_id?: string | null;
+  /** Precio de lista normal al momento de la venta, para calcular la pérdida por descuento */
+  precio_lista?: number | null;
 }
 
 type CartAction =
@@ -65,6 +69,13 @@ function cartReducer(state: CartItem[], action: CartAction): CartItem[] {
     case 'ADD_ITEM': {
       const existing = state.find(i => i.producto_id === action.payload.producto_id);
       if (existing) {
+        // No mezclar precio normal y precio especial (código de lote) en la misma línea
+        const modoExistente = existing.codigo_lote_id || null;
+        const modoNuevo = action.payload.codigo_lote_id || null;
+        if (modoExistente !== modoNuevo) {
+          toast.warning('Este producto ya está en el carrito con otro precio (normal/especial). Cóbralo en una venta separada o elimina la línea actual.');
+          return state;
+        }
         const newQty = existing.cantidad + 1;
         if (newQty > existing.stock_disponible) {
           toast.warning(`Stock máximo alcanzado: ${existing.stock_disponible} unidades`);
@@ -254,6 +265,54 @@ const POSPage = () => {
     if (!barcode.trim() || !selectedSucursal) return;
     const code = barcode.trim();
 
+    // 1) ¿Es un código alterno de lote? (precio especial por caducidad corta)
+    //    Solo online: los códigos alternos cambian con frecuencia y no se cachean offline.
+    if (!isOffline) {
+      const { data: alternos } = await supabase
+        .from('producto_codigos_lote')
+        .select('id, producto_id, lote_id, precio_especial, motivo, productos(*), lotes(numero_lote, fecha_caducidad)')
+        .eq('codigo', code)
+        .eq('activo', true)
+        .limit(1);
+
+      const alterno: any = alternos?.[0];
+      if (alterno?.productos) {
+        const prodAlt = alterno.productos;
+        const { total: stockAlt, lotes: lotesAlt } = await getStockForProduct(prodAlt.id);
+        const loteEnStock = lotesAlt.find(l => l.lote_id === alterno.lote_id);
+
+        if (!loteEnStock || loteEnStock.cantidad <= 0) {
+          toast.error(`El lote ${alterno.lotes?.numero_lote || ''} de este código ya no tiene stock en ${selectedSucursal.nombre}`);
+          setScanInput('');
+          refocusScan();
+          return;
+        }
+
+        const precioListaNormal = await getPrecioForProduct(prodAlt);
+        dispatch({
+          type: 'ADD_ITEM',
+          payload: {
+            producto_id: prodAlt.id,
+            nombre: `${prodAlt.nombre} ★`,
+            sku: code,
+            codigo_barras: prodAlt.codigo_barras || '',
+            precio_unitario: Number(alterno.precio_especial),
+            cantidad: 1,
+            stock_disponible: loteEnStock.cantidad,
+            lotes_disponibles: [loteEnStock],
+            lote_id_seleccionado: alterno.lote_id,
+            codigo_lote_id: alterno.id,
+            precio_lista: precioListaNormal,
+          },
+        });
+        toast.success(`${prodAlt.nombre} agregado a precio especial (lote ${alterno.lotes?.numero_lote || ''})`);
+        setScanInput('');
+        refocusScan();
+        return;
+      }
+    }
+
+    // 2) Búsqueda normal por código de barras / SKU
     let prod: any = null;
     if (isOffline) {
       prod = await offlineDB.productos.where('codigo_barras').equals(code).first();
@@ -401,6 +460,8 @@ const POSPage = () => {
       cantidad: i.cantidad,
       precio_unitario: i.precio_unitario,
       lote_id: i.lote_id_seleccionado || undefined,
+      codigo_lote_id: i.codigo_lote_id || undefined,
+      precio_lista: i.precio_lista ?? undefined,
     }));
 
     try {
