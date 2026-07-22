@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useSucursal } from '@/contexts/SucursalContext';
+import { useAuth } from '@/hooks/useAuth';
 import { Card, CardContent } from '@/components/ui/card';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -11,7 +12,7 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
-import { Plus, ArrowLeft, ArrowRight, Search, PackageCheck, X, Loader2 } from 'lucide-react';
+import { Plus, ArrowLeft, ArrowRight, Search, PackageCheck, X, Loader2, AlertTriangle, Truck } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface SucRow { id: string; nombre: string; codigo: string; almacen_id: string | null }
@@ -26,10 +27,16 @@ const estadoColor: Record<string, string> = {
 
 const TraspasosPage = () => {
   const { selectedSucursal } = useSucursal();
+  const { user, userRole } = useAuth();
+  const puedeAutorizarIncidencias = !!userRole && ['gerente', 'subgerente', 'admin', 'super_admin'].includes(userRole);
   const [sucursales, setSucursales] = useState<SucRow[]>([]);
   const [salientes, setSalientes] = useState<any[]>([]);
   const [entrantes, setEntrantes] = useState<any[]>([]);
+  const [incidencias, setIncidencias] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [resolviendoId, setResolviendoId] = useState<string | null>(null);
+  const [notasResolucion, setNotasResolucion] = useState('');
+  const [resolviendo, setResolviendo] = useState(false);
 
   // Wizard
   const [open, setOpen] = useState(false);
@@ -49,7 +56,37 @@ const TraspasosPage = () => {
 
 
   useEffect(() => { loadSucursales(); }, []);
-  useEffect(() => { if (selectedSucursal) loadTraspasos(); }, [selectedSucursal]);
+  useEffect(() => { if (selectedSucursal) { loadTraspasos(); loadIncidencias(); } }, [selectedSucursal]);
+
+  const loadIncidencias = async () => {
+    if (!selectedSucursal) return;
+    const { data } = await supabase
+      .from('traspaso_incidencias')
+      .select('*, traspaso:traspasos!traspaso_id(numero_traspaso, sucursal_destino_id), lote:lotes(numero_lote, producto_id, productos(nombre, sku))')
+      .eq('estado', 'pendiente')
+      .order('fecha_reporte', { ascending: false });
+    const propias = (data || []).filter((i: any) => i.traspaso?.sucursal_destino_id === selectedSucursal.id);
+    setIncidencias(propias);
+  };
+
+  const resolverIncidencia = async (id: string, accion: 'autorizar_merma' | 'generar_complementario' | 'rechazar') => {
+    setResolviendo(true);
+    const { data, error } = await (supabase as any).rpc('resolver_incidencia_traspaso', {
+      p_incidencia_id: id, p_accion: accion, p_notas: notasResolucion || null,
+    });
+    setResolviendo(false);
+    if (error) return toast.error(error.message);
+    const msgs: Record<string, string> = {
+      autorizar_merma: 'Faltante autorizado como pérdida.',
+      generar_complementario: `Traspaso complementario ${data?.nuevo_folio || ''} generado y enviado.`,
+      rechazar: 'Incidencia rechazada.',
+    };
+    toast.success(msgs[accion]);
+    setResolviendoId(null);
+    setNotasResolucion('');
+    loadIncidencias();
+    loadTraspasos();
+  };
 
   const loadSucursales = async () => {
     const { data: sucs } = await supabase.from('sucursales').select('id, nombre, codigo').eq('activo', true).order('nombre');
@@ -246,6 +283,12 @@ const TraspasosPage = () => {
             Bandeja entrante {entrantes.filter(t => t.estado === 'enviado').length > 0 && <Badge className="ml-2" variant="default">{entrantes.filter(t => t.estado === 'enviado').length}</Badge>}
           </TabsTrigger>
           <TabsTrigger value="salientes">Enviados</TabsTrigger>
+          {puedeAutorizarIncidencias && (
+            <TabsTrigger value="incidencias" className="gap-2">
+              <AlertTriangle className="h-4 w-4" /> Incidencias
+              {incidencias.length > 0 && <Badge variant="destructive" className="ml-1">{incidencias.length}</Badge>}
+            </TabsTrigger>
+          )}
         </TabsList>
 
         <TabsContent value="entrantes">
@@ -277,6 +320,52 @@ const TraspasosPage = () => {
             </Table>
           </CardContent></Card>
         </TabsContent>
+
+        {puedeAutorizarIncidencias && (
+          <TabsContent value="incidencias" className="space-y-3">
+            {incidencias.length === 0 ? (
+              <Card><CardContent className="p-6 text-center text-muted-foreground">Sin incidencias pendientes.</CardContent></Card>
+            ) : incidencias.map((inc: any) => (
+              <Card key={inc.id} className="border-amber-300">
+                <CardContent className="p-4 space-y-3">
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <p className="font-medium flex items-center gap-2">
+                        <AlertTriangle className="h-4 w-4 text-amber-600" />
+                        Faltante en traspaso {inc.traspaso?.numero_traspaso}
+                      </p>
+                      <p className="text-sm text-muted-foreground mt-1">
+                        {inc.lote?.productos?.nombre} ({inc.lote?.productos?.sku}) · Lote {inc.lote?.numero_lote} ·
+                        <span className="font-semibold text-amber-700"> faltan {inc.cantidad} unidades</span>
+                      </p>
+                      {inc.notas_reporte && <p className="text-xs text-muted-foreground mt-1">Nota de quien recibió: "{inc.notas_reporte}"</p>}
+                    </div>
+                    <Badge variant="outline">Pendiente</Badge>
+                  </div>
+
+                  {resolviendoId === inc.id ? (
+                    <div className="space-y-2 border-t pt-3">
+                      <Label className="text-xs">Notas de la resolución (opcional)</Label>
+                      <Textarea value={notasResolucion} onChange={e => setNotasResolucion(e.target.value)} rows={2} placeholder="Ej. Se confirmó pérdida en tránsito / Origen reenvía la diferencia…" />
+                      <div className="flex flex-wrap gap-2 justify-end">
+                        <Button size="sm" variant="ghost" onClick={() => { setResolviendoId(null); setNotasResolucion(''); }} disabled={resolviendo}>Cancelar</Button>
+                        <Button size="sm" variant="destructive" onClick={() => resolverIncidencia(inc.id, 'rechazar')} disabled={resolviendo}>Rechazar</Button>
+                        <Button size="sm" variant="outline" onClick={() => resolverIncidencia(inc.id, 'autorizar_merma')} disabled={resolviendo}>Autorizar como pérdida</Button>
+                        <Button size="sm" className="gap-1" onClick={() => resolverIncidencia(inc.id, 'generar_complementario')} disabled={resolviendo}>
+                          <Truck className="h-3.5 w-3.5" /> Generar traspaso complementario
+                        </Button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex justify-end">
+                      <Button size="sm" onClick={() => setResolviendoId(inc.id)}>Resolver</Button>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            ))}
+          </TabsContent>
+        )}
       </Tabs>
 
       {/* Wizard */}
