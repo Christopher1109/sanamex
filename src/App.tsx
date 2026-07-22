@@ -3,9 +3,12 @@ import { Toaster as Sonner } from '@/components/ui/sonner';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { useState } from 'react';
 import { useAuth } from './hooks/useAuth';
+import { canAccessFase2 } from './config/faseAccess';
 import { SucursalProvider } from './contexts/SucursalContext';
 import Auth from './pages/Auth';
+import AreaSelectorPage from './pages/AreaSelectorPage';
 import Dashboard from './pages/Dashboard';
 import Productos from './pages/Productos';
 import InventarioPage from './pages/InventarioPage';
@@ -63,8 +66,19 @@ const queryClient = new QueryClient({
   },
 });
 
+const AREA_SESSION_KEY = 'sanamex_area_elegida';
+
 const AppContent = () => {
   const { user, userRole, loading, signOut } = useAuth();
+  const [areaElegida, setAreaElegida] = useState(
+    () => sessionStorage.getItem(AREA_SESSION_KEY) === '1'
+  );
+
+  const handleLogout = () => {
+    sessionStorage.removeItem(AREA_SESSION_KEY);
+    setAreaElegida(false);
+    signOut();
+  };
 
   if (loading) {
     return (
@@ -86,10 +100,30 @@ const AppContent = () => {
     );
   }
 
+  if (canAccessFase2(userRole) && !areaElegida) {
+    return (
+      <Routes>
+        <Route path="/.lovable/oauth/consent" element={<OAuthConsent />} />
+        <Route
+          path="*"
+          element={
+            <AreaSelectorPage
+              userRole={userRole}
+              onSelect={() => {
+                sessionStorage.setItem(AREA_SESSION_KEY, '1');
+                setAreaElegida(true);
+              }}
+            />
+          }
+        />
+      </Routes>
+    );
+  }
+
   return (
     <SucursalProvider>
       <div className="flex h-screen">
-        <Sidebar userRole={userRole} onLogout={signOut} />
+        <Sidebar userRole={userRole} onLogout={handleLogout} />
         <div className="flex flex-1 flex-col overflow-hidden">
           <Header />
           
