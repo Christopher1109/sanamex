@@ -7,7 +7,9 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { TrendingUp, DollarSign, Percent, Download, Search, Package } from 'lucide-react';
+import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { TrendingUp, DollarSign, Percent, Download, Search, Package, Tag, X } from 'lucide-react';
 import ExcelJS from 'exceljs';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -30,6 +32,9 @@ interface LoteRow {
   precio_promedio: number;
   ganancia: number;
   margen_pct: number;
+  precio_especial: number | null;
+  motivo_precio_especial: string | null;
+  descuento_otorgado: number;
 }
 
 interface VentaDetalle {
@@ -42,6 +47,7 @@ interface VentaDetalle {
   precio_unitario: number;
   subtotal: number;
   lista_precio: string | null;
+  precio_lista: number | null;
 }
 
 const fmt = (n: number) =>
@@ -56,6 +62,10 @@ const RentabilidadLotesPage = () => {
   const [fechaHasta, setFechaHasta] = useState('');
   const [detalleLote, setDetalleLote] = useState<LoteRow | null>(null);
   const [detalleVentas, setDetalleVentas] = useState<VentaDetalle[]>([]);
+  const [editandoPrecio, setEditandoPrecio] = useState(false);
+  const [precioEspecialInput, setPrecioEspecialInput] = useState('');
+  const [motivoInput, setMotivoInput] = useState('caducidad_corta');
+  const [guardandoPrecio, setGuardandoPrecio] = useState(false);
 
   useEffect(() => {
     load();
@@ -81,12 +91,57 @@ const RentabilidadLotesPage = () => {
   const verDetalle = async (lote: LoteRow) => {
     setDetalleLote(lote);
     setDetalleVentas([]);
+    setEditandoPrecio(false);
+    setPrecioEspecialInput(lote.precio_especial != null ? String(lote.precio_especial) : '');
+    setMotivoInput(lote.motivo_precio_especial || 'caducidad_corta');
     const { data, error } = await supabase.rpc('ventas_por_lote', { p_lote_id: lote.lote_id });
     if (error) {
       toast.error('Error al cargar ventas del lote');
       return;
     }
     setDetalleVentas((data || []) as VentaDetalle[]);
+  };
+
+  const guardarPrecioEspecial = async () => {
+    if (!detalleLote) return;
+    const valor = precioEspecialInput.trim() === '' ? null : Number(precioEspecialInput);
+    if (valor != null && (isNaN(valor) || valor < 0)) {
+      toast.error('El precio especial debe ser un número válido');
+      return;
+    }
+    setGuardandoPrecio(true);
+    try {
+      const { error } = await supabase
+        .from('lotes')
+        .update({
+          precio_especial: valor,
+          motivo_precio_especial: valor != null ? motivoInput : null,
+        })
+        .eq('id', detalleLote.lote_id);
+      if (error) throw error;
+      toast.success(
+        valor != null
+          ? `Precio especial de $${fmt(valor)} aplicado al lote ${detalleLote.numero_lote}`
+          : `Precio especial quitado del lote ${detalleLote.numero_lote}`,
+      );
+      setDetalleLote({
+        ...detalleLote,
+        precio_especial: valor,
+        motivo_precio_especial: valor != null ? motivoInput : null,
+      });
+      setRows((prev) =>
+        prev.map((r) =>
+          r.lote_id === detalleLote.lote_id
+            ? { ...r, precio_especial: valor, motivo_precio_especial: valor != null ? motivoInput : null }
+            : r,
+        ),
+      );
+      setEditandoPrecio(false);
+    } catch (err: any) {
+      console.error(err);
+      toast.error('Error al guardar el precio especial');
+    }
+    setGuardandoPrecio(false);
   };
 
   const filtered = useMemo(() => {
@@ -106,7 +161,8 @@ const RentabilidadLotesPage = () => {
     const gananciaTotal = filtered.reduce((a, r) => a + Number(r.ganancia || 0), 0);
     const margenProm = ingresoTotal > 0 ? (gananciaTotal / ingresoTotal) * 100 : 0;
     const lotesVendidos = filtered.filter((r) => Number(r.unidades_vendidas) > 0).length;
-    return { costoTotal, ingresoTotal, gananciaTotal, margenProm, lotesVendidos };
+    const descuentoTotal = filtered.reduce((a, r) => a + Number(r.descuento_otorgado || 0), 0);
+    return { costoTotal, ingresoTotal, gananciaTotal, margenProm, lotesVendidos, descuentoTotal };
   }, [filtered]);
 
   const margenBadge = (m: number, vendidas: number) => {
@@ -134,6 +190,9 @@ const RentabilidadLotesPage = () => {
       { header: 'Precio prom.', key: 'precio_promedio', width: 14 },
       { header: 'Ganancia', key: 'ganancia', width: 14 },
       { header: 'Margen %', key: 'margen_pct', width: 12 },
+      { header: 'Precio especial', key: 'precio_especial', width: 14 },
+      { header: 'Motivo', key: 'motivo_precio_especial', width: 16 },
+      { header: 'Descuento otorgado', key: 'descuento_otorgado', width: 16 },
     ];
     filtered.forEach((r) => ws.addRow(r));
     ws.getRow(1).font = { bold: true };
@@ -197,7 +256,7 @@ const RentabilidadLotesPage = () => {
         </div>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-5">
+      <div className="grid gap-4 md:grid-cols-6">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
             <CardTitle className="text-sm">Lotes con venta</CardTitle>
@@ -242,6 +301,16 @@ const RentabilidadLotesPage = () => {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{fmt(totals.margenProm)}%</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
+            <CardTitle className="text-sm">Descuento por remate</CardTitle>
+            <Tag className="h-4 w-4 text-amber-500" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-amber-600">${fmt(totals.descuentoTotal)}</div>
+            <p className="text-xs text-muted-foreground">vs. precio de lista</p>
           </CardContent>
         </Card>
       </div>
@@ -306,6 +375,7 @@ const RentabilidadLotesPage = () => {
                   <TableHead className="text-right">Ingreso</TableHead>
                   <TableHead className="text-right">Ganancia</TableHead>
                   <TableHead className="text-right">Margen</TableHead>
+                  <TableHead className="text-center">Precio especial</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -342,6 +412,15 @@ const RentabilidadLotesPage = () => {
                     </TableCell>
                     <TableCell className="text-right">
                       {margenBadge(Number(r.margen_pct), Number(r.unidades_vendidas))}
+                    </TableCell>
+                    <TableCell className="text-center">
+                      {r.precio_especial != null ? (
+                        <Badge className="bg-amber-500 text-white gap-1">
+                          <Tag className="h-3 w-3" />${fmt(r.precio_especial)}
+                        </Badge>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">—</span>
+                      )}
                     </TableCell>
                   </TableRow>
                 ))}
@@ -391,6 +470,87 @@ const RentabilidadLotesPage = () => {
                   </CardContent>
                 </Card>
               </div>
+
+              <Card className="mb-4 border-amber-200">
+                <CardContent className="pt-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                      <Tag className="h-4 w-4 text-amber-600" />
+                      <h3 className="font-semibold text-sm">Precio especial de este lote</h3>
+                    </div>
+                    {!editandoPrecio && (
+                      <Button size="sm" variant="outline" onClick={() => setEditandoPrecio(true)}>
+                        {detalleLote.precio_especial != null ? 'Editar' : 'Asignar precio especial'}
+                      </Button>
+                    )}
+                  </div>
+                  {!editandoPrecio ? (
+                    detalleLote.precio_especial != null ? (
+                      <p className="text-sm text-muted-foreground">
+                        Este lote se vende a{' '}
+                        <span className="font-semibold text-amber-600">${fmt(detalleLote.precio_especial)}</span>{' '}
+                        en vez del precio normal. Motivo: {detalleLote.motivo_precio_especial || 'no especificado'}.
+                        No afecta a los demás lotes de este producto.
+                      </p>
+                    ) : (
+                      <p className="text-sm text-muted-foreground">
+                        Este lote se vende al precio normal del producto. Asigna un precio especial si está por
+                        caducar y quieres rematarlo sin afectar los demás lotes.
+                      </p>
+                    )
+                  ) : (
+                    <div className="flex flex-wrap items-end gap-3">
+                      <div>
+                        <Label className="text-xs">Precio especial</Label>
+                        <Input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          className="w-32"
+                          placeholder="Sin definir"
+                          value={precioEspecialInput}
+                          onChange={(e) => setPrecioEspecialInput(e.target.value)}
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-xs">Motivo</Label>
+                        <Select value={motivoInput} onValueChange={setMotivoInput}>
+                          <SelectTrigger className="w-44">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="caducidad_corta">Caducidad próxima</SelectItem>
+                            <SelectItem value="remate">Remate</SelectItem>
+                            <SelectItem value="promocion">Promoción</SelectItem>
+                            <SelectItem value="otro">Otro</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <Button size="sm" onClick={guardarPrecioEspecial} disabled={guardandoPrecio}>
+                        Guardar
+                      </Button>
+                      {detalleLote.precio_especial != null && (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="text-destructive"
+                          onClick={() => {
+                            setPrecioEspecialInput('');
+                            guardarPrecioEspecial();
+                          }}
+                          disabled={guardandoPrecio}
+                        >
+                          <X className="h-4 w-4 mr-1" />
+                          Quitar precio especial
+                        </Button>
+                      )}
+                      <Button size="sm" variant="ghost" onClick={() => setEditandoPrecio(false)}>
+                        Cancelar
+                      </Button>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
               <h3 className="font-semibold mb-2">Ventas donde se consumió este lote</h3>
               <div className="max-h-96 overflow-auto">
                 {detalleVentas.length === 0 ? (
@@ -409,10 +569,14 @@ const RentabilidadLotesPage = () => {
                         <TableHead className="text-right">Cant.</TableHead>
                         <TableHead className="text-right">Precio</TableHead>
                         <TableHead className="text-right">Subtotal</TableHead>
+                        <TableHead className="text-right">Descuento</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {detalleVentas.map((v) => (
+                      {detalleVentas.map((v) => {
+                        const descuentoLinea =
+                          v.precio_lista != null ? (v.precio_lista - v.precio_unitario) * v.cantidad : 0;
+                        return (
                         <TableRow key={v.venta_id}>
                           <TableCell className="font-mono text-xs">{v.numero_venta}</TableCell>
                           <TableCell className="text-xs">
@@ -430,8 +594,16 @@ const RentabilidadLotesPage = () => {
                           <TableCell className="text-right font-semibold">
                             ${fmt(v.subtotal)}
                           </TableCell>
+                          <TableCell className="text-right">
+                            {descuentoLinea > 0 ? (
+                              <span className="text-amber-600">${fmt(descuentoLinea)}</span>
+                            ) : (
+                              <span className="text-muted-foreground text-xs">—</span>
+                            )}
+                          </TableCell>
                         </TableRow>
-                      ))}
+                        );
+                      })}
                     </TableBody>
                   </Table>
                 )}
