@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useSucursal } from '@/contexts/SucursalContext';
+import { useAuth } from '@/hooks/useAuth';
 import { UserRole } from '@/types';
 import { canAccessFase2 } from '@/config/faseAccess';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -152,9 +153,10 @@ const estadoBadge = (estado: string) => {
 
 const Dashboard = ({ userRole }: DashboardProps) => {
   const { selectedSucursal } = useSucursal();
+  const { user } = useAuth();
   const [productosActivos, setProductosActivos] = useState(0);
   const [lotesPorVencer, setLotesPorVencer] = useState(0);
-  const [comprasPendientes, setComprasPendientes] = useState(0);
+  const [ocsPorRevisar, setOcsPorRevisar] = useState<{ folio: string; proveedor: string; total: number }[]>([]);
   const [pendingItems, setPendingItems] = useState<PendingItem[]>([]);
   const [alerts, setAlerts] = useState<AlertItem[]>([]);
   const [recentActivity, setRecentActivity] = useState<RecentActivity[]>([]);
@@ -243,10 +245,10 @@ const Dashboard = ({ userRole }: DashboardProps) => {
     in30.setDate(in30.getDate() + 30);
     const almacenIds = await getAlmacenIds();
 
-    const [prodRes, comprasRes] = await Promise.all([
+    const [prodRes] = await Promise.all([
       supabase.from('productos').select('id', { count: 'exact', head: true }).eq('activo', true),
-      supabase.from('compras').select('id', { count: 'exact', head: true }).eq('sucursal_id', selectedSucursal.id).in('estado', ['ordenada', 'en_transito']),
     ]);
+    await loadOcsPorRevisar();
 
     let lotesCount = 0;
     if (almacenIds.length > 0) {
@@ -269,7 +271,37 @@ const Dashboard = ({ userRole }: DashboardProps) => {
 
     setProductosActivos(prodRes.count || 0);
     setLotesPorVencer(lotesCount);
-    setComprasPendientes(comprasRes.count || 0);
+  };
+
+  // Órdenes de compra que le tocan a ESTE usuario según su rol:
+  // gerente/subgerente ven solo las de su(s) sucursal(es) asignada(s);
+  // admin/super_admin ven todas las que están en cualquier paso de revisión.
+  const loadOcsPorRevisar = async () => {
+    if (!user) { setOcsPorRevisar([]); return; }
+    const esAdmin = userRole === 'admin' || userRole === 'super_admin';
+    const esGerencia = userRole === 'gerente' || userRole === 'subgerente';
+    if (!esAdmin && !esGerencia) { setOcsPorRevisar([]); return; }
+
+    let query = supabase
+      .from('ordenes_compra')
+      .select('folio, total, estado, sucursal_destino_id, proveedor:proveedores(nombre)')
+      .order('created_at', { ascending: false })
+      .limit(5);
+
+    if (esAdmin) {
+      query = query.in('estado', ['pendiente_aprobacion', 'confirmada_gerente']);
+    } else {
+      const { data: asignaciones } = await supabase
+        .from('user_sucursal_asignacion').select('sucursal_id').eq('user_id', user.id);
+      const sucIds = (asignaciones || []).map((a: any) => a.sucursal_id);
+      if (!sucIds.length) { setOcsPorRevisar([]); return; }
+      query = query.eq('estado', 'pendiente_aprobacion').in('sucursal_destino_id', sucIds);
+    }
+
+    const { data } = await query;
+    setOcsPorRevisar((data || []).map((o: any) => ({
+      folio: o.folio, proveedor: o.proveedor?.nombre || '—', total: Number(o.total || 0),
+    })));
   };
 
   const loadPendingItems = async () => {
@@ -399,7 +431,7 @@ const Dashboard = ({ userRole }: DashboardProps) => {
 
   const kpiCards = [
     { title: 'Productos Activos', value: productosActivos, subtitle: 'En catálogo', icon: Package, color: 'text-primary', bgColor: 'bg-primary/10' },
-    { title: 'Compras Pendientes', value: comprasPendientes, subtitle: 'Por recibir', icon: ShoppingCart, color: 'text-warning', bgColor: 'bg-warning/10' },
+    { title: 'OCs por revisar', value: ocsPorRevisar.length, subtitle: 'Órdenes de compra', icon: ShoppingCart, color: 'text-warning', bgColor: 'bg-warning/10' },
     { title: 'Lotes por Vencer', value: lotesPorVencer, subtitle: 'Próximos 30 días', icon: AlertCircle,
       color: lotesPorVencer > 0 ? 'text-destructive' : 'text-muted-foreground',
       bgColor: lotesPorVencer > 0 ? 'bg-destructive/10' : 'bg-muted' },
@@ -558,6 +590,33 @@ const Dashboard = ({ userRole }: DashboardProps) => {
       {/* === Dashboard comercial (Fase 2) === */}
       {showFase2 && <>
 
+      {ocsPorRevisar.length > 0 && (
+        <Card className="border-amber-300 bg-amber-50/50 dark:bg-amber-950/20">
+          <CardHeader className="pb-2">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-base flex items-center gap-2">
+                <ShoppingCart className="h-5 w-5 text-amber-600" />
+                Órdenes de compra por revisar
+              </CardTitle>
+              <Link to="/compras"><Button size="sm" variant="outline">Ver todas</Button></Link>
+            </div>
+            <CardDescription>
+              {userRole === 'admin' || userRole === 'super_admin'
+                ? 'Sucursales confirmando o esperando tu autorización final.'
+                : 'Generadas por administración para tu sucursal — confírmalas o ajústalas.'}
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {ocsPorRevisar.map(oc => (
+              <Link key={oc.folio} to="/compras" className="flex items-center justify-between rounded-md border bg-card px-3 py-2 text-sm hover:bg-accent">
+                <span className="font-mono">{oc.folio}</span>
+                <span className="text-muted-foreground">{oc.proveedor}</span>
+                <span className="font-medium">${oc.total.toLocaleString('es-MX', { minimumFractionDigits: 2 })}</span>
+              </Link>
+            ))}
+          </CardContent>
+        </Card>
+      )}
 
       {/* Summary banner */}
       {(pendingCount > 0 || alertCount > 0) && (
