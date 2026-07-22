@@ -9,10 +9,13 @@ import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
-import { AlertCircle, AlertTriangle, Clock, Search, TrendingDown, Trash2 } from 'lucide-react';
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Label } from '@/components/ui/label';
+import { AlertCircle, AlertTriangle, Clock, Search, TrendingDown, Trash2, Tag, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { format, differenceInDays, addDays } from 'date-fns';
 import { es } from 'date-fns/locale';
+import { canEditarPreciosLote } from '@/config/faseAccess';
 
 interface LoteCaducidad {
   lote_id: string;
@@ -24,6 +27,9 @@ interface LoteCaducidad {
   cantidad: number;
   dias_restantes: number;
   costo_unitario: number;
+  precio_base: number;
+  precio_especial: number | null;
+  motivo_precio_especial: string | null;
 }
 
 interface ProductoLento {
@@ -37,7 +43,8 @@ interface ProductoLento {
 
 const CaducidadesPage = () => {
   const { selectedSucursal } = useSucursal();
-  const { user } = useAuth();
+  const { user, userRole } = useAuth();
+  const puedeEditarPrecio = canEditarPreciosLote(userRole);
   const [lotes, setLotes] = useState<LoteCaducidad[]>([]);
   const [productosLentos, setProductosLentos] = useState<ProductoLento[]>([]);
   const [loading, setLoading] = useState(true);
@@ -45,6 +52,10 @@ const CaducidadesPage = () => {
   const [filtro, setFiltro] = useState('todos');
   const [search, setSearch] = useState('');
   const [tab, setTab] = useState<'caducidades' | 'lento_movimiento'>('caducidades');
+  const [loteEditando, setLoteEditando] = useState<LoteCaducidad | null>(null);
+  const [precioEspecialInput, setPrecioEspecialInput] = useState('');
+  const [motivoInput, setMotivoInput] = useState('caducidad_corta');
+  const [guardandoPrecio, setGuardandoPrecio] = useState(false);
 
   useEffect(() => {
     if (selectedSucursal) {
@@ -70,7 +81,7 @@ const CaducidadesPage = () => {
 
     const { data } = await supabase
       .from('inventario')
-      .select('cantidad, lote_id, lotes(id, numero_lote, fecha_caducidad, costo_unitario, productos(nombre, sku, categoria))')
+      .select('cantidad, lote_id, lotes(id, numero_lote, fecha_caducidad, costo_unitario, precio_especial, motivo_precio_especial, productos(nombre, sku, categoria, precio_base))')
       .in('almacen_id', almacenIds)
       .gt('cantidad', 0);
 
@@ -100,12 +111,60 @@ const CaducidadesPage = () => {
           cantidad: inv.cantidad,
           dias_restantes: dias,
           costo_unitario: lote.costo_unitario,
+          precio_base: prod.precio_base,
+          precio_especial: lote.precio_especial,
+          motivo_precio_especial: lote.motivo_precio_especial,
         });
       }
     }
 
     const sorted = Array.from(lotesMap.values()).sort((a, b) => a.dias_restantes - b.dias_restantes);
     setLotes(sorted);
+  };
+
+  const abrirEdicionPrecio = (lote: LoteCaducidad) => {
+    setLoteEditando(lote);
+    setPrecioEspecialInput(lote.precio_especial != null ? String(lote.precio_especial) : '');
+    setMotivoInput(lote.motivo_precio_especial || 'caducidad_corta');
+  };
+
+  const guardarPrecioEspecial = async () => {
+    if (!loteEditando) return;
+    const valor = precioEspecialInput.trim() === '' ? null : Number(precioEspecialInput);
+    if (valor != null && (isNaN(valor) || valor < 0)) {
+      toast.error('El precio especial debe ser un número válido');
+      return;
+    }
+    setGuardandoPrecio(true);
+    try {
+      const { error } = await supabase
+        .from('lotes')
+        .update({
+          precio_especial: valor,
+          motivo_precio_especial: valor != null ? motivoInput : null,
+        })
+        .eq('id', loteEditando.lote_id);
+      if (error) throw error;
+      toast.success(
+        valor != null
+          ? `Precio especial de $${valor.toFixed(2)} aplicado al lote ${loteEditando.numero_lote}`
+          : `Precio especial quitado del lote ${loteEditando.numero_lote}`,
+      );
+      setLotes(prev =>
+        prev.map(l =>
+          l.lote_id === loteEditando.lote_id
+            ? { ...l, precio_especial: valor, motivo_precio_especial: valor != null ? motivoInput : null }
+            : l,
+        ),
+      );
+      setLoteEditando(null);
+    } catch (err: any) {
+      console.error(err);
+      toast.error(err.message?.includes('Solo gerencia')
+        ? 'No tienes permiso para modificar precios de lote'
+        : 'Error al guardar el precio especial');
+    }
+    setGuardandoPrecio(false);
   };
 
   const loadProductosLentos = async () => {
@@ -409,13 +468,15 @@ const CaducidadesPage = () => {
                   <TableHead className="text-right">Cantidad</TableHead>
                   <TableHead className="text-right">Valor</TableHead>
                   <TableHead>Estado</TableHead>
+                  <TableHead>Precio especial</TableHead>
+                  {puedeEditarPrecio && <TableHead className="text-right">Acciones</TableHead>}
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {loading ? (
-                  <TableRow><TableCell colSpan={7} className="text-center py-8">Cargando...</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={puedeEditarPrecio ? 9 : 8} className="text-center py-8">Cargando...</TableCell></TableRow>
                 ) : filteredLotes.length === 0 ? (
-                  <TableRow><TableCell colSpan={7} className="text-center py-8 text-muted-foreground">Sin lotes que mostrar</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={puedeEditarPrecio ? 9 : 8} className="text-center py-8 text-muted-foreground">Sin lotes que mostrar</TableCell></TableRow>
                 ) : (
                   filteredLotes.map(l => {
                     const sev = getSeverity(l.dias_restantes);
@@ -435,6 +496,25 @@ const CaducidadesPage = () => {
                         <TableCell className="text-right">{l.cantidad}</TableCell>
                         <TableCell className="text-right text-sm">${(l.cantidad * l.costo_unitario).toFixed(2)}</TableCell>
                         <TableCell><Badge variant={sev.variant}>{sev.label}</Badge></TableCell>
+                        <TableCell>
+                          {l.precio_especial != null ? (
+                            <div className="text-xs">
+                              <Badge className="bg-amber-500 text-white gap-1 mb-0.5">
+                                <Tag className="h-3 w-3" />${l.precio_especial.toFixed(2)}
+                              </Badge>
+                              <p className="text-muted-foreground line-through">${l.precio_base?.toFixed(2)}</p>
+                            </div>
+                          ) : (
+                            <span className="text-xs text-muted-foreground">Normal (${l.precio_base?.toFixed(2)})</span>
+                          )}
+                        </TableCell>
+                        {puedeEditarPrecio && (
+                          <TableCell className="text-right">
+                            <Button size="sm" variant="outline" onClick={() => abrirEdicionPrecio(l)}>
+                              {l.precio_especial != null ? 'Editar precio' : 'Precio especial'}
+                            </Button>
+                          </TableCell>
+                        )}
                       </TableRow>
                     );
                   })
@@ -498,6 +578,72 @@ const CaducidadesPage = () => {
           </CardContent>
         </Card>
       )}
+
+      <Dialog open={!!loteEditando} onOpenChange={(o) => !o && setLoteEditando(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              Precio especial — Lote {loteEditando?.numero_lote}
+            </DialogTitle>
+          </DialogHeader>
+          {loteEditando && (
+            <div className="space-y-4">
+              <div className="text-sm text-muted-foreground">
+                <p className="font-medium text-foreground">{loteEditando.producto_nombre}</p>
+                <p>{loteEditando.producto_sku} · Precio normal: ${loteEditando.precio_base?.toFixed(2)}</p>
+                <p>Caduca {format(new Date(loteEditando.fecha_caducidad), 'dd MMM yyyy', { locale: es })} · {loteEditando.cantidad} unidades</p>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Este precio aplica solo a este lote. Los demás lotes de este producto siguen vendiéndose al precio normal.
+                Se cobra automático en el POS cuando le toque salir por FEFO — no se necesita escanear nada distinto.
+              </p>
+              <div className="flex gap-3">
+                <div className="flex-1">
+                  <Label className="text-xs">Precio especial</Label>
+                  <Input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    placeholder="Sin definir"
+                    value={precioEspecialInput}
+                    onChange={(e) => setPrecioEspecialInput(e.target.value)}
+                  />
+                </div>
+                <div className="flex-1">
+                  <Label className="text-xs">Motivo</Label>
+                  <Select value={motivoInput} onValueChange={setMotivoInput}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="caducidad_corta">Caducidad próxima</SelectItem>
+                      <SelectItem value="remate">Remate</SelectItem>
+                      <SelectItem value="promocion">Promoción</SelectItem>
+                      <SelectItem value="otro">Otro</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            </div>
+          )}
+          <DialogFooter className="flex-row justify-between sm:justify-between">
+            {loteEditando?.precio_especial != null ? (
+              <Button
+                variant="ghost"
+                className="text-destructive"
+                onClick={() => { setPrecioEspecialInput(''); guardarPrecioEspecial(); }}
+                disabled={guardandoPrecio}
+              >
+                <X className="h-4 w-4 mr-1" />
+                Quitar precio especial
+              </Button>
+            ) : <span />}
+            <Button onClick={guardarPrecioEspecial} disabled={guardandoPrecio}>
+              Guardar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
