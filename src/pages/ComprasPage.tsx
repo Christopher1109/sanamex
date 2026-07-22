@@ -1,3 +1,8 @@
+// ⚠️ NO SE USA — reemplazado por el flujo Cotizador → Órdenes de Compra
+// (ver ComprasHubPage.tsx). Alejandro pidió retirar la creación manual de
+// OC eligiendo proveedor a mano. Se deja el archivo por si se necesita
+// rescatar el wizard de factura (NuevaFacturaWizard) u otra lógica.
+// Sesión 21-jul-2026.
 import { useState, useEffect, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useSucursal } from '@/contexts/SucursalContext';

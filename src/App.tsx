@@ -19,7 +19,6 @@ import TraspasosPage from './pages/TraspasosPage';
 import AjustesMermasPage from './pages/AjustesMermasPage';
 import MermasPage from './pages/MermasPage';
 import PedidosPage from './pages/PedidosPage';
-import ComprasPage from './pages/ComprasPage';
 import ReportesPage from './pages/ReportesPage';
 import AuditoriaPage from './pages/AuditoriaPage';
 import POSPage from './pages/POSPage';
