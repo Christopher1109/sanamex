@@ -17,6 +17,8 @@ interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   venta_id?: string;
+  /** Facturación agrupada: varios tickets sin RFC en UNA sola factura */
+  venta_ids?: string[];
   pedido_id?: string;
   cliente_id?: string | null;
   /** Texto descriptivo (folio venta/pedido) */
@@ -35,7 +37,7 @@ const REGIMENES = [
   { v: '626', l: '626 · RESICO' },
 ];
 
-export default function FacturarRapidoDialog({ open, onOpenChange, venta_id, pedido_id, cliente_id, referencia, onSuccess }: Props) {
+export default function FacturarRapidoDialog({ open, onOpenChange, venta_id, venta_ids, pedido_id, cliente_id, referencia, onSuccess }: Props) {
   const [loading, setLoading] = useState(false);
   const [cfgCp, setCfgCp] = useState('00000');
   const [clienteData, setClienteData] = useState<any>(null);
@@ -106,7 +108,7 @@ export default function FacturarRapidoDialog({ open, onOpenChange, venta_id, ped
   const esPublico = r.rfc.toUpperCase() === 'XAXX010101000';
 
   async function timbrar() {
-    if (!venta_id && !pedido_id) return;
+    if (!venta_id && !(venta_ids && venta_ids.length) && !pedido_id) return;
     if (!r.rfc || r.rfc.length < 12) { toast.error('RFC inválido'); return; }
     if (!r.nombre.trim()) { toast.error('Captura la razón social'); return; }
     if (!r.cp || r.cp.length < 5) { toast.error('CP del receptor requerido'); return; }
@@ -131,7 +133,7 @@ export default function FacturarRapidoDialog({ open, onOpenChange, venta_id, ped
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session?.access_token}` },
         body: JSON.stringify({
-          venta_id, pedido_id,
+          venta_id, venta_ids, pedido_id,
           uso_cfdi: r.uso_cfdi,
           forma_pago: r.forma_pago,
           metodo_pago: r.metodo_pago,

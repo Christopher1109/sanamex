@@ -17,6 +17,7 @@ const DEFAULT_TAX_RATE = 0.16;            // IVA 16% si la línea lo lleva
 
 interface TimbrarBody {
   venta_id?: string;
+  venta_ids?: string[];       // facturación agrupada: varios tickets en UNA sola factura
   pedido_id?: string;
   uso_cfdi?: string;          // ej. 'G03', 'P01'
   forma_pago?: string;        // ej. '01' efectivo, '04' tarjeta crédito, '28' tarjeta débito, '03' transferencia
@@ -53,7 +54,8 @@ Deno.serve(async (req) => {
     const userId = claimsData.claims.sub as string;
 
     const body = (await req.json()) as TimbrarBody;
-    if (!body.venta_id && !body.pedido_id) return json({ error: 'venta_id o pedido_id requerido' }, 400);
+    const ventaIdsGrupo = body.venta_ids?.length ? body.venta_ids : (body.venta_id ? [body.venta_id] : []);
+    if (ventaIdsGrupo.length === 0 && !body.pedido_id) return json({ error: 'venta_id, venta_ids o pedido_id requerido' }, 400);
 
     const admin = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
 
@@ -62,28 +64,56 @@ Deno.serve(async (req) => {
     let lineas: any[] = [];
     let origen: 'venta' | 'pedido' = 'venta';
 
-    if (body.venta_id) {
+    if (ventaIdsGrupo.length > 0) {
       origen = 'venta';
-      const { data, error } = await admin
+      const { data: ventasData, error } = await admin
         .from('ventas')
         .select('id, sucursal_id, numero_venta, subtotal, impuestos, total, cliente_id, estado')
-        .eq('id', body.venta_id)
-        .maybeSingle();
-      if (error || !data) return json({ error: 'Venta no encontrada' }, 404);
-      if (data.estado === 'cancelada') return json({ error: 'Venta cancelada, no se puede timbrar' }, 400);
-      venta = { ...data, numero: data.numero_venta };
+        .in('id', ventaIdsGrupo);
+      if (error || !ventasData || ventasData.length !== ventaIdsGrupo.length) {
+        return json({ error: 'Una o más ventas no fueron encontradas' }, 404);
+      }
+      const canceladas = ventasData.filter((v: any) => v.estado === 'cancelada');
+      if (canceladas.length) return json({ error: `Venta(s) cancelada(s), no se pueden timbrar: ${canceladas.map((v: any) => v.numero_venta).join(', ')}` }, 400);
+
+      const sucursalesDistintas = new Set(ventasData.map((v: any) => v.sucursal_id));
+      if (sucursalesDistintas.size > 1) return json({ error: 'Todas las ventas del grupo deben ser de la misma sucursal' }, 400);
+
+      // Ya facturadas: directo en cfdi_emitidos, o como parte de otra factura agrupada
+      const { data: yaDirectas } = await admin
+        .from('cfdi_emitidos').select('venta_id, estado').in('venta_id', ventaIdsGrupo).eq('estado', 'timbrado');
+      const { data: yaAgrupadas } = await admin
+        .from('cfdi_ventas_agrupadas').select('venta_id, cfdi_id, cfdi_emitidos!inner(estado)').in('venta_id', ventaIdsGrupo);
+      const yaFacturadas = [
+        ...(yaDirectas || []).map((r: any) => r.venta_id),
+        ...(yaAgrupadas || []).filter((r: any) => r.cfdi_emitidos?.estado === 'timbrado').map((r: any) => r.venta_id),
+      ];
+      if (yaFacturadas.length) {
+        const folios = ventasData.filter((v: any) => yaFacturadas.includes(v.id)).map((v: any) => v.numero_venta);
+        return json({ error: `Venta(s) ya facturada(s): ${folios.join(', ')}` }, 409);
+      }
+
+      const totalGrupo = ventasData.reduce((s: number, v: any) => s + Number(v.total || 0), 0);
+      const subtotalGrupo = ventasData.reduce((s: number, v: any) => s + Number(v.subtotal || 0), 0);
+      const impuestosGrupo = ventasData.reduce((s: number, v: any) => s + Number(v.impuestos || 0), 0);
+      // Cliente solo si TODAS las ventas del grupo son del mismo cliente; si no, público en general
+      const clientesUnicos = new Set(ventasData.map((v: any) => v.cliente_id).filter(Boolean));
+      const clienteComun = clientesUnicos.size === 1 ? ventasData[0].cliente_id : null;
+
+      venta = {
+        sucursal_id: ventasData[0].sucursal_id,
+        numero: ventaIdsGrupo.length > 1 ? `${ventasData.length} tickets agrupados` : ventasData[0].numero_venta,
+        total: totalGrupo, subtotal: subtotalGrupo, impuestos: impuestosGrupo,
+        cliente_id: clienteComun,
+        id: ventaIdsGrupo[0],
+      };
 
       const { data: ls, error: lErr } = await admin
         .from('venta_lineas')
         .select('cantidad, precio_unitario, subtotal, productos(sku, nombre, descripcion, iva_incluido)')
-        .eq('venta_id', body.venta_id);
-      if (lErr || !ls || ls.length === 0) return json({ error: 'Venta sin líneas' }, 400);
+        .in('venta_id', ventaIdsGrupo);
+      if (lErr || !ls || ls.length === 0) return json({ error: 'Venta(s) sin líneas' }, 400);
       lineas = ls;
-
-      const { data: existing } = await admin
-        .from('cfdi_emitidos').select('id, uuid_sat, estado')
-        .eq('venta_id', body.venta_id).eq('estado', 'timbrado').maybeSingle();
-      if (existing) return json({ error: 'Esta venta ya tiene un CFDI timbrado', cfdi: existing }, 409);
     } else {
       origen = 'pedido';
       const { data, error } = await admin
@@ -246,6 +276,7 @@ Deno.serve(async (req) => {
       xml_storage_path: stored.xml_storage_path,
       pdf_storage_path: stored.pdf_storage_path,
       es_demo: false,
+      es_agrupada: origen === 'venta' && ventaIdsGrupo.length > 1,
       created_by: userId,
     };
 
@@ -256,12 +287,21 @@ Deno.serve(async (req) => {
       .single();
     if (insErr) return json({ error: 'CFDI timbrado pero falló al guardar: ' + insErr.message, facturapi: respJson }, 500);
 
+    // Factura agrupada: registrar TODAS las ventas cubiertas (incluida la
+    // principal) para poder consultar de forma uniforme si un ticket ya
+    // quedó facturado, sin importar si fue la venta_id principal o no.
+    if (origen === 'venta' && ventaIdsGrupo.length > 1) {
+      const filas = ventaIdsGrupo.map((vid) => ({ cfdi_id: cfdiRow.id, venta_id: vid }));
+      const { error: aguErr } = await admin.from('cfdi_ventas_agrupadas').insert(filas);
+      if (aguErr) console.warn('cfdi_ventas_agrupadas insert:', aguErr.message);
+    }
+
     await admin
       .from('configuracion_fiscal')
       .update({ folio_actual: (cfg.folio_actual || 1) + 1 })
       .eq('id', cfg.id);
 
-    return json({ ok: true, cfdi: cfdiRow, facturapi_id: respJson.id, storage: stored });
+    return json({ ok: true, cfdi: cfdiRow, facturapi_id: respJson.id, storage: stored, ventas_incluidas: ventaIdsGrupo.length });
   } catch (e: any) {
     console.error('timbrar error', e);
     return json({ error: e?.message || 'Error interno' }, 500);
