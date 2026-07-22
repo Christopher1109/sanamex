@@ -1,3 +1,8 @@
+// ⚠️ NO ESTÁ ENRUTADO — no aparece en App.tsx ni en el menú. La pantalla
+// real de facturación es FiscalPage.tsx (pestaña "Ventas por timbrar"),
+// donde sí vive la facturación agrupada. Este archivo se quedó como
+// prototipo huérfano; no se borra por si sirve de referencia, pero no
+// edites aquí esperando que se refleje en la app. Sesión 22-jul-2026.
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useSucursal } from '@/contexts/SucursalContext';
