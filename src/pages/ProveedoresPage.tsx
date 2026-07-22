@@ -59,10 +59,29 @@ export default function ProveedoresPage() {
     setLoading(false);
   }
 
+  const [catalogo, setCatalogo] = useState<any[]>([]);
+  const [catalogoSearch, setCatalogoSearch] = useState('');
+  const [catalogoLoading, setCatalogoLoading] = useState(false);
+
   function openDetail(p: Proveedor) {
     setSelected(p);
     setForm(p);
     setEditing(false);
+    setCatalogoSearch('');
+    loadCatalogo(p.id);
+  }
+
+  async function loadCatalogo(proveedorId: string) {
+    setCatalogoLoading(true);
+    const { data } = await supabase
+      .from('lista_precio_proveedor')
+      .select('id, precio, precio_con_iva, existencia_proveedor, cantidad_min, fecha_vigencia_hasta, activo, productos(nombre, sku)')
+      .eq('proveedor_id', proveedorId)
+      .eq('activo', true)
+      .order('created_at', { ascending: false })
+      .limit(500);
+    setCatalogo(data || []);
+    setCatalogoLoading(false);
   }
 
   async function saveDetail() {
@@ -127,6 +146,60 @@ export default function ProveedoresPage() {
     (p.email || '').toLowerCase().includes(search.toLowerCase())
   );
 
+  const [subiendo, setSubiendo] = useState<string | null>(null);
+
+  async function subirDocumento(campo: keyof Proveedor, file: File) {
+    if (!selected) return;
+    setSubiendo(campo as string);
+    try {
+      const ext = file.name.split('.').pop();
+      const path = `${selected.id}/${campo}-${Date.now()}.${ext}`;
+      const { error: upErr } = await supabase.storage.from('expedientes-proveedor').upload(path, file, { upsert: true });
+      if (upErr) throw upErr;
+      const { error: updErr } = await supabase.from('proveedores').update({ [campo]: path }).eq('id', selected.id);
+      if (updErr) throw updErr;
+      setForm(f => ({ ...f, [campo]: path }));
+      setSelected(s => s ? { ...s, [campo]: path } as Proveedor : s);
+      toast.success('Documento subido');
+      load();
+    } catch (e: any) {
+      toast.error(e.message || 'Error al subir el documento');
+    }
+    setSubiendo(null);
+  }
+
+  async function verDocumento(path: string) {
+    const { data, error } = await supabase.storage.from('expedientes-proveedor').createSignedUrl(path, 300);
+    if (error || !data) { toast.error('No se pudo abrir el documento'); return; }
+    window.open(data.signedUrl, '_blank');
+  }
+
+  const DocumentoField = ({ label, campo }: { label: string; campo: keyof Proveedor }) => {
+    const valor = (form as any)[campo] as string | null;
+    const esUrlVieja = valor && (valor.startsWith('http://') || valor.startsWith('https://'));
+    return (
+      <div className="space-y-1">
+        <Label className="text-xs text-muted-foreground">{label}</Label>
+        <div className="flex items-center gap-2">
+          {valor ? (
+            <Button size="sm" variant="outline" className="gap-1" onClick={() => esUrlVieja ? window.open(valor, '_blank') : verDocumento(valor)}>
+              Ver documento
+            </Button>
+          ) : (
+            <span className="text-xs text-muted-foreground italic py-2">Sin documento</span>
+          )}
+          <input
+            type="file" accept=".pdf,.jpg,.jpeg,.png" className="hidden" id={`doc-${campo}`}
+            onChange={e => e.target.files?.[0] && subirDocumento(campo, e.target.files[0])}
+          />
+          <Button size="sm" variant="ghost" disabled={subiendo === campo} onClick={() => document.getElementById(`doc-${campo}`)?.click()}>
+            {subiendo === campo ? 'Subiendo…' : valor ? 'Reemplazar' : 'Subir'}
+          </Button>
+        </div>
+      </div>
+    );
+  };
+
   const Field = ({ label, value, onChange, type = 'text', textarea = false }: any) => (
     <div className="space-y-1">
       <Label className="text-xs text-muted-foreground">{label}</Label>
@@ -169,15 +242,19 @@ export default function ProveedoresPage() {
                 <TableHead>Contacto</TableHead>
                 <TableHead>Teléfono</TableHead>
                 <TableHead>Correo</TableHead>
+                <TableHead>Expediente</TableHead>
                 <TableHead className="w-[60px]"></TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {loading ? (
-                <TableRow><TableCell colSpan={5} className="text-center py-8">Cargando...</TableCell></TableRow>
+                <TableRow><TableCell colSpan={6} className="text-center py-8">Cargando...</TableCell></TableRow>
               ) : filtered.length === 0 ? (
-                <TableRow><TableCell colSpan={5} className="text-center py-8 text-muted-foreground">Sin proveedores</TableCell></TableRow>
-              ) : filtered.map(p => (
+                <TableRow><TableCell colSpan={6} className="text-center py-8 text-muted-foreground">Sin proveedores</TableCell></TableRow>
+              ) : filtered.map(p => {
+                const docs = [p.constancia_situacion_fiscal_url, p.aviso_funcionamiento_url, p.comprobante_domicilio_url, p.identificacion_oficial_url];
+                const completos = docs.filter(Boolean).length;
+                return (
                 <TableRow key={p.id} className="cursor-pointer hover:bg-muted/50" onClick={() => openDetail(p)}>
                   <TableCell className="font-medium">
                     <div className="flex items-center gap-2">
@@ -188,9 +265,15 @@ export default function ProveedoresPage() {
                   <TableCell>{p.contacto || '—'}</TableCell>
                   <TableCell>{p.telefono || '—'}</TableCell>
                   <TableCell className="text-sm">{p.email || '—'}</TableCell>
+                  <TableCell>
+                    <Badge variant={completos === 4 ? 'default' : 'secondary'} className={completos === 4 ? 'bg-green-600 text-[10px]' : 'text-[10px]'}>
+                      {completos}/4
+                    </Badge>
+                  </TableCell>
                   <TableCell><ChevronRight className="h-4 w-4 text-muted-foreground" /></TableCell>
                 </TableRow>
-              ))}
+                );
+              })}
             </TableBody>
           </Table>
         </CardContent>
@@ -241,13 +324,81 @@ export default function ProveedoresPage() {
               </section>
 
               <section>
-                <h3 className="font-semibold text-sm mb-3 text-primary">Documentos (URLs)</h3>
-                <div className="grid grid-cols-1 gap-3">
-                  <Field label="Constancia de situación fiscal" value={form.constancia_situacion_fiscal_url} onChange={(v: string) => setForm({ ...form, constancia_situacion_fiscal_url: v })} />
-                  <Field label="Aviso de funcionamiento y responsable sanitario" value={form.aviso_funcionamiento_url} onChange={(v: string) => setForm({ ...form, aviso_funcionamiento_url: v })} />
-                  <Field label="Comprobante de domicilio" value={form.comprobante_domicilio_url} onChange={(v: string) => setForm({ ...form, comprobante_domicilio_url: v })} />
-                  <Field label="Identificación oficial" value={form.identificacion_oficial_url} onChange={(v: string) => setForm({ ...form, identificacion_oficial_url: v })} />
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="font-semibold text-sm text-primary">Expediente digital</h3>
+                  {(() => {
+                    const campos = ['constancia_situacion_fiscal_url', 'aviso_funcionamiento_url', 'comprobante_domicilio_url', 'identificacion_oficial_url'] as const;
+                    const completos = campos.filter(c => (form as any)[c]).length;
+                    const completo = completos === campos.length;
+                    return (
+                      <Badge variant={completo ? 'default' : 'secondary'} className={completo ? 'bg-green-600' : ''}>
+                        {completo ? 'Documentación completa' : `Documentación ${completos}/${campos.length}`}
+                      </Badge>
+                    );
+                  })()}
                 </div>
+                <div className="grid grid-cols-1 gap-3">
+                  <DocumentoField label="Constancia de situación fiscal" campo="constancia_situacion_fiscal_url" />
+                  <DocumentoField label="Aviso de funcionamiento y responsable sanitario" campo="aviso_funcionamiento_url" />
+                  <DocumentoField label="Comprobante de domicilio" campo="comprobante_domicilio_url" />
+                  <DocumentoField label="Identificación oficial" campo="identificacion_oficial_url" />
+                </div>
+                <p className="text-xs text-muted-foreground mt-2">Los documentos se suben directo (PDF, JPG o PNG) — ya no hace falta pegar una URL a mano.</p>
+              </section>
+
+              <section>
+                <h3 className="font-semibold text-sm mb-3 text-primary">Catálogo y precios de este proveedor</h3>
+                {catalogo.length === 0 && !catalogoLoading ? (
+                  <p className="text-sm text-muted-foreground bg-muted/40 rounded-md p-3">
+                    Sin lista de precios cargada todavía. Se sube desde Compras → Catálogos → Proveedores (carga masiva por Excel).
+                  </p>
+                ) : (
+                  <>
+                    <Input
+                      placeholder="Buscar producto o SKU en este catálogo…"
+                      value={catalogoSearch}
+                      onChange={e => setCatalogoSearch(e.target.value)}
+                      className="mb-2"
+                    />
+                    <div className="border rounded-md max-h-64 overflow-y-auto">
+                      <table className="w-full text-xs">
+                        <thead className="bg-muted sticky top-0">
+                          <tr>
+                            <th className="p-2 text-left">Producto</th>
+                            <th className="p-2 text-right">Precio</th>
+                            <th className="p-2 text-right">Con IVA</th>
+                            <th className="p-2 text-right">Existencia</th>
+                            <th className="p-2 text-right">Mín.</th>
+                            <th className="p-2 text-left">Vigente hasta</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {catalogo
+                            .filter(c => {
+                              if (!catalogoSearch) return true;
+                              const s = catalogoSearch.toLowerCase();
+                              return (c.productos?.nombre || '').toLowerCase().includes(s) || (c.productos?.sku || '').toLowerCase().includes(s);
+                            })
+                            .slice(0, 200)
+                            .map(c => (
+                              <tr key={c.id} className="border-b">
+                                <td className="p-2">
+                                  <div className="font-medium">{c.productos?.nombre}</div>
+                                  <div className="text-muted-foreground">{c.productos?.sku}</div>
+                                </td>
+                                <td className="p-2 text-right font-mono">${Number(c.precio).toFixed(2)}</td>
+                                <td className="p-2 text-right font-mono">${Number(c.precio_con_iva || c.precio).toFixed(2)}</td>
+                                <td className="p-2 text-right">{c.existencia_proveedor ?? '—'}</td>
+                                <td className="p-2 text-right">{c.cantidad_min ?? '—'}</td>
+                                <td className="p-2">{c.fecha_vigencia_hasta || '—'}</td>
+                              </tr>
+                            ))}
+                        </tbody>
+                      </table>
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-1">{catalogo.length} producto(s) en la lista vigente de este proveedor.</p>
+                  </>
+                )}
               </section>
 
               <section>
