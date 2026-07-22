@@ -7,9 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { TrendingUp, DollarSign, Percent, Download, Search, Package, Tag, X } from 'lucide-react';
+import { TrendingUp, DollarSign, Percent, Download, Search, Package, Tag } from 'lucide-react';
 import ExcelJS from 'exceljs';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -62,10 +60,6 @@ const RentabilidadLotesPage = () => {
   const [fechaHasta, setFechaHasta] = useState('');
   const [detalleLote, setDetalleLote] = useState<LoteRow | null>(null);
   const [detalleVentas, setDetalleVentas] = useState<VentaDetalle[]>([]);
-  const [editandoPrecio, setEditandoPrecio] = useState(false);
-  const [precioEspecialInput, setPrecioEspecialInput] = useState('');
-  const [motivoInput, setMotivoInput] = useState('caducidad_corta');
-  const [guardandoPrecio, setGuardandoPrecio] = useState(false);
 
   useEffect(() => {
     load();
@@ -91,57 +85,12 @@ const RentabilidadLotesPage = () => {
   const verDetalle = async (lote: LoteRow) => {
     setDetalleLote(lote);
     setDetalleVentas([]);
-    setEditandoPrecio(false);
-    setPrecioEspecialInput(lote.precio_especial != null ? String(lote.precio_especial) : '');
-    setMotivoInput(lote.motivo_precio_especial || 'caducidad_corta');
     const { data, error } = await supabase.rpc('ventas_por_lote', { p_lote_id: lote.lote_id });
     if (error) {
       toast.error('Error al cargar ventas del lote');
       return;
     }
     setDetalleVentas((data || []) as VentaDetalle[]);
-  };
-
-  const guardarPrecioEspecial = async () => {
-    if (!detalleLote) return;
-    const valor = precioEspecialInput.trim() === '' ? null : Number(precioEspecialInput);
-    if (valor != null && (isNaN(valor) || valor < 0)) {
-      toast.error('El precio especial debe ser un número válido');
-      return;
-    }
-    setGuardandoPrecio(true);
-    try {
-      const { error } = await supabase
-        .from('lotes')
-        .update({
-          precio_especial: valor,
-          motivo_precio_especial: valor != null ? motivoInput : null,
-        })
-        .eq('id', detalleLote.lote_id);
-      if (error) throw error;
-      toast.success(
-        valor != null
-          ? `Precio especial de $${fmt(valor)} aplicado al lote ${detalleLote.numero_lote}`
-          : `Precio especial quitado del lote ${detalleLote.numero_lote}`,
-      );
-      setDetalleLote({
-        ...detalleLote,
-        precio_especial: valor,
-        motivo_precio_especial: valor != null ? motivoInput : null,
-      });
-      setRows((prev) =>
-        prev.map((r) =>
-          r.lote_id === detalleLote.lote_id
-            ? { ...r, precio_especial: valor, motivo_precio_especial: valor != null ? motivoInput : null }
-            : r,
-        ),
-      );
-      setEditandoPrecio(false);
-    } catch (err: any) {
-      console.error(err);
-      toast.error('Error al guardar el precio especial');
-    }
-    setGuardandoPrecio(false);
   };
 
   const filtered = useMemo(() => {
@@ -471,86 +420,21 @@ const RentabilidadLotesPage = () => {
                 </Card>
               </div>
 
-              <Card className="mb-4 border-amber-200">
-                <CardContent className="pt-4">
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="flex items-center gap-2">
+              {detalleLote.precio_especial != null && (
+                <Card className="mb-4 border-amber-200">
+                  <CardContent className="pt-4">
+                    <div className="flex items-center gap-2 mb-1">
                       <Tag className="h-4 w-4 text-amber-600" />
                       <h3 className="font-semibold text-sm">Precio especial de este lote</h3>
                     </div>
-                    {!editandoPrecio && (
-                      <Button size="sm" variant="outline" onClick={() => setEditandoPrecio(true)}>
-                        {detalleLote.precio_especial != null ? 'Editar' : 'Asignar precio especial'}
-                      </Button>
-                    )}
-                  </div>
-                  {!editandoPrecio ? (
-                    detalleLote.precio_especial != null ? (
-                      <p className="text-sm text-muted-foreground">
-                        Este lote se vende a{' '}
-                        <span className="font-semibold text-amber-600">${fmt(detalleLote.precio_especial)}</span>{' '}
-                        en vez del precio normal. Motivo: {detalleLote.motivo_precio_especial || 'no especificado'}.
-                        No afecta a los demás lotes de este producto.
-                      </p>
-                    ) : (
-                      <p className="text-sm text-muted-foreground">
-                        Este lote se vende al precio normal del producto. Asigna un precio especial si está por
-                        caducar y quieres rematarlo sin afectar los demás lotes.
-                      </p>
-                    )
-                  ) : (
-                    <div className="flex flex-wrap items-end gap-3">
-                      <div>
-                        <Label className="text-xs">Precio especial</Label>
-                        <Input
-                          type="number"
-                          min="0"
-                          step="0.01"
-                          className="w-32"
-                          placeholder="Sin definir"
-                          value={precioEspecialInput}
-                          onChange={(e) => setPrecioEspecialInput(e.target.value)}
-                        />
-                      </div>
-                      <div>
-                        <Label className="text-xs">Motivo</Label>
-                        <Select value={motivoInput} onValueChange={setMotivoInput}>
-                          <SelectTrigger className="w-44">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="caducidad_corta">Caducidad próxima</SelectItem>
-                            <SelectItem value="remate">Remate</SelectItem>
-                            <SelectItem value="promocion">Promoción</SelectItem>
-                            <SelectItem value="otro">Otro</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <Button size="sm" onClick={guardarPrecioEspecial} disabled={guardandoPrecio}>
-                        Guardar
-                      </Button>
-                      {detalleLote.precio_especial != null && (
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          className="text-destructive"
-                          onClick={() => {
-                            setPrecioEspecialInput('');
-                            guardarPrecioEspecial();
-                          }}
-                          disabled={guardandoPrecio}
-                        >
-                          <X className="h-4 w-4 mr-1" />
-                          Quitar precio especial
-                        </Button>
-                      )}
-                      <Button size="sm" variant="ghost" onClick={() => setEditandoPrecio(false)}>
-                        Cancelar
-                      </Button>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
+                    <p className="text-sm text-muted-foreground">
+                      Se vende a <span className="font-semibold text-amber-600">${fmt(detalleLote.precio_especial)}</span>{' '}
+                      en vez del precio normal. Motivo: {detalleLote.motivo_precio_especial || 'no especificado'}.
+                      Se asigna y modifica desde <span className="font-medium">Caducidades</span> (gerencia o superior).
+                    </p>
+                  </CardContent>
+                </Card>
+              )}
               <h3 className="font-semibold mb-2">Ventas donde se consumió este lote</h3>
               <div className="max-h-96 overflow-auto">
                 {detalleVentas.length === 0 ? (

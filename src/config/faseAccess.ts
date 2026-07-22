@@ -27,3 +27,19 @@ export const canAccessFase2 = (role: UserRole | null | undefined): boolean => {
   if (!role) return false;
   return FASE2_ROLES.includes(role);
 };
+
+// Nivel gerencial hacia arriba: puede modificar precios de venta (ej. precio
+// especial por lote en Caducidades). Vendedores y almacenistas NO — solo
+// operan el sistema con lo que ya está definido. Pedido de Alejandro,
+// sesión 21-jul-2026.
+const ROLES_GERENCIA_O_SUPERIOR: UserRole[] = [
+  'super_admin',
+  'admin',
+  'gerente',
+  'subgerente',
+];
+
+export const canEditarPreciosLote = (role: UserRole | null | undefined): boolean => {
+  if (!role) return false;
+  return ROLES_GERENCIA_O_SUPERIOR.includes(role);
+};
