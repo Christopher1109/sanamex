@@ -38,6 +38,13 @@ const TraspasosPage = () => {
   const [notasResolucion, setNotasResolucion] = useState('');
   const [resolviendo, setResolviendo] = useState(false);
 
+  // Filtros de la bandeja combinada (entrantes + salientes en una sola vista)
+  const [filtroBusqueda, setFiltroBusqueda] = useState('');
+  const [filtroDireccion, setFiltroDireccion] = useState<'todos' | 'entrante' | 'saliente'>('todos');
+  const [filtroEstadoTraspaso, setFiltroEstadoTraspaso] = useState('todos');
+  const [filtroFechaDesde, setFiltroFechaDesde] = useState('');
+  const [filtroFechaHasta, setFiltroFechaHasta] = useState('');
+
   // Wizard
   const [open, setOpen] = useState(false);
   const [paso, setPaso] = useState(1);
@@ -255,11 +262,48 @@ const TraspasosPage = () => {
     loadTraspasos();
   };
 
+  const combinados = useMemo(() => {
+    const conDireccion = [
+      ...entrantes.map(t => ({ ...t, direccion: 'entrante' as const })),
+      ...salientes.map(t => ({ ...t, direccion: 'saliente' as const })),
+    ];
+    const vistos = new Set<string>();
+    return conDireccion.filter(t => {
+      if (vistos.has(t.id)) return false;
+      vistos.add(t.id);
+      return true;
+    });
+  }, [entrantes, salientes]);
+
+  const bandejaFiltrada = useMemo(() => {
+    return combinados.filter(t => {
+      if (filtroDireccion !== 'todos' && t.direccion !== filtroDireccion) return false;
+      if (filtroEstadoTraspaso !== 'todos' && t.estado !== filtroEstadoTraspaso) return false;
+      const fecha = (t.fecha_envio || t.created_at || '').slice(0, 10);
+      if (filtroFechaDesde && fecha < filtroFechaDesde) return false;
+      if (filtroFechaHasta && fecha > filtroFechaHasta) return false;
+      if (filtroBusqueda) {
+        const b = filtroBusqueda.toLowerCase();
+        const origenNombre = (t.origen as any)?.sucursales?.nombre?.toLowerCase() || '';
+        const destinoNombre = (t.destino as any)?.sucursales?.nombre?.toLowerCase() || '';
+        const folio = (t.numero_traspaso || '').toLowerCase();
+        const notas = (t.notas || '').toLowerCase();
+        if (!folio.includes(b) && !notas.includes(b) && !origenNombre.includes(b) && !destinoNombre.includes(b)) return false;
+      }
+      return true;
+    }).sort((a, b) => new Date(b.fecha_envio || b.created_at).getTime() - new Date(a.fecha_envio || a.created_at).getTime());
+  }, [combinados, filtroDireccion, filtroEstadoTraspaso, filtroFechaDesde, filtroFechaHasta, filtroBusqueda]);
+
   const renderRow = (t: any, esEntrante: boolean) => (
     <TableRow key={t.id}>
       <TableCell className="font-mono text-xs">{t.numero_traspaso || '—'}</TableCell>
       <TableCell className="text-xs">{new Date(t.fecha_envio || t.created_at).toLocaleDateString('es-MX')}</TableCell>
       <TableCell className="text-sm">{(t.origen as any)?.sucursales?.nombre} → {(t.destino as any)?.sucursales?.nombre}</TableCell>
+      <TableCell>
+        <Badge variant="outline" className={esEntrante ? 'border-blue-400 text-blue-700' : 'border-slate-400 text-slate-700'}>
+          {esEntrante ? 'Entrante' : 'Saliente'}
+        </Badge>
+      </TableCell>
       <TableCell><Badge className={estadoColor[t.estado] || ''} variant="secondary">{t.estado}</Badge></TableCell>
       <TableCell className="text-xs max-w-md truncate" title={t.notas}>{t.notas}</TableCell>
       <TableCell className="text-right">
@@ -286,12 +330,11 @@ const TraspasosPage = () => {
         <Button onClick={abrirWizard}><Plus className="h-4 w-4 mr-2" /> Nuevo Traspaso</Button>
       </div>
 
-      <Tabs defaultValue="entrantes">
+      <Tabs defaultValue="bandeja">
         <TabsList>
-          <TabsTrigger value="entrantes">
+          <TabsTrigger value="bandeja">
             Bandeja entrante {entrantes.filter(t => t.estado === 'enviado').length > 0 && <Badge className="ml-2" variant="default">{entrantes.filter(t => t.estado === 'enviado').length}</Badge>}
           </TabsTrigger>
-          <TabsTrigger value="salientes">Enviados</TabsTrigger>
           {puedeAutorizarIncidencias && (
             <TabsTrigger value="incidencias" className="gap-2">
               <AlertTriangle className="h-4 w-4" /> Incidencias
@@ -300,31 +343,65 @@ const TraspasosPage = () => {
           )}
         </TabsList>
 
-        <TabsContent value="entrantes">
-          <Card><CardContent className="p-0">
-            <Table>
-              <TableHeader><TableRow>
-                <TableHead>Folio</TableHead><TableHead>Fecha</TableHead><TableHead>Ruta</TableHead><TableHead>Estado</TableHead><TableHead>Notas</TableHead><TableHead className="text-right">Acción</TableHead>
-              </TableRow></TableHeader>
-              <TableBody>
-                {loading ? <TableRow><TableCell colSpan={6} className="text-center py-6">Cargando…</TableCell></TableRow>
-                  : entrantes.length === 0 ? <TableRow><TableCell colSpan={6} className="text-center py-6 text-muted-foreground">Sin traspasos entrantes</TableCell></TableRow>
-                  : entrantes.map(t => renderRow(t, true))}
-              </TableBody>
-            </Table>
-          </CardContent></Card>
-        </TabsContent>
+        <TabsContent value="bandeja" className="space-y-3">
+          <Card className="p-3">
+            <div className="flex flex-wrap gap-3 items-end">
+              <div className="flex-1 min-w-[220px]">
+                <Label className="text-xs">Buscar (folio, ruta o notas)</Label>
+                <div className="relative">
+                  <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                  <Input className="pl-9" placeholder="TRAS-2026-…, Ecatepec, reabasto…" value={filtroBusqueda} onChange={e => setFiltroBusqueda(e.target.value)} />
+                </div>
+              </div>
+              <div className="w-40">
+                <Label className="text-xs">Dirección</Label>
+                <Select value={filtroDireccion} onValueChange={(v: any) => setFiltroDireccion(v)}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="todos">Todos</SelectItem>
+                    <SelectItem value="entrante">Recibidos</SelectItem>
+                    <SelectItem value="saliente">Enviados</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="w-40">
+                <Label className="text-xs">Estado</Label>
+                <Select value={filtroEstadoTraspaso} onValueChange={setFiltroEstadoTraspaso}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="todos">Todos</SelectItem>
+                    <SelectItem value="enviado">Enviado</SelectItem>
+                    <SelectItem value="recibido">Recibido</SelectItem>
+                    <SelectItem value="cancelado">Cancelado</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="w-36">
+                <Label className="text-xs">Desde</Label>
+                <Input type="date" value={filtroFechaDesde} onChange={e => setFiltroFechaDesde(e.target.value)} />
+              </div>
+              <div className="w-36">
+                <Label className="text-xs">Hasta</Label>
+                <Input type="date" value={filtroFechaHasta} onChange={e => setFiltroFechaHasta(e.target.value)} />
+              </div>
+              {(filtroBusqueda || filtroDireccion !== 'todos' || filtroEstadoTraspaso !== 'todos' || filtroFechaDesde || filtroFechaHasta) && (
+                <Button variant="ghost" size="sm" onClick={() => { setFiltroBusqueda(''); setFiltroDireccion('todos'); setFiltroEstadoTraspaso('todos'); setFiltroFechaDesde(''); setFiltroFechaHasta(''); }}>
+                  Limpiar filtros
+                </Button>
+              )}
+            </div>
+          </Card>
 
-        <TabsContent value="salientes">
           <Card><CardContent className="p-0">
             <Table>
               <TableHeader><TableRow>
-                <TableHead>Folio</TableHead><TableHead>Fecha</TableHead><TableHead>Ruta</TableHead><TableHead>Estado</TableHead><TableHead>Notas</TableHead><TableHead className="text-right">Acción</TableHead>
+                <TableHead>Folio</TableHead><TableHead>Fecha</TableHead><TableHead>Ruta</TableHead>
+                <TableHead>Dirección</TableHead><TableHead>Estado</TableHead><TableHead>Notas</TableHead><TableHead className="text-right">Acción</TableHead>
               </TableRow></TableHeader>
               <TableBody>
-                {loading ? <TableRow><TableCell colSpan={6} className="text-center py-6">Cargando…</TableCell></TableRow>
-                  : salientes.length === 0 ? <TableRow><TableCell colSpan={6} className="text-center py-6 text-muted-foreground">Sin traspasos enviados</TableCell></TableRow>
-                  : salientes.map(t => renderRow(t, false))}
+                {loading ? <TableRow><TableCell colSpan={7} className="text-center py-6">Cargando…</TableCell></TableRow>
+                  : bandejaFiltrada.length === 0 ? <TableRow><TableCell colSpan={7} className="text-center py-6 text-muted-foreground">Sin traspasos que coincidan con el filtro</TableCell></TableRow>
+                  : bandejaFiltrada.map(t => renderRow(t, t.direccion === 'entrante'))}
               </TableBody>
             </Table>
           </CardContent></Card>
