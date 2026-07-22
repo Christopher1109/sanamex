@@ -25,6 +25,8 @@ interface LoteOption {
   numero_lote: string;
   fecha_caducidad: string | null;
   cantidad: number;
+  /** Precio especial de ESTE lote (ej. caducidad próxima). Null = precio normal del producto. */
+  precio_especial?: number | null;
 }
 
 interface CartItem {
@@ -38,6 +40,10 @@ interface CartItem {
   subtotal: number;
   lotes_disponibles: LoteOption[];
   lote_id_seleccionado: string | null;
+  /** true si el lote actualmente seleccionado trae precio especial */
+  precio_especial_aplicado?: boolean;
+  /** Precio de lista normal, para mostrar el ahorro cuando hay precio especial */
+  precio_lista?: number | null;
 }
 
 type CartAction =
@@ -100,7 +106,19 @@ function cartReducer(state: CartItem[], action: CartAction): CartItem[] {
       });
     }
     case 'SET_LOTE':
-      return state.map(i => i.producto_id === action.producto_id ? { ...i, lote_id_seleccionado: action.lote_id } : i);
+      return state.map(i => {
+        if (i.producto_id !== action.producto_id) return i;
+        const lote = i.lotes_disponibles.find(l => l.lote_id === action.lote_id);
+        const tieneEspecial = lote?.precio_especial != null;
+        const nuevoPrecio = tieneEspecial ? Number(lote!.precio_especial) : (i.precio_lista ?? i.precio_unitario);
+        return {
+          ...i,
+          lote_id_seleccionado: action.lote_id,
+          precio_unitario: nuevoPrecio,
+          precio_especial_aplicado: tieneEspecial,
+          subtotal: nuevoPrecio * i.cantidad,
+        };
+      });
     case 'INCREMENT':
       return state.map(i => {
         if (i.producto_id !== action.producto_id) return i;
@@ -206,7 +224,7 @@ const POSPage = () => {
     const almacenIds = almacenes.map(a => a.id);
     const { data: inv } = await supabase
       .from('inventario')
-      .select('cantidad, lote_id, lotes!inner(producto_id, numero_lote, fecha_caducidad)')
+      .select('cantidad, lote_id, lotes!inner(producto_id, numero_lote, fecha_caducidad, precio_especial)')
       .in('almacen_id', almacenIds)
       .gt('cantidad', 0);
 
@@ -227,6 +245,7 @@ const POSPage = () => {
         numero_lote: r.lotes.numero_lote,
         fecha_caducidad: r.lotes.fecha_caducidad,
         cantidad: r.cantidad,
+        precio_especial: r.lotes.precio_especial,
       });
     }
     const lotes = Array.from(map.values()).sort((a, b) => {
@@ -292,7 +311,10 @@ const POSPage = () => {
       return;
     }
 
-    const precio = await getPrecioForProduct(prod);
+    const precioLista = await getPrecioForProduct(prod);
+    const loteDefault = lotes[0];
+    const tienePrecioEspecial = loteDefault?.precio_especial != null;
+    const precio = tienePrecioEspecial ? Number(loteDefault.precio_especial) : precioLista;
     dispatch({
       type: 'ADD_ITEM',
       payload: {
@@ -304,11 +326,17 @@ const POSPage = () => {
         cantidad: 1,
         stock_disponible: stock,
         lotes_disponibles: lotes,
-        lote_id_seleccionado: lotes[0]?.lote_id ?? null,
+        lote_id_seleccionado: loteDefault?.lote_id ?? null,
+        precio_especial_aplicado: tienePrecioEspecial,
+        precio_lista: precioLista,
       },
     });
 
-    toast.success(`${prod.nombre} agregado${isOffline ? ' (offline)' : ''}`);
+    toast.success(
+      tienePrecioEspecial
+        ? `${prod.nombre} agregado a precio especial (lote ${loteDefault.numero_lote})`
+        : `${prod.nombre} agregado${isOffline ? ' (offline)' : ''}`
+    );
     setScanInput('');
     refocusScan();
   };
@@ -350,7 +378,10 @@ const POSPage = () => {
       toast.error(`Sin stock vigente en ${selectedSucursal?.nombre}`);
       return;
     }
-    const precio = await getPrecioForProduct(prod);
+    const precioLista = await getPrecioForProduct(prod);
+    const loteDefault = lotes[0];
+    const tienePrecioEspecial = loteDefault?.precio_especial != null;
+    const precio = tienePrecioEspecial ? Number(loteDefault.precio_especial) : precioLista;
     dispatch({
       type: 'ADD_ITEM',
       payload: {
@@ -362,10 +393,16 @@ const POSPage = () => {
         cantidad: 1,
         stock_disponible: stock,
         lotes_disponibles: lotes,
-        lote_id_seleccionado: lotes[0]?.lote_id ?? null,
+        lote_id_seleccionado: loteDefault?.lote_id ?? null,
+        precio_especial_aplicado: tienePrecioEspecial,
+        precio_lista: precioLista,
       },
     });
-    toast.success(`${prod.nombre} agregado${isOffline ? ' (offline)' : ''}`);
+    toast.success(
+      tienePrecioEspecial
+        ? `${prod.nombre} agregado a precio especial (lote ${loteDefault.numero_lote})`
+        : `${prod.nombre} agregado${isOffline ? ' (offline)' : ''}`
+    );
     setSearchOpen(false);
     setSearchInput('');
     refocusScan();
@@ -399,7 +436,7 @@ const POSPage = () => {
     const itemsPayload = cart.map(i => ({
       producto_id: i.producto_id,
       cantidad: i.cantidad,
-      precio_unitario: i.precio_unitario,
+      precio_unitario: i.precio_lista ?? i.precio_unitario,
       lote_id: i.lote_id_seleccionado || undefined,
     }));
 
@@ -609,6 +646,7 @@ const POSPage = () => {
                                 {item.lotes_disponibles.map((l, idx) => (
                                   <SelectItem key={l.lote_id} value={l.lote_id} className="text-xs">
                                     {idx === 0 && '⭐ '}Lote {l.numero_lote} · cad {l.fecha_caducidad || 's/f'} · {l.cantidad}u
+                                    {l.precio_especial != null && ` · precio especial $${Number(l.precio_especial).toFixed(2)}`}
                                   </SelectItem>
                                 ))}
                               </SelectContent>
@@ -642,7 +680,14 @@ const POSPage = () => {
                           </Button>
                         </div>
                       </TableCell>
-                      <TableCell className="text-right">${item.precio_unitario.toFixed(2)}</TableCell>
+                      <TableCell className="text-right">
+                        {item.precio_especial_aplicado && item.precio_lista != null && (
+                          <span className="block text-xs text-muted-foreground line-through">${item.precio_lista.toFixed(2)}</span>
+                        )}
+                        <span className={item.precio_especial_aplicado ? 'text-amber-600 font-medium' : ''}>
+                          ${item.precio_unitario.toFixed(2)}
+                        </span>
+                      </TableCell>
                       <TableCell className="text-right font-bold">${item.subtotal.toFixed(2)}</TableCell>
                       <TableCell>
                         <Button variant="ghost" size="icon" className="h-8 w-8"
