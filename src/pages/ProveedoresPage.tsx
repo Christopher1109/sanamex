@@ -6,12 +6,13 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetFooter } from '@/components/ui/sheet';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Label } from '@/components/ui/label';
-import { Plus, Search, ChevronRight, Trash2 } from 'lucide-react';
+import { Plus, Search, ChevronRight, Trash2, Download } from 'lucide-react';
 import { toast } from 'sonner';
+import ExcelJS from 'exceljs';
 
 type Proveedor = {
   id: string;
@@ -200,6 +201,39 @@ export default function ProveedoresPage() {
     );
   };
 
+  async function exportExcel() {
+    const wb = new ExcelJS.Workbook();
+    const ws = wb.addWorksheet('Proveedores');
+    ws.columns = [
+      { header: 'Nombre', key: 'nombre', width: 30 },
+      { header: 'Contacto', key: 'contacto', width: 22 },
+      { header: 'Teléfono', key: 'telefono', width: 16 },
+      { header: 'Correo principal', key: 'email', width: 26 },
+      { header: 'Correo auxiliar', key: 'correo_aux', width: 26 },
+      { header: 'RFC', key: 'rfc', width: 16 },
+      { header: 'Plazo de pago (días)', key: 'plazo_pago_dias', width: 18 },
+      { header: 'Condiciones', key: 'condiciones', width: 20 },
+      { header: 'Banco', key: 'banco', width: 18 },
+      { header: 'Cuenta bancaria', key: 'cuenta_banco', width: 20 },
+      { header: 'Dirección fiscal', key: 'direccion_fiscal', width: 30 },
+      { header: 'Documentación', key: 'documentacion', width: 16 },
+      { header: 'Activo', key: 'activo', width: 10 },
+    ];
+    proveedores.forEach(p => {
+      const docs = [p.constancia_situacion_fiscal_url, p.aviso_funcionamiento_url, p.comprobante_domicilio_url, p.identificacion_oficial_url];
+      ws.addRow({ ...p, documentacion: `${docs.filter(Boolean).length}/4`, activo: p.activo ? 'Sí' : 'No' });
+    });
+    ws.getRow(1).font = { bold: true };
+    const buf = await wb.xlsx.writeBuffer();
+    const blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `proveedores_${new Date().toISOString().slice(0, 10)}.xlsx`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
   const Field = ({ label, value, onChange, type = 'text', textarea = false }: any) => (
     <div className="space-y-1">
       <Label className="text-xs text-muted-foreground">{label}</Label>
@@ -222,9 +256,14 @@ export default function ProveedoresPage() {
           <h1 className="text-2xl font-bold">Proveedores</h1>
           <p className="text-muted-foreground">{proveedores.length} registrados</p>
         </div>
-        <Button onClick={() => { setForm(empty); setCreateOpen(true); }}>
-          <Plus className="h-4 w-4 mr-2" /> Nuevo Proveedor
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={exportExcel}>
+            <Download className="h-4 w-4 mr-2" /> Exportar Excel
+          </Button>
+          <Button onClick={() => { setForm(empty); setCreateOpen(true); }}>
+            <Plus className="h-4 w-4 mr-2" /> Nuevo Proveedor
+          </Button>
+        </div>
       </div>
 
       <Card>
@@ -280,135 +319,151 @@ export default function ProveedoresPage() {
       </Card>
 
       {/* Detail sheet */}
-      <Sheet open={!!selected} onOpenChange={(o) => { if (!o) { setSelected(null); setEditing(false); } }}>
-        <SheetContent className="w-full sm:max-w-2xl overflow-y-auto">
-          <SheetHeader>
-            <SheetTitle className="flex items-center justify-between gap-2 pr-6">
+      <Dialog open={!!selected} onOpenChange={(o) => { if (!o) { setSelected(null); setEditing(false); } }}>
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center justify-between gap-2 pr-6">
               <span>{selected?.nombre}</span>
               {!editing && <Button size="sm" variant="outline" onClick={() => setEditing(true)}>Editar</Button>}
-            </SheetTitle>
-          </SheetHeader>
+            </DialogTitle>
+            <DialogDescription>Consulta y edita la información del proveedor en las distintas pestañas.</DialogDescription>
+          </DialogHeader>
 
           {selected && (
-            <div className="mt-6 space-y-6">
-              <section>
-                <h3 className="font-semibold text-sm mb-3 text-primary">Contacto</h3>
-                <div className="grid grid-cols-2 gap-3">
-                  <Field label="Nombre" value={form.nombre} onChange={(v: string) => setForm({ ...form, nombre: v })} />
-                  <Field label="Persona responsable" value={form.contacto} onChange={(v: string) => setForm({ ...form, contacto: v })} />
-                  <Field label="Teléfono" value={form.telefono} onChange={(v: string) => setForm({ ...form, telefono: v })} />
-                  <Field label="Correo principal" value={form.email} onChange={(v: string) => setForm({ ...form, email: v })} />
-                  <Field label="Correo auxiliar" value={form.correo_aux} onChange={(v: string) => setForm({ ...form, correo_aux: v })} />
-                </div>
-              </section>
+            <Tabs defaultValue="contacto">
+              <TabsList className="grid grid-cols-4 w-full">
+                <TabsTrigger value="contacto">Contacto</TabsTrigger>
+                <TabsTrigger value="fiscal">Fiscal y bancario</TabsTrigger>
+                <TabsTrigger value="expediente">Expediente</TabsTrigger>
+                <TabsTrigger value="catalogo">Catálogo</TabsTrigger>
+              </TabsList>
 
-              <section>
-                <h3 className="font-semibold text-sm mb-3 text-primary">Condiciones comerciales</h3>
-                <div className="grid grid-cols-2 gap-3">
-                  <Field label="Plazo de pago (días) *" type="number" value={form.plazo_pago_dias} onChange={(v: any) => setForm({ ...form, plazo_pago_dias: v })} />
-                  <Field label="Condiciones" value={form.condiciones} onChange={(v: string) => setForm({ ...form, condiciones: v })} />
-                </div>
-                <p className="text-xs text-muted-foreground mt-2">Use 0 si el proveedor es de contado. Este dato alimenta Cuentas por Pagar y las alertas de riesgo.</p>
-              </section>
-
-              <section>
-                <h3 className="font-semibold text-sm mb-3 text-primary">Datos fiscales y bancarios</h3>
-                <div className="grid grid-cols-2 gap-3">
-                  <Field label="RFC" value={form.rfc} onChange={(v: string) => setForm({ ...form, rfc: v })} />
-                  <Field label="Banco" value={form.banco} onChange={(v: string) => setForm({ ...form, banco: v })} />
-                  <Field label="Cuenta bancaria" value={form.cuenta_banco} onChange={(v: string) => setForm({ ...form, cuenta_banco: v })} />
-                  <div className="col-span-2">
-                    <Field label="Dirección fiscal" textarea value={form.direccion_fiscal} onChange={(v: string) => setForm({ ...form, direccion_fiscal: v })} />
+              <TabsContent value="contacto" className="space-y-6 pt-4">
+                <section>
+                  <h3 className="font-semibold text-sm mb-3 text-primary">Contacto</h3>
+                  <div className="grid grid-cols-2 gap-3">
+                    <Field label="Nombre" value={form.nombre} onChange={(v: string) => setForm({ ...form, nombre: v })} />
+                    <Field label="Persona responsable" value={form.contacto} onChange={(v: string) => setForm({ ...form, contacto: v })} />
+                    <Field label="Teléfono" value={form.telefono} onChange={(v: string) => setForm({ ...form, telefono: v })} />
+                    <Field label="Correo principal" value={form.email} onChange={(v: string) => setForm({ ...form, email: v })} />
+                    <Field label="Correo auxiliar" value={form.correo_aux} onChange={(v: string) => setForm({ ...form, correo_aux: v })} />
                   </div>
-                </div>
-              </section>
+                </section>
 
-              <section>
-                <div className="flex items-center justify-between mb-3">
-                  <h3 className="font-semibold text-sm text-primary">Expediente digital</h3>
-                  {(() => {
-                    const campos = ['constancia_situacion_fiscal_url', 'aviso_funcionamiento_url', 'comprobante_domicilio_url', 'identificacion_oficial_url'] as const;
-                    const completos = campos.filter(c => (form as any)[c]).length;
-                    const completo = completos === campos.length;
-                    return (
-                      <Badge variant={completo ? 'default' : 'secondary'} className={completo ? 'bg-green-600' : ''}>
-                        {completo ? 'Documentación completa' : `Documentación ${completos}/${campos.length}`}
-                      </Badge>
-                    );
-                  })()}
-                </div>
-                <div className="grid grid-cols-1 gap-3">
-                  <DocumentoField label="Constancia de situación fiscal" campo="constancia_situacion_fiscal_url" />
-                  <DocumentoField label="Aviso de funcionamiento y responsable sanitario" campo="aviso_funcionamiento_url" />
-                  <DocumentoField label="Comprobante de domicilio" campo="comprobante_domicilio_url" />
-                  <DocumentoField label="Identificación oficial" campo="identificacion_oficial_url" />
-                </div>
-                <p className="text-xs text-muted-foreground mt-2">Los documentos se suben directo (PDF, JPG o PNG) — ya no hace falta pegar una URL a mano.</p>
-              </section>
+                <section>
+                  <h3 className="font-semibold text-sm mb-3 text-primary">Condiciones comerciales</h3>
+                  <div className="grid grid-cols-2 gap-3">
+                    <Field label="Plazo de pago (días) *" type="number" value={form.plazo_pago_dias} onChange={(v: any) => setForm({ ...form, plazo_pago_dias: v })} />
+                    <Field label="Condiciones" value={form.condiciones} onChange={(v: string) => setForm({ ...form, condiciones: v })} />
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-2">Use 0 si el proveedor es de contado. Este dato alimenta Cuentas por Pagar y las alertas de riesgo.</p>
+                </section>
 
-              <section>
-                <h3 className="font-semibold text-sm mb-3 text-primary">Catálogo y precios de este proveedor</h3>
-                {catalogo.length === 0 && !catalogoLoading ? (
-                  <p className="text-sm text-muted-foreground bg-muted/40 rounded-md p-3">
-                    Sin lista de precios cargada todavía. Se sube desde Compras → Catálogos → Proveedores (carga masiva por Excel).
-                  </p>
-                ) : (
-                  <>
-                    <Input
-                      placeholder="Buscar producto o SKU en este catálogo…"
-                      value={catalogoSearch}
-                      onChange={e => setCatalogoSearch(e.target.value)}
-                      className="mb-2"
-                    />
-                    <div className="border rounded-md max-h-64 overflow-y-auto">
-                      <table className="w-full text-xs">
-                        <thead className="bg-muted sticky top-0">
-                          <tr>
-                            <th className="p-2 text-left">Producto</th>
-                            <th className="p-2 text-right">Precio</th>
-                            <th className="p-2 text-right">Con IVA</th>
-                            <th className="p-2 text-right">Existencia</th>
-                            <th className="p-2 text-right">Mín.</th>
-                            <th className="p-2 text-left">Vigente hasta</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {catalogo
-                            .filter(c => {
-                              if (!catalogoSearch) return true;
-                              const s = catalogoSearch.toLowerCase();
-                              return (c.productos?.nombre || '').toLowerCase().includes(s) || (c.productos?.sku || '').toLowerCase().includes(s);
-                            })
-                            .slice(0, 200)
-                            .map(c => (
-                              <tr key={c.id} className="border-b">
-                                <td className="p-2">
-                                  <div className="font-medium">{c.productos?.nombre}</div>
-                                  <div className="text-muted-foreground">{c.productos?.sku}</div>
-                                </td>
-                                <td className="p-2 text-right font-mono">${Number(c.precio).toFixed(2)}</td>
-                                <td className="p-2 text-right font-mono">${Number(c.precio_con_iva || c.precio).toFixed(2)}</td>
-                                <td className="p-2 text-right">{c.existencia_proveedor ?? '—'}</td>
-                                <td className="p-2 text-right">{c.cantidad_min ?? '—'}</td>
-                                <td className="p-2">{c.fecha_vigencia_hasta || '—'}</td>
-                              </tr>
-                            ))}
-                        </tbody>
-                      </table>
+                <section>
+                  <h3 className="font-semibold text-sm mb-3 text-primary">Notas internas</h3>
+                  <Field label="Notas" textarea value={form.notas} onChange={(v: string) => setForm({ ...form, notas: v })} />
+                </section>
+              </TabsContent>
+
+              <TabsContent value="fiscal" className="space-y-6 pt-4">
+                <section>
+                  <h3 className="font-semibold text-sm mb-3 text-primary">Datos fiscales y bancarios</h3>
+                  <div className="grid grid-cols-2 gap-3">
+                    <Field label="RFC" value={form.rfc} onChange={(v: string) => setForm({ ...form, rfc: v })} />
+                    <Field label="Banco" value={form.banco} onChange={(v: string) => setForm({ ...form, banco: v })} />
+                    <Field label="Cuenta bancaria" value={form.cuenta_banco} onChange={(v: string) => setForm({ ...form, cuenta_banco: v })} />
+                    <div className="col-span-2">
+                      <Field label="Dirección fiscal" textarea value={form.direccion_fiscal} onChange={(v: string) => setForm({ ...form, direccion_fiscal: v })} />
                     </div>
-                    <p className="text-xs text-muted-foreground mt-1">{catalogo.length} producto(s) en la lista vigente de este proveedor.</p>
-                  </>
-                )}
-              </section>
+                  </div>
+                </section>
+              </TabsContent>
 
-              <section>
-                <h3 className="font-semibold text-sm mb-3 text-primary">Notas internas</h3>
-                <Field label="Notas" textarea value={form.notas} onChange={(v: string) => setForm({ ...form, notas: v })} />
-              </section>
-            </div>
+              <TabsContent value="expediente" className="space-y-6 pt-4">
+                <section>
+                  <div className="flex items-center justify-between mb-3">
+                    <h3 className="font-semibold text-sm text-primary">Expediente digital</h3>
+                    {(() => {
+                      const campos = ['constancia_situacion_fiscal_url', 'aviso_funcionamiento_url', 'comprobante_domicilio_url', 'identificacion_oficial_url'] as const;
+                      const completos = campos.filter(c => (form as any)[c]).length;
+                      const completo = completos === campos.length;
+                      return (
+                        <Badge variant={completo ? 'default' : 'secondary'} className={completo ? 'bg-green-600' : ''}>
+                          {completo ? 'Documentación completa' : `Documentación ${completos}/${campos.length}`}
+                        </Badge>
+                      );
+                    })()}
+                  </div>
+                  <div className="grid grid-cols-1 gap-3">
+                    <DocumentoField label="Constancia de situación fiscal" campo="constancia_situacion_fiscal_url" />
+                    <DocumentoField label="Aviso de funcionamiento y responsable sanitario" campo="aviso_funcionamiento_url" />
+                    <DocumentoField label="Comprobante de domicilio" campo="comprobante_domicilio_url" />
+                    <DocumentoField label="Identificación oficial" campo="identificacion_oficial_url" />
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-2">Los documentos se suben directo (PDF, JPG o PNG) — ya no hace falta pegar una URL a mano.</p>
+                </section>
+              </TabsContent>
+
+              <TabsContent value="catalogo" className="space-y-6 pt-4">
+                <section>
+                  <h3 className="font-semibold text-sm mb-3 text-primary">Catálogo y precios de este proveedor</h3>
+                  {catalogo.length === 0 && !catalogoLoading ? (
+                    <p className="text-sm text-muted-foreground bg-muted/40 rounded-md p-3">
+                      Sin lista de precios cargada todavía. Se sube desde Compras → Catálogos → Proveedores (carga masiva por Excel).
+                    </p>
+                  ) : (
+                    <>
+                      <Input
+                        placeholder="Buscar producto o SKU en este catálogo…"
+                        value={catalogoSearch}
+                        onChange={e => setCatalogoSearch(e.target.value)}
+                        className="mb-2"
+                      />
+                      <div className="border rounded-md max-h-64 overflow-y-auto">
+                        <table className="w-full text-xs">
+                          <thead className="bg-muted sticky top-0">
+                            <tr>
+                              <th className="p-2 text-left">Producto</th>
+                              <th className="p-2 text-right">Precio</th>
+                              <th className="p-2 text-right">Con IVA</th>
+                              <th className="p-2 text-right">Existencia</th>
+                              <th className="p-2 text-right">Mín.</th>
+                              <th className="p-2 text-left">Vigente hasta</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {catalogo
+                              .filter(c => {
+                                if (!catalogoSearch) return true;
+                                const s = catalogoSearch.toLowerCase();
+                                return (c.productos?.nombre || '').toLowerCase().includes(s) || (c.productos?.sku || '').toLowerCase().includes(s);
+                              })
+                              .slice(0, 200)
+                              .map(c => (
+                                <tr key={c.id} className="border-b">
+                                  <td className="p-2">
+                                    <div className="font-medium">{c.productos?.nombre}</div>
+                                    <div className="text-muted-foreground">{c.productos?.sku}</div>
+                                  </td>
+                                  <td className="p-2 text-right font-mono">${Number(c.precio).toFixed(2)}</td>
+                                  <td className="p-2 text-right font-mono">${Number(c.precio_con_iva || c.precio).toFixed(2)}</td>
+                                  <td className="p-2 text-right">{c.existencia_proveedor ?? '—'}</td>
+                                  <td className="p-2 text-right">{c.cantidad_min ?? '—'}</td>
+                                  <td className="p-2">{c.fecha_vigencia_hasta || '—'}</td>
+                                </tr>
+                              ))}
+                          </tbody>
+                        </table>
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-1">{catalogo.length} producto(s) en la lista vigente de este proveedor.</p>
+                    </>
+                  )}
+                </section>
+              </TabsContent>
+            </Tabs>
           )}
 
-          <SheetFooter className="mt-6 flex-row justify-between sm:justify-between gap-2">
+          <DialogFooter className="mt-6 flex-row justify-between sm:justify-between gap-2">
             <AlertDialog>
               <AlertDialogTrigger asChild>
                 <Button variant="destructive" size="sm"><Trash2 className="h-4 w-4 mr-2" />Eliminar</Button>
@@ -432,9 +487,9 @@ export default function ProveedoresPage() {
                 <Button onClick={saveDetail}>Guardar cambios</Button>
               </div>
             )}
-          </SheetFooter>
-        </SheetContent>
-      </Sheet>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Create dialog */}
       <Dialog open={createOpen} onOpenChange={setCreateOpen}>

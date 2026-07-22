@@ -18,6 +18,7 @@ const InventarioPage = () => {
   const onlineStatus = useOnlineStatus();
   const isOffline = onlineStatus === 'offline';
   const [inventario, setInventario] = useState<any[]>([]);
+  const [ventas30d, setVentas30d] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
   const [searchProducto, setSearchProducto] = useState('');
   const [searchLote, setSearchLote] = useState('');
@@ -67,6 +68,25 @@ const InventarioPage = () => {
 
     if (error) { toast.error('Error cargando inventario'); console.error(error); }
     else setInventario(data || []);
+
+    // Ventas de los últimos 30 días por producto, para calcular días de
+    // cobertura reales en vez de un mínimo fijo (pedido Alejandro: "que el
+    // stock no esté por debajo de lo que se estima que son los días de
+    // inventario").
+    const hace30 = new Date();
+    hace30.setDate(hace30.getDate() - 30);
+    const { data: ventasData } = await supabase
+      .from('venta_lineas')
+      .select('cantidad, producto_id, ventas!inner(sucursal_id, fecha, estado)')
+      .eq('ventas.sucursal_id', selectedSucursal.id)
+      .eq('ventas.estado', 'completada')
+      .gte('ventas.fecha', hace30.toISOString());
+    const salesMap: Record<string, number> = {};
+    (ventasData || []).forEach((v: any) => {
+      salesMap[v.producto_id] = (salesMap[v.producto_id] || 0) + Math.abs(v.cantidad);
+    });
+    setVentas30d(salesMap);
+
     setLoading(false);
   };
 
@@ -85,18 +105,28 @@ const InventarioPage = () => {
     return diff > 0 && diff <= 90;
   };
 
-  interface StockAgg { nombre: string; sku: string; total: number; minimo: number }
+  interface StockAgg { nombre: string; sku: string; producto_id: string; total: number; minimo: number; diasCobertura: number | null }
+  const UMBRAL_DIAS_ALERTA = 15; // por debajo de esto, se considera "bajo mínimo" cuando sí hay ventas recientes
+
   // Aggregate stock by product for minimum alerts
   const stockByProduct = filtered.reduce((acc, inv) => {
     const prod = (inv as any).lotes?.productos;
+    const productoId = (inv as any).lotes?.producto_id;
     if (!prod) return acc;
     const key = prod.sku as string;
-    if (!acc[key]) acc[key] = { nombre: prod.nombre, sku: prod.sku, total: 0, minimo: prod.stock_minimo || 10 };
+    if (!acc[key]) acc[key] = { nombre: prod.nombre, sku: prod.sku, producto_id: productoId, total: 0, minimo: prod.stock_minimo || 10, diasCobertura: null };
     acc[key].total += inv.cantidad;
     return acc;
   }, {} as Record<string, StockAgg>);
 
-  const lowStockProducts = (Object.values(stockByProduct) as StockAgg[]).filter(p => p.total <= p.minimo);
+  (Object.values(stockByProduct) as StockAgg[]).forEach((p: StockAgg) => {
+    const ventas30 = ventas30d[p.producto_id] || 0;
+    p.diasCobertura = ventas30 > 0 ? Math.round((p.total / (ventas30 / 30)) * 10) / 10 : null;
+  });
+
+  const lowStockProducts = (Object.values(stockByProduct) as StockAgg[]).filter(p =>
+    p.diasCobertura != null ? p.diasCobertura < UMBRAL_DIAS_ALERTA : p.total <= p.minimo
+  );
 
   const totalUnidades = filtered.reduce((sum, inv) => sum + inv.cantidad, 0);
   const vencidos = filtered.filter(inv => isExpired(inv.lotes?.fecha_caducidad)).length;
@@ -141,7 +171,12 @@ const InventarioPage = () => {
                 <div key={p.sku} className="flex items-center justify-between rounded-lg border p-3">
                   <div>
                     <p className="font-medium">{p.nombre}</p>
-                    <p className="text-xs text-muted-foreground">{p.sku} — Stock: <span className="font-bold text-destructive">{p.total}</span> / Mínimo: {p.minimo}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {p.sku} — Stock: <span className="font-bold text-destructive">{p.total}</span>
+                      {p.diasCobertura != null
+                        ? <> · Cobertura estimada: <span className="font-bold text-destructive">{p.diasCobertura} días</span> (según ventas de los últimos 30 días)</>
+                        : <> / Mínimo: {p.minimo} <span className="italic">(sin ventas recientes para estimar cobertura)</span></>}
+                    </p>
                   </div>
                   <Button size="sm" variant="outline" onClick={() => navigate('/ordenes-compra')}>
                     <Eye className="h-3 w-3 mr-1" /> Ver órdenes de compra
