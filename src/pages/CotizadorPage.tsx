@@ -245,35 +245,53 @@ export default function CotizadorPage() {
     });
     if (avisos.length && !confirm(`Avisos:\n\n${avisos.join('\n')}\n\n¿Generar OCs de todos modos?`)) return;
 
-    const { data: cedis } = await supabase
-      .from('sucursales').select('id').eq('tipo', 'cedis').eq('activo', true).maybeSingle();
-    const sucursal_destino = (cedis as any)?.id ?? selectedSucursal?.id ?? null;
+    // Mapa código de sucursal -> id (para desglosar por sucursal real)
+    const { data: sucData } = await supabase.from('sucursales').select('id, codigo').eq('activo', true);
+    const sucMap = new Map((sucData || []).map((s: any) => [s.codigo, s.id]));
+    const sucursalesReales = SUCURSALES_OPCIONES.filter(s => s.code !== '__all__').map(s => s.code);
 
-    let creadas = 0;
-    for (const [proveedor_id, g] of Object.entries(grupos)) {
-      const requiereAprob = g.subtotal >= umbralAprob;
-      const { data: oc, error } = await supabase.from('ordenes_compra').insert({
-        proveedor_id, sucursal_destino_id: sucursal_destino,
-        estado: requiereAprob ? 'pendiente_aprobacion' : 'borrador',
-        creada_por: user.id,
-        notas: `Generada desde Cotizador (Sugeridos ${periodo}d)`,
-      }).select('id').single();
-      if (error || !oc) { toast.error(`OC ${(provMap.get(proveedor_id) as any)?.nombre}: ${error?.message}`); continue; }
-      const lineas = g.items.map(([producto_id, v]) => ({
-        orden_id: (oc as any).id,
-        producto_id,
-        cantidad_solicitada: v.cantidad,
-        precio_unitario: v.precio,
-        precio_con_iva: v.precio * 1.16,
-      }));
-      const { error: e2 } = await supabase.from('orden_compra_lineas').insert(lineas);
-      if (e2) { toast.error(`Líneas: ${e2.message}`); continue; }
-      creadas++;
+    // Construir el desglose por sucursal para cada producto seleccionado.
+    // Si el admin ya está viendo una sucursal específica (no consolidado),
+    // toda la cantidad seleccionada va a esa sola sucursal.
+    const itemsPayload: { producto_id: string; proveedor_id: string; sucursal_id: string; cantidad: number; precio_unitario: number }[] = [];
+
+    if (sucursalLocal !== '__all__') {
+      const sucId = sucMap.get(sucursalLocal) as string | undefined;
+      if (!sucId) { toast.error('No se encontró la sucursal seleccionada'); return; }
+      items.forEach(([producto_id, v]) => {
+        itemsPayload.push({ producto_id, proveedor_id: v.proveedor_id, sucursal_id: sucId, cantidad: v.cantidad, precio_unitario: v.precio });
+      });
+    } else {
+      const productoIds = items.map(([producto_id]) => producto_id);
+      for (const code of sucursalesReales) {
+        const sucId = sucMap.get(code) as string | undefined;
+        if (!sucId) continue;
+        let desglose: Pendiente[] = [];
+        try {
+          desglose = await rpcPaginate<Pendiente>('productos_pendientes_compra', {
+            p_fecha_corte: null, p_sucursal_codigo: code, p_periodo_referencia: periodo,
+          });
+        } catch {
+          continue;
+        }
+        const porProducto = new Map(desglose.map(d => [d.producto_id, d.cantidad_sugerida]));
+        items.forEach(([producto_id, v]) => {
+          if (!productoIds.includes(producto_id)) return;
+          const cantidadSucursal = porProducto.get(producto_id) || 0;
+          if (cantidadSucursal > 0) {
+            itemsPayload.push({ producto_id, proveedor_id: v.proveedor_id, sucursal_id: sucId, cantidad: cantidadSucursal, precio_unitario: v.precio });
+          }
+        });
+      }
     }
-    if (creadas) {
-      toast.success(`${creadas} OC creadas.`);
-      navigate('/ordenes-compra');
-    }
+
+    if (!itemsPayload.length) { toast.error('No se pudo desglosar por sucursal — revisa los Sugeridos.'); return; }
+
+    const { data, error } = await (supabase as any).rpc('generar_ordenes_compra_desde_cotizador', { p_items: itemsPayload });
+    if (error) { toast.error(error.message); return; }
+    const gruposCreados = (data as any)?.grupos || [];
+    toast.success(`${gruposCreados.length} orden(es) de compra generada(s) — ya puedes verlas y enviarlas a revisión de sucursal.`);
+    navigate('/ordenes-compra');
   }
 
   return (

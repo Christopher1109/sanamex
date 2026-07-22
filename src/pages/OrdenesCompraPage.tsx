@@ -11,7 +11,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
-import { Send, PackageCheck, X, ClipboardList, ArrowLeft, Check, ShieldCheck } from 'lucide-react';
+import { Send, PackageCheck, X, ClipboardList, ArrowLeft, Check, ShieldCheck, Truck } from 'lucide-react';
 import { toast } from 'sonner';
 
 type OC = {
@@ -47,12 +47,20 @@ const ESTADO_LABEL: Record<string, string> = {
 const ROLES_ADMIN = ['admin', 'super_admin'];
 const ROLES_GERENCIA = ['gerente', 'subgerente'];
 
+type Grupo = {
+  id: string; folio: string; estado: string; fecha_creacion: string; fecha_envio: string | null;
+  notas: string | null; proveedor_nombre: string; proveedor_codigo: string | null;
+  total_sucursales: number; pendientes_gerente: number; pendientes_admin: number;
+  autorizadas: number; canceladas: number; total_consolidado: number;
+};
+
 export default function OrdenesCompraPage() {
   const { user, userRole } = useAuth();
   const esAdmin = !!userRole && ROLES_ADMIN.includes(userRole);
   const esGerencia = !!userRole && ROLES_GERENCIA.includes(userRole);
   const [misSucursales, setMisSucursales] = useState<string[]>([]);
   const [ocs, setOcs] = useState<OC[]>([]);
+  const [grupos, setGrupos] = useState<Grupo[]>([]);
   const [loading, setLoading] = useState(false);
   const [filtroEstado, setFiltroEstado] = useState<string>('all');
   const [busqueda, setBusqueda] = useState('');
@@ -63,11 +71,25 @@ export default function OrdenesCompraPage() {
   const [recepciones, setRecepciones] = useState<Record<string, number>>({});
   const [almacenes, setAlmacenes] = useState<{ id: string; nombre: string; sucursal: string }[]>([]);
   const [almacenSel, setAlmacenSel] = useState<string>('');
-  const [tab, setTab] = useState<'todas' | 'revision_gerente' | 'autorizacion_admin'>('todas');
+  const [tab, setTab] = useState<'grupos' | 'todas' | 'revision_gerente' | 'autorizacion_admin'>('grupos');
   const [rechazoOpen, setRechazoOpen] = useState<{ oc: OC; tipo: 'gerente' | 'admin' } | null>(null);
   const [razonRechazo, setRazonRechazo] = useState('');
+  const [filtroGrupo, setFiltroGrupo] = useState<string | null>(null);
 
-  useEffect(() => { load(); loadAlmacenes(); loadMisSucursales(); }, []);
+  useEffect(() => { load(); loadAlmacenes(); loadMisSucursales(); loadGrupos(); }, []);
+
+  async function loadGrupos() {
+    const { data } = await (supabase as any).from('v_ordenes_compra_grupo_resumen').select('*').order('fecha_creacion', { ascending: false });
+    setGrupos((data || []) as Grupo[]);
+  }
+
+  async function enviarGrupoAProveedor(g: Grupo) {
+    const { error } = await (supabase as any).rpc('enviar_grupo_a_proveedor', { p_grupo_id: g.id });
+    if (error) return toast.error(error.message);
+    toast.success(`${g.folio} enviada al proveedor ${g.proveedor_nombre}`);
+    await loadGrupos();
+    await load();
+  }
 
   async function loadMisSucursales() {
     if (!user) return;
@@ -95,6 +117,7 @@ export default function OrdenesCompraPage() {
     setLineasEditadas({});
     setSeleccionada(null);
     await load();
+    await loadGrupos();
   }
 
   async function autorizarComoAdmin(oc: OC, accion: 'autorizar' | 'rechazar', razon?: string) {
@@ -105,6 +128,7 @@ export default function OrdenesCompraPage() {
     toast.success(accion === 'autorizar' ? `${oc.folio} autorizada — ya se puede editar y enviar` : `${oc.folio} rechazada`);
     setSeleccionada(null);
     await load();
+    await loadGrupos();
   }
 
   async function load() {
@@ -112,7 +136,7 @@ export default function OrdenesCompraPage() {
     const { data } = await supabase
       .from('ordenes_compra')
       .select(`id, folio, estado, fecha_creacion, fecha_envio, fecha_recepcion_real, subtotal, iva, total, notas,
-               sucursal_destino_id,
+               sucursal_destino_id, grupo_id,
                proveedor:proveedores(nombre, codigo),
                sucursal_destino:sucursales!sucursal_destino_id(codigo, nombre)`)
       .order('created_at', { ascending: false });
@@ -181,10 +205,11 @@ export default function OrdenesCompraPage() {
 
   const filtradas = useMemo(() => ocs.filter(o => {
     if (filtroEstado !== 'all' && o.estado !== filtroEstado) return false;
+    if (filtroGrupo && (o as any).grupo_id !== filtroGrupo) return false;
     const b = busqueda.toLowerCase();
     if (b && !o.folio.toLowerCase().includes(b) && !(o.proveedor?.nombre || '').toLowerCase().includes(b)) return false;
     return true;
-  }), [ocs, filtroEstado, busqueda]);
+  }), [ocs, filtroEstado, busqueda, filtroGrupo]);
 
   if (seleccionada) {
     return (
@@ -365,6 +390,7 @@ export default function OrdenesCompraPage() {
 
       <Tabs value={tab} onValueChange={(v) => setTab(v as any)}>
         <TabsList>
+          <TabsTrigger value="grupos" className="gap-2"><Truck className="h-4 w-4" /> Por proveedor</TabsTrigger>
           <TabsTrigger value="todas">Todas</TabsTrigger>
           {pendientesRevisionGerente.length > 0 || esGerencia || esAdmin ? (
             <TabsTrigger value="revision_gerente" className="gap-2">
@@ -380,7 +406,76 @@ export default function OrdenesCompraPage() {
           )}
         </TabsList>
 
+        <TabsContent value="grupos">
+          <Card className="p-0 overflow-hidden">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Folio (OC real)</TableHead><TableHead>Proveedor</TableHead>
+                  <TableHead>Fecha</TableHead>
+                  <TableHead className="text-center">Sucursales</TableHead>
+                  <TableHead>Estado del grupo</TableHead>
+                  <TableHead className="text-right">Total consolidado</TableHead>
+                  <TableHead className="text-right">Acciones</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {!grupos.length && <TableRow><TableCell colSpan={7} className="text-center p-6 text-muted-foreground">No hay órdenes generadas desde el Cotizador todavía.</TableCell></TableRow>}
+                {grupos.map(g => (
+                  <TableRow key={g.id}>
+                    <TableCell className="font-mono font-medium">{g.folio}</TableCell>
+                    <TableCell>{g.proveedor_nombre}</TableCell>
+                    <TableCell className="text-xs">{g.fecha_creacion}</TableCell>
+                    <TableCell className="text-center text-xs">
+                      <button className="underline decoration-dotted" onClick={() => { setFiltroGrupo(g.id); setTab('todas'); }}>
+                        {g.total_sucursales} sucursal{g.total_sucursales === 1 ? '' : 'es'}
+                      </button>
+                      <div className="text-muted-foreground mt-0.5">
+                        {g.pendientes_gerente > 0 && <span>{g.pendientes_gerente} por revisar · </span>}
+                        {g.pendientes_admin > 0 && <span>{g.pendientes_admin} por autorizar · </span>}
+                        {g.autorizadas > 0 && <span>{g.autorizadas} autorizada{g.autorizadas === 1 ? '' : 's'}</span>}
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <Badge className={
+                        g.estado === 'enviada' ? 'bg-emerald-600' :
+                        g.estado === 'lista_para_enviar' ? 'bg-blue-600' :
+                        g.estado === 'cancelada' ? 'bg-rose-600' : 'bg-amber-600'
+                      }>
+                        {g.estado === 'en_revision' ? 'En revisión de sucursales' :
+                         g.estado === 'lista_para_enviar' ? 'Lista para enviar' :
+                         g.estado === 'enviada' ? 'Enviada al proveedor' : 'Cancelada'}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums font-semibold">
+                      ${Number(g.total_consolidado).toLocaleString('es-MX', { minimumFractionDigits: 2 })}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      {esAdmin && g.estado === 'lista_para_enviar' && (
+                        <Button size="sm" className="gap-1 bg-emerald-600 hover:bg-emerald-700" onClick={() => enviarGrupoAProveedor(g)}>
+                          <Send className="h-3.5 w-3.5" /> Enviar al proveedor
+                        </Button>
+                      )}
+                      {g.estado !== 'lista_para_enviar' && (
+                        <Button size="sm" variant="outline" onClick={() => { setFiltroGrupo(g.id); setTab('todas'); }}>
+                          Ver sucursales
+                        </Button>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </Card>
+        </TabsContent>
+
         <TabsContent value="todas" className="space-y-4">
+          {filtroGrupo && (
+            <div className="flex items-center gap-2 text-sm bg-accent rounded-md px-3 py-2">
+              <span>Filtrando por: {grupos.find(g => g.id === filtroGrupo)?.folio}</span>
+              <Button size="sm" variant="ghost" onClick={() => setFiltroGrupo(null)}>Quitar filtro</Button>
+            </div>
+          )}
           <Card className="p-3 flex gap-3 items-end">
             <div className="flex-1">
               <Label className="text-xs">Buscar folio o proveedor</Label>
