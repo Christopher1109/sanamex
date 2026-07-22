@@ -33,7 +33,7 @@ const ICONS: Record<string, any> = {
   rotacion: TrendingUp, rentabilidad_lotes: DollarSign, reportes: FileSpreadsheet,
   cuentas_por_pagar: Wallet, bancos: DollarSign, conciliacion: ArrowLeftRight,
   contabilidad: FileSpreadsheet, reportes_admin: FileSpreadsheet, cfdi: Receipt,
-  impuestos: Receipt, nomina: Wallet, cargas_masivas: Upload, ventas_offline: CloudOff,
+  impuestos: Receipt, nomina: Wallet, incidencias_nomina: UserCog, cargas_masivas: Upload, ventas_offline: CloudOff,
   actividad: History, super_admin: Shield,
 };
 
@@ -111,6 +111,14 @@ const Sidebar = ({ userRole, onLogout }: SidebarProps) => {
                   : 'text-sidebar-foreground hover:bg-sidebar-accent')}>
               <LayoutDashboard className="h-5 w-5" />
               <span className="flex-1">Dashboard</span>
+            </Link>
+            <Link to="/mi-nomina"
+              className={cn('flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
+                location.pathname === '/mi-nomina'
+                  ? 'bg-sidebar-primary text-sidebar-primary-foreground'
+                  : 'text-sidebar-foreground hover:bg-sidebar-accent')}>
+              <Wallet className="h-5 w-5" />
+              <span className="flex-1">Mi Nómina</span>
             </Link>
           </div>
 

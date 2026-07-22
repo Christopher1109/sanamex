@@ -65,6 +65,7 @@ export const MODULOS: ModuloDef[] = [
   { key: 'impuestos', label: 'Impuestos', categoria: 'Fiscal', path: '/impuestos', niveles: FULL },
   // Nómina
   { key: 'nomina', label: 'Nómina', categoria: 'Nómina', path: '/nomina', niveles: FULL },
+  { key: 'incidencias_nomina', label: 'Incidencias de Nómina', categoria: 'Nómina', path: '/incidencias-nomina', niveles: OP },
   // Sistema
   { key: 'cargas_masivas', label: 'Cargas Masivas', categoria: 'Sistema', path: '/cargas-masivas', niveles: OP },
   { key: 'ventas_offline', label: 'Ventas Offline', categoria: 'Sistema', path: '/conflictos', niveles: SIMPLE },
@@ -88,6 +89,7 @@ export const DEFAULTS_POR_ROL: Record<string, Partial<Record<string, NivelAcceso
     reportes: 'consultar', cuentas_por_pagar: 'capturar', bancos: 'consultar',
     conciliacion: 'capturar', contabilidad: 'sin_acceso', reportes_admin: 'consultar',
     cfdi: 'capturar', impuestos: 'sin_acceso', nomina: 'sin_acceso',
+    incidencias_nomina: 'capturar',
     cargas_masivas: 'capturar', ventas_offline: 'consultar', actividad: 'consultar',
     super_admin: 'sin_acceso',
   },
@@ -97,7 +99,7 @@ export const DEFAULTS_POR_ROL: Record<string, Partial<Record<string, NivelAcceso
     clientes: 'capturar', compras: 'capturar', ventas: 'capturar', pos: 'capturar',
     traspasos: 'capturar', devoluciones_proveedor: 'capturar', inventario: 'capturar',
     caducidades: 'consultar', rotacion: 'consultar', reportes: 'consultar',
-    cuentas_por_pagar: 'consultar', ventas_offline: 'consultar',
+    cuentas_por_pagar: 'consultar', ventas_offline: 'consultar', incidencias_nomina: 'capturar',
   },
 
   ventas: {
@@ -126,6 +128,7 @@ export const DEFAULTS_POR_ROL: Record<string, Partial<Record<string, NivelAcceso
     reportes: 'consultar', cuentas_por_pagar: 'consultar', bancos: 'consultar',
     conciliacion: 'consultar', contabilidad: 'consultar', cfdi: 'consultar',
     actividad: 'consultar', reportes_admin: 'consultar', ajustes_inventario: 'administrar',
+    incidencias_nomina: 'capturar',
   },
 
   // Matriz confirmada por Alejandro para roles financieros
