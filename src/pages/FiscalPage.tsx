@@ -5,9 +5,10 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Receipt, Download, Ban, FlaskConical, CreditCard, FileMinus } from 'lucide-react';
+import { Receipt, Download, Ban, FlaskConical, CreditCard, FileMinus, FileStack } from 'lucide-react';
 import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -36,6 +37,8 @@ export default function FiscalPage() {
     rfc: 'XAXX010101000', nombre: 'PUBLICO EN GENERAL', regimen_fiscal: '616', cp: '', email: '',
     forma_pago: '01', metodo_pago: 'PUE' as 'PUE' | 'PPD', uso_cfdi: 'S01', lineas_con_iva: false,
   });
+  const [seleccionadas, setSeleccionadas] = useState<Set<string>>(new Set());
+  const [dialogGrupo, setDialogGrupo] = useState(false);
 
   const sucursalIds = availableSucursales.map(s => s.id);
   const sucursalMap = Object.fromEntries(availableSucursales.map(s => [s.id, s.codigo || s.nombre]));
@@ -75,12 +78,22 @@ export default function FiscalPage() {
       .order('created_at', { ascending: false })
       .limit(50);
 
-    // Excluir los que ya están timbrados
+    // Excluir los que ya están timbrados (directo o dentro de una factura agrupada)
     const { data: cfdiOk } = await supabase
       .from('cfdi_emitidos')
       .select('venta_id, pedido_id')
       .eq('estado', 'timbrado');
-    const ventasTimbradas = new Set((cfdiOk || []).map((c: any) => c.venta_id).filter(Boolean));
+    const idsVenta = (ventasData || []).map((v: any) => v.id);
+    const { data: agrupadas } = idsVenta.length
+      ? await (supabase as any)
+          .from('cfdi_ventas_agrupadas')
+          .select('venta_id, cfdi_emitidos!inner(estado)')
+          .in('venta_id', idsVenta)
+      : { data: [] };
+    const ventasTimbradas = new Set([
+      ...(cfdiOk || []).map((c: any) => c.venta_id).filter(Boolean),
+      ...(agrupadas || []).filter((r: any) => r.cfdi_emitidos?.estado === 'timbrado').map((r: any) => r.venta_id),
+    ]);
     const pedidosTimbrados = new Set((cfdiOk || []).map((c: any) => c.pedido_id).filter(Boolean));
 
     const ventasNorm = (ventasData || [])
@@ -128,7 +141,29 @@ export default function FiscalPage() {
       uso_cfdi: tieneRfc ? 'G03' : 'S01',
       lineas_con_iva: false,
     });
+    setDialogGrupo(false);
     setDialogVenta(v);
+  }
+
+  function toggleSeleccion(id: string) {
+    setSeleccionadas(prev => {
+      const n = new Set(prev);
+      n.has(id) ? n.delete(id) : n.add(id);
+      return n;
+    });
+  }
+
+  function abrirTimbrarGrupo() {
+    if (seleccionadas.size === 0) { toast.error('Selecciona al menos una venta'); return; }
+    // Facturación agrupada: siempre a público en general (si hubiera un
+    // único cliente en común se podría afinar, pero el caso de uso pedido
+    // es agrupar tickets de público en general).
+    setReceptor({
+      rfc: 'XAXX010101000', nombre: 'PUBLICO EN GENERAL', regimen_fiscal: '616',
+      cp: config?.cp_emisor || '', email: '', forma_pago: '01', metodo_pago: 'PUE', uso_cfdi: 'S01', lineas_con_iva: false,
+    });
+    setDialogGrupo(true);
+    setDialogVenta({ id: 'grupo', origen: 'venta', numero: `${seleccionadas.size} tickets` });
   }
 
   async function confirmarTimbrar() {
@@ -140,8 +175,9 @@ export default function FiscalPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session?.access_token}` },
         body: JSON.stringify({
-          venta_id: dialogVenta.origen === 'venta' ? dialogVenta.id : undefined,
-          pedido_id: dialogVenta.origen === 'pedido' ? dialogVenta.id : undefined,
+          venta_id: dialogGrupo ? undefined : (dialogVenta.origen === 'venta' ? dialogVenta.id : undefined),
+          venta_ids: dialogGrupo ? Array.from(seleccionadas) : undefined,
+          pedido_id: dialogGrupo ? undefined : (dialogVenta.origen === 'pedido' ? dialogVenta.id : undefined),
           uso_cfdi: receptor.uso_cfdi,
           forma_pago: receptor.forma_pago,
           metodo_pago: receptor.metodo_pago,
@@ -159,9 +195,16 @@ export default function FiscalPage() {
       if (!res.ok) {
         toast.error(body?.error || 'Error al timbrar', { description: body?.detalle?.message });
       } else {
-        toast.success(`CFDI timbrado · UUID ${body.cfdi.uuid_sat}`);
+        toast.success(
+          dialogGrupo
+            ? `Factura agrupada timbrada · ${body.ventas_incluidas || seleccionadas.size} tickets · UUID ${body.cfdi.uuid_sat}`
+            : `CFDI timbrado · UUID ${body.cfdi.uuid_sat}`
+        );
         setDialogVenta(null);
+        setDialogGrupo(false);
+        setSeleccionadas(new Set());
         loadCfdis();
+        loadVentas();
       }
     } catch (e: any) {
       toast.error(e.message);
@@ -268,10 +311,21 @@ export default function FiscalPage() {
 
         <TabsContent value="ventas">
           <Card>
-            <div className="p-4 border-b"><h2 className="font-semibold">Ventas y pedidos por timbrar</h2></div>
+            <div className="p-4 border-b flex items-center justify-between flex-wrap gap-3">
+              <div>
+                <h2 className="font-semibold">Ventas y pedidos por timbrar</h2>
+                <p className="text-xs text-muted-foreground mt-0.5">Selecciona varias ventas de público en general para timbrarlas juntas en una sola factura.</p>
+              </div>
+              {seleccionadas.size > 0 && (
+                <Button size="sm" onClick={abrirTimbrarGrupo} disabled={!config} className="gap-2">
+                  <FileStack className="h-4 w-4" /> Facturar {seleccionadas.size} seleccionada{seleccionadas.size === 1 ? '' : 's'} junta{seleccionadas.size === 1 ? '' : 's'}
+                </Button>
+              )}
+            </div>
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead className="w-10"></TableHead>
                   <TableHead>Folio</TableHead>
                   <TableHead>Origen</TableHead>
                   <TableHead>Sucursal</TableHead>
@@ -283,9 +337,14 @@ export default function FiscalPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {ventas.length === 0 && <TableRow><TableCell colSpan={8} className="text-center py-6 text-muted-foreground">No hay ventas ni pedidos pendientes de timbrar.</TableCell></TableRow>}
+                {ventas.length === 0 && <TableRow><TableCell colSpan={9} className="text-center py-6 text-muted-foreground">No hay ventas ni pedidos pendientes de timbrar.</TableCell></TableRow>}
                 {ventas.map(v => (
                   <TableRow key={`${v.origen}-${v.id}`}>
+                    <TableCell>
+                      {v.origen === 'venta' && (
+                        <Checkbox checked={seleccionadas.has(v.id)} onCheckedChange={() => toggleSeleccion(v.id)} />
+                      )}
+                    </TableCell>
                     <TableCell className="font-mono text-xs">{v.numero}</TableCell>
                     <TableCell><Badge variant={v.origen === 'pedido' ? 'secondary' : 'outline'}>{v.origen === 'pedido' ? 'Pedido' : 'POS'}</Badge></TableCell>
                     <TableCell className="text-xs">{sucursalMap[v.sucursal_id] || '—'}</TableCell>
@@ -391,7 +450,7 @@ export default function FiscalPage() {
       <Dialog open={!!dialogVenta} onOpenChange={(o) => !o && setDialogVenta(null)}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
-            <DialogTitle>Timbrar venta {dialogVenta?.numero_venta}</DialogTitle>
+            <DialogTitle>{dialogGrupo ? `Facturar ${seleccionadas.size} tickets en una sola factura` : `Timbrar venta ${dialogVenta?.numero || dialogVenta?.numero_venta || ''}`}</DialogTitle>
           </DialogHeader>
           <div className="space-y-3">
             <div className="grid grid-cols-2 gap-3">
