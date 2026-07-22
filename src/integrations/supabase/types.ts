@@ -392,6 +392,7 @@ export type Database = {
         Row: {
           created_at: string
           created_by: string | null
+          es_agrupada: boolean
           es_demo: boolean
           estado: string
           facturapi_id: string | null
@@ -417,6 +418,7 @@ export type Database = {
         Insert: {
           created_at?: string
           created_by?: string | null
+          es_agrupada?: boolean
           es_demo?: boolean
           estado?: string
           facturapi_id?: string | null
@@ -442,6 +444,7 @@ export type Database = {
         Update: {
           created_at?: string
           created_by?: string | null
+          es_agrupada?: boolean
           es_demo?: boolean
           estado?: string
           facturapi_id?: string | null
@@ -465,6 +468,42 @@ export type Database = {
           xml_url?: string | null
         }
         Relationships: []
+      }
+      cfdi_ventas_agrupadas: {
+        Row: {
+          cfdi_id: string
+          created_at: string
+          id: string
+          venta_id: string
+        }
+        Insert: {
+          cfdi_id: string
+          created_at?: string
+          id?: string
+          venta_id: string
+        }
+        Update: {
+          cfdi_id?: string
+          created_at?: string
+          id?: string
+          venta_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cfdi_ventas_agrupadas_cfdi_id_fkey"
+            columns: ["cfdi_id"]
+            isOneToOne: false
+            referencedRelation: "cfdi_emitidos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cfdi_ventas_agrupadas_venta_id_fkey"
+            columns: ["venta_id"]
+            isOneToOne: true
+            referencedRelation: "ventas"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       clientes: {
         Row: {
@@ -3931,6 +3970,89 @@ export type Database = {
         }
         Relationships: []
       }
+      traspaso_incidencias: {
+        Row: {
+          autorizada_por: string | null
+          cantidad: number
+          created_at: string
+          estado: string
+          fecha_autorizacion: string | null
+          fecha_reporte: string
+          id: string
+          lote_id: string
+          notas_reporte: string | null
+          notas_resolucion: string | null
+          reportada_por: string | null
+          tipo: string
+          traspaso_complementario_id: string | null
+          traspaso_id: string
+          traspaso_linea_id: string
+        }
+        Insert: {
+          autorizada_por?: string | null
+          cantidad: number
+          created_at?: string
+          estado?: string
+          fecha_autorizacion?: string | null
+          fecha_reporte?: string
+          id?: string
+          lote_id: string
+          notas_reporte?: string | null
+          notas_resolucion?: string | null
+          reportada_por?: string | null
+          tipo?: string
+          traspaso_complementario_id?: string | null
+          traspaso_id: string
+          traspaso_linea_id: string
+        }
+        Update: {
+          autorizada_por?: string | null
+          cantidad?: number
+          created_at?: string
+          estado?: string
+          fecha_autorizacion?: string | null
+          fecha_reporte?: string
+          id?: string
+          lote_id?: string
+          notas_reporte?: string | null
+          notas_resolucion?: string | null
+          reportada_por?: string | null
+          tipo?: string
+          traspaso_complementario_id?: string | null
+          traspaso_id?: string
+          traspaso_linea_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "traspaso_incidencias_lote_id_fkey"
+            columns: ["lote_id"]
+            isOneToOne: false
+            referencedRelation: "lotes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "traspaso_incidencias_traspaso_complementario_id_fkey"
+            columns: ["traspaso_complementario_id"]
+            isOneToOne: false
+            referencedRelation: "traspasos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "traspaso_incidencias_traspaso_id_fkey"
+            columns: ["traspaso_id"]
+            isOneToOne: false
+            referencedRelation: "traspasos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "traspaso_incidencias_traspaso_linea_id_fkey"
+            columns: ["traspaso_linea_id"]
+            isOneToOne: false
+            referencedRelation: "traspaso_lineas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       traspaso_lineas: {
         Row: {
           cantidad: number
@@ -3991,6 +4113,7 @@ export type Database = {
           motivo_cancelacion: string | null
           notas: string | null
           numero_traspaso: string | null
+          origen_incidencia_id: string | null
           recibido_por: string | null
           solicitado_por: string | null
           sucursal_destino_id: string | null
@@ -4008,6 +4131,7 @@ export type Database = {
           motivo_cancelacion?: string | null
           notas?: string | null
           numero_traspaso?: string | null
+          origen_incidencia_id?: string | null
           recibido_por?: string | null
           solicitado_por?: string | null
           sucursal_destino_id?: string | null
@@ -4025,6 +4149,7 @@ export type Database = {
           motivo_cancelacion?: string | null
           notas?: string | null
           numero_traspaso?: string | null
+          origen_incidencia_id?: string | null
           recibido_por?: string | null
           solicitado_por?: string | null
           sucursal_destino_id?: string | null
@@ -4044,6 +4169,13 @@ export type Database = {
             columns: ["almacen_origen_id"]
             isOneToOne: false
             referencedRelation: "almacenes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "traspasos_origen_incidencia_id_fkey"
+            columns: ["origen_incidencia_id"]
+            isOneToOne: false
+            referencedRelation: "traspaso_incidencias"
             referencedColumns: ["id"]
           },
           {
@@ -4647,6 +4779,16 @@ export type Database = {
           ranking: number
         }[]
       }
+      registrar_ajuste_inventario: {
+        Args: {
+          p_almacen_id: string
+          p_cantidad_ajuste: number
+          p_lote_id: string
+          p_motivo_id: string
+          p_notas?: string
+        }
+        Returns: Json
+      }
       registrar_compra: {
         Args: {
           p_almacen_id: string
@@ -4930,6 +5072,10 @@ export type Database = {
           venta_sem: number
           venta_sem_ant: number
         }[]
+      }
+      resolver_incidencia_traspaso: {
+        Args: { p_accion: string; p_incidencia_id: string; p_notas?: string }
+        Returns: Json
       }
       revertir_carga_lista_precios: {
         Args: { p_carga_id: string }
