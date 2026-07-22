@@ -23,6 +23,7 @@ import ReportesPage from './pages/ReportesPage';
 import AuditoriaPage from './pages/AuditoriaPage';
 import POSPage from './pages/POSPage';
 import CaducidadesPage from './pages/CaducidadesPage';
+import AjustesInventarioPage from './pages/AjustesInventarioPage';
 import ConflictosPage from './pages/ConflictosPage';
 import SuperAdminPage from './pages/SuperAdminPage';
 import GestionUsuariosPage from './pages/GestionUsuariosPage';
@@ -152,6 +153,7 @@ const AppContent = () => {
               <Route path="/ajustes" element={<Fase2Guard><AjustesMermasPage /></Fase2Guard>} />
               <Route path="/mermas" element={<Fase2Guard><MermasPage /></Fase2Guard>} />
               <Route path="/caducidades" element={<Fase2Guard><CaducidadesPage /></Fase2Guard>} />
+              <Route path="/ajustes-inventario" element={<Fase2Guard><AjustesInventarioPage /></Fase2Guard>} />
               <Route path="/pedidos" element={<Fase2Guard><PedidosPage /></Fase2Guard>} />
               <Route path="/compras" element={<Fase2Guard><ComprasHubPage /></Fase2Guard>} />
               <Route path="/reportes" element={<Fase2Guard><ReportesHubPage /></Fase2Guard>} />
