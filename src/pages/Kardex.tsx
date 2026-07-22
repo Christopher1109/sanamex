@@ -19,10 +19,12 @@ const Kardex = () => {
   const [movimientos, setMovimientos] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [tipoFiltro, setTipoFiltro] = useState<string>('todos');
+  const [fechaDesde, setFechaDesde] = useState('');
+  const [fechaHasta, setFechaHasta] = useState('');
 
   useEffect(() => {
     if (selectedSucursal) fetchMovimientos();
-  }, [selectedSucursal, tipoFiltro]);
+  }, [selectedSucursal, tipoFiltro, fechaDesde, fechaHasta]);
 
   const fetchMovimientos = async () => {
     try {
@@ -31,14 +33,16 @@ const Kardex = () => {
 
       let query = supabase
         .from('movimientos_inventario')
-        .select('*')
+        .select('*, lotes(numero_lote, productos(nombre, sku))')
         .eq('sucursal_id', selectedSucursal.id)
         .order('created_at', { ascending: false })
-        .limit(200);
+        .limit(500);
 
       if (tipoFiltro !== 'todos') {
         query = query.eq('tipo', tipoFiltro);
       }
+      if (fechaDesde) query = query.gte('created_at', fechaDesde);
+      if (fechaHasta) query = query.lte('created_at', `${fechaHasta}T23:59:59`);
 
       const { data, error } = await query;
       if (error) throw error;
@@ -49,6 +53,17 @@ const Kardex = () => {
       setLoading(false);
     }
   };
+
+  const movimientosFiltrados = movimientos.filter(m => {
+    if (!searchTerm) return true;
+    const s = searchTerm.toLowerCase();
+    const producto = (m.lotes as any)?.productos?.nombre?.toLowerCase() || '';
+    const sku = (m.lotes as any)?.productos?.sku?.toLowerCase() || '';
+    const lote = (m.lotes as any)?.numero_lote?.toLowerCase() || '';
+    const notas = (m.notas || '').toLowerCase();
+    const referencia = (m.referencia_tipo || '').toLowerCase();
+    return producto.includes(s) || sku.includes(s) || lote.includes(s) || notas.includes(s) || referencia.includes(s);
+  });
 
   const getTipoBadge = (tipo: string) => {
     const map: Record<string, { label: string; variant: 'default' | 'destructive' | 'secondary' | 'outline' }> = {
@@ -64,8 +79,8 @@ const Kardex = () => {
     return map[tipo] || { label: tipo, variant: 'outline' as const };
   };
 
-  const totalEntradas = movimientos.filter(m => ['entrada', 'traspaso_entrada', 'devolucion'].includes(m.tipo)).reduce((s, m) => s + m.cantidad, 0);
-  const totalSalidas = movimientos.filter(m => ['salida', 'venta', 'traspaso_salida', 'merma'].includes(m.tipo)).reduce((s, m) => s + m.cantidad, 0);
+  const totalEntradas = movimientosFiltrados.filter(m => ['entrada', 'traspaso_entrada', 'devolucion'].includes(m.tipo)).reduce((s, m) => s + m.cantidad, 0);
+  const totalSalidas = movimientosFiltrados.filter(m => ['salida', 'venta', 'traspaso_salida', 'merma'].includes(m.tipo)).reduce((s, m) => s + m.cantidad, 0);
 
   return (
     <div className="space-y-6">
@@ -121,25 +136,39 @@ const Kardex = () => {
                   <SelectItem value="traspaso_salida">Traspaso -</SelectItem>
                 </SelectContent>
               </Select>
-              <div className="relative flex-1 min-w-[200px]">
+              <div className="relative flex-1 min-w-[220px]">
                 <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-                <Input placeholder="Buscar..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-8" />
+                <Input placeholder="Buscar por producto, SKU, lote, notas…" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-8" />
               </div>
+              <Input type="date" value={fechaDesde} onChange={e => setFechaDesde(e.target.value)} className="w-[150px]" />
+              <Input type="date" value={fechaHasta} onChange={e => setFechaHasta(e.target.value)} className="w-[150px]" />
+              {(searchTerm || fechaDesde || fechaHasta || tipoFiltro !== 'todos') && (
+                <button
+                  onClick={() => { setSearchTerm(''); setFechaDesde(''); setFechaHasta(''); setTipoFiltro('todos'); }}
+                  className="text-xs text-muted-foreground underline px-2"
+                >
+                  Limpiar filtros
+                </button>
+              )}
             </div>
           </div>
-          <CardDescription>Últimos 200 movimientos</CardDescription>
+          <CardDescription>Últimos 500 movimientos {movimientosFiltrados.length !== movimientos.length && `— ${movimientosFiltrados.length} coinciden con el filtro`}</CardDescription>
         </CardHeader>
         <CardContent>
           {loading ? (
             <div className="text-center py-8 text-muted-foreground">Cargando...</div>
-          ) : movimientos.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground">No hay movimientos registrados</div>
+          ) : movimientosFiltrados.length === 0 ? (
+            <div className="text-center py-8 text-muted-foreground">
+              {movimientos.length === 0 ? 'No hay movimientos registrados' : 'Sin movimientos que coincidan con el filtro'}
+            </div>
           ) : (
             <div className="rounded-md border">
               <Table>
                 <TableHeader>
                   <TableRow>
                     <TableHead>Fecha</TableHead>
+                    <TableHead>Producto</TableHead>
+                    <TableHead>Lote</TableHead>
                     <TableHead>Tipo</TableHead>
                     <TableHead className="text-right">Cantidad</TableHead>
                     <TableHead className="text-right">Costo Unit.</TableHead>
@@ -148,7 +177,7 @@ const Kardex = () => {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {movimientos.map((mov) => {
+                  {movimientosFiltrados.map((mov) => {
                     const badge = getTipoBadge(mov.tipo);
                     return (
                       <TableRow key={mov.id}>
@@ -158,6 +187,11 @@ const Kardex = () => {
                             {format(new Date(mov.created_at), 'dd/MM/yy HH:mm', { locale: es })}
                           </div>
                         </TableCell>
+                        <TableCell className="text-xs">
+                          <div className="font-medium">{(mov.lotes as any)?.productos?.nombre || '—'}</div>
+                          <div className="text-muted-foreground">{(mov.lotes as any)?.productos?.sku || ''}</div>
+                        </TableCell>
+                        <TableCell className="font-mono text-xs">{(mov.lotes as any)?.numero_lote || '—'}</TableCell>
                         <TableCell>
                           <Badge variant={badge.variant} className="text-xs">{badge.label}</Badge>
                         </TableCell>
