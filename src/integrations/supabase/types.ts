@@ -1842,7 +1842,9 @@ export type Database = {
           fecha_pago_proveedor: string | null
           fecha_recepcion: string | null
           id: string
+          motivo_precio_especial: string | null
           numero_lote: string
+          precio_especial: number | null
           producto_id: string
           proveedor_id: string | null
         }
@@ -1854,7 +1856,9 @@ export type Database = {
           fecha_pago_proveedor?: string | null
           fecha_recepcion?: string | null
           id?: string
+          motivo_precio_especial?: string | null
           numero_lote: string
+          precio_especial?: number | null
           producto_id: string
           proveedor_id?: string | null
         }
@@ -1866,7 +1870,9 @@ export type Database = {
           fecha_pago_proveedor?: string | null
           fecha_recepcion?: string | null
           id?: string
+          motivo_precio_especial?: string | null
           numero_lote?: string
+          precio_especial?: number | null
           producto_id?: string
           proveedor_id?: string | null
         }
@@ -2278,6 +2284,7 @@ export type Database = {
           fecha_recepcion_esperada: string | null
           fecha_recepcion_real: string | null
           folio: string
+          grupo_id: string | null
           id: string
           iva: number
           notas: string | null
@@ -2301,6 +2308,7 @@ export type Database = {
           fecha_recepcion_esperada?: string | null
           fecha_recepcion_real?: string | null
           folio?: string
+          grupo_id?: string | null
           id?: string
           iva?: number
           notas?: string | null
@@ -2324,6 +2332,7 @@ export type Database = {
           fecha_recepcion_esperada?: string | null
           fecha_recepcion_real?: string | null
           folio?: string
+          grupo_id?: string | null
           id?: string
           iva?: number
           notas?: string | null
@@ -2336,6 +2345,20 @@ export type Database = {
           updated_at?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "ordenes_compra_grupo_id_fkey"
+            columns: ["grupo_id"]
+            isOneToOne: false
+            referencedRelation: "ordenes_compra_grupo"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ordenes_compra_grupo_id_fkey"
+            columns: ["grupo_id"]
+            isOneToOne: false
+            referencedRelation: "v_ordenes_compra_grupo_resumen"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "ordenes_compra_proveedor_id_fkey"
             columns: ["proveedor_id"]
@@ -2356,6 +2379,60 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "sucursales"
             referencedColumns: ["id"]
+          },
+        ]
+      }
+      ordenes_compra_grupo: {
+        Row: {
+          creada_por: string | null
+          created_at: string
+          estado: string
+          fecha_creacion: string
+          fecha_envio: string | null
+          folio: string
+          id: string
+          notas: string | null
+          proveedor_id: string
+          updated_at: string
+        }
+        Insert: {
+          creada_por?: string | null
+          created_at?: string
+          estado?: string
+          fecha_creacion?: string
+          fecha_envio?: string | null
+          folio: string
+          id?: string
+          notas?: string | null
+          proveedor_id: string
+          updated_at?: string
+        }
+        Update: {
+          creada_por?: string | null
+          created_at?: string
+          estado?: string
+          fecha_creacion?: string
+          fecha_envio?: string | null
+          folio?: string
+          id?: string
+          notas?: string | null
+          proveedor_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ordenes_compra_grupo_proveedor_id_fkey"
+            columns: ["proveedor_id"]
+            isOneToOne: false
+            referencedRelation: "proveedores"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ordenes_compra_grupo_proveedor_id_fkey"
+            columns: ["proveedor_id"]
+            isOneToOne: false
+            referencedRelation: "vista_fill_rate_proveedores"
+            referencedColumns: ["proveedor_id"]
           },
         ]
       }
@@ -4064,6 +4141,7 @@ export type Database = {
           created_at: string | null
           id: string
           lote_id: string | null
+          precio_lista: number | null
           precio_unitario: number
           producto_id: string
           subtotal: number
@@ -4075,6 +4153,7 @@ export type Database = {
           created_at?: string | null
           id?: string
           lote_id?: string | null
+          precio_lista?: number | null
           precio_unitario: number
           producto_id: string
           subtotal: number
@@ -4086,6 +4165,7 @@ export type Database = {
           created_at?: string | null
           id?: string
           lote_id?: string | null
+          precio_lista?: number | null
           precio_unitario?: number
           producto_id?: string
           subtotal?: number
@@ -4298,6 +4378,25 @@ export type Database = {
       }
     }
     Views: {
+      v_ordenes_compra_grupo_resumen: {
+        Row: {
+          autorizadas: number | null
+          canceladas: number | null
+          estado: string | null
+          fecha_creacion: string | null
+          fecha_envio: string | null
+          folio: string | null
+          id: string | null
+          notas: string | null
+          pendientes_admin: number | null
+          pendientes_gerente: number | null
+          proveedor_codigo: string | null
+          proveedor_nombre: string | null
+          total_consolidado: number | null
+          total_sucursales: number | null
+        }
+        Relationships: []
+      }
       vista_fill_rate_proveedores: {
         Row: {
           fill_rate_pct: number | null
@@ -4314,6 +4413,10 @@ export type Database = {
       }
     }
     Functions: {
+      autorizar_oc_admin: {
+        Args: { p_accion: string; p_oc_id: string; p_razon?: string }
+        Returns: Json
+      }
       balanza_comprobacion: {
         Args: {
           p_desde?: string
@@ -4347,6 +4450,7 @@ export type Database = {
         }
         Returns: Json
       }
+      enviar_grupo_a_proveedor: { Args: { p_grupo_id: string }; Returns: Json }
       enviar_traspaso: {
         Args: {
           p_almacen_destino_id: string
@@ -4357,6 +4461,10 @@ export type Database = {
           p_sucursal_origen_id: string
         }
         Returns: Json
+      }
+      es_gerente_de_sucursal: {
+        Args: { p_sucursal_id: string; p_user_id: string }
+        Returns: boolean
       }
       fill_rate_proveedores: {
         Args: { p_desde?: string; p_hasta?: string }
@@ -4378,6 +4486,10 @@ export type Database = {
       generar_folio_devolucion: { Args: never; Returns: string }
       generar_folio_oc: { Args: never; Returns: string }
       generar_folio_traspaso: { Args: never; Returns: string }
+      generar_ordenes_compra_desde_cotizador: {
+        Args: { p_items: Json }
+        Returns: Json
+      }
       has_module_access: {
         Args: { _min_nivel: string; _modulo: string; _user_id: string }
         Returns: boolean
@@ -4572,13 +4684,16 @@ export type Database = {
         Returns: {
           costo_total: number
           costo_unitario: number
+          descuento_otorgado: number
           fecha_caducidad: string
           fecha_recepcion: string
           ganancia: number
           ingreso_total: number
           lote_id: string
           margen_pct: number
+          motivo_precio_especial: string
           numero_lote: string
+          precio_especial: number
           precio_promedio: number
           producto_id: string
           producto_nombre: string
@@ -4820,6 +4935,15 @@ export type Database = {
         Args: { p_carga_id: string }
         Returns: Json
       }
+      revisar_oc_gerente: {
+        Args: {
+          p_accion: string
+          p_lineas?: Json
+          p_oc_id: string
+          p_razon?: string
+        }
+        Returns: Json
+      }
       sugerido_min_max: {
         Args: { p_clasificacion: string }
         Returns: {
@@ -4835,6 +4959,7 @@ export type Database = {
           fecha: string
           lista_precio: string
           numero_venta: string
+          precio_lista: number
           precio_unitario: number
           subtotal: number
           sucursal_nombre: string
