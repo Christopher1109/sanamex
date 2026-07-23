@@ -42,7 +42,13 @@ const IncidenciasNominaPage = () => {
   const [form, setForm] = useState({ empleado_id: '', fecha: new Date().toISOString().slice(0, 10), incidencia: 'falta', horas_extra: '0', notas: '' });
   const [guardando, setGuardando] = useState(false);
 
-  useEffect(() => { if (puedeReportar) load(); }, [puedeReportar]);
+  // Filtros del historial
+  const [fEmpleado, setFEmpleado] = useState('all');
+  const [fTipo, setFTipo] = useState('all');
+  const [fDesde, setFDesde] = useState('');
+  const [fHasta, setFHasta] = useState('');
+
+  useEffect(() => { if (puedeReportar) load(); }, [puedeReportar, fEmpleado, fTipo, fDesde, fHasta]);
 
   const load = async () => {
     setLoading(true);
@@ -61,13 +67,15 @@ const IncidenciasNominaPage = () => {
 
     const empIds = (emps || []).map((e: any) => e.id);
     if (empIds.length) {
-      const { data: asis } = await supabase
+      let q = supabase
         .from('asistencia')
         .select('*, empleados(nombre)')
-        .in('empleado_id', empIds)
-        .not('incidencia', 'is', null)
-        .order('fecha', { ascending: false })
-        .limit(50);
+        .in('empleado_id', fEmpleado === 'all' ? empIds : [fEmpleado])
+        .not('incidencia', 'is', null);
+      if (fTipo !== 'all') q = q.eq('incidencia', fTipo);
+      if (fDesde) q = q.gte('fecha', fDesde);
+      if (fHasta) q = q.lte('fecha', fHasta);
+      const { data: asis } = await q.order('fecha', { ascending: false }).limit(100);
       setRecientes(asis || []);
     } else {
       setRecientes([]);
@@ -147,7 +155,23 @@ const IncidenciasNominaPage = () => {
       </Card>
 
       <Card>
-        <CardHeader><CardTitle className="text-base">Incidencias recientes</CardTitle></CardHeader>
+        <CardHeader><CardTitle className="text-base">Historial de incidencias</CardTitle></CardHeader>
+        <CardContent className="grid grid-cols-2 md:grid-cols-4 gap-3 pb-4">
+          <div><Label className="text-xs">Empleado</Label>
+            <select className="w-full h-9 border rounded px-2 text-sm" value={fEmpleado} onChange={e=>setFEmpleado(e.target.value)}>
+              <option value="all">Todos</option>
+              {empleados.map((e:any)=><option key={e.id} value={e.id}>{e.nombre}</option>)}
+            </select>
+          </div>
+          <div><Label className="text-xs">Tipo de incidencia</Label>
+            <select className="w-full h-9 border rounded px-2 text-sm" value={fTipo} onChange={e=>setFTipo(e.target.value)}>
+              <option value="all">Todas</option>
+              {INCIDENCIA_OPCIONES.map(o=><option key={o.value} value={o.value}>{o.label}</option>)}
+            </select>
+          </div>
+          <div><Label className="text-xs">Desde</Label><Input type="date" value={fDesde} onChange={e=>setFDesde(e.target.value)} /></div>
+          <div><Label className="text-xs">Hasta</Label><Input type="date" value={fHasta} onChange={e=>setFHasta(e.target.value)} /></div>
+        </CardContent>
         <CardContent className="p-0">
           <Table>
             <TableHeader>
@@ -155,7 +179,7 @@ const IncidenciasNominaPage = () => {
             </TableHeader>
             <TableBody>
               {recientes.length === 0 ? (
-                <TableRow><TableCell colSpan={4} className="text-center py-6 text-muted-foreground">Sin incidencias registradas todavía.</TableCell></TableRow>
+                <TableRow><TableCell colSpan={4} className="text-center py-6 text-muted-foreground">Sin incidencias con estos filtros.</TableCell></TableRow>
               ) : recientes.map(a => (
                 <TableRow key={a.id}>
                   <TableCell className="text-xs">{a.fecha}</TableCell>

@@ -14,6 +14,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Upload, AlertTriangle, Clock, Wallet, CheckCircle2, FileUp, History } from 'lucide-react';
 import { toast } from 'sonner';
+import { registrarPagoCompra } from '@/lib/cxp';
 
 type Compra = {
   id: string; numero_compra: string; proveedor_id: string; total: number;
@@ -99,14 +100,19 @@ const CuentasPorPagarPage = () => {
     if (!showPago) return;
     const monto = parseFloat(pagoForm.monto);
     if (!monto || monto <= 0) { toast.error('Monto inválido'); return; }
-    const user = (await supabase.auth.getUser()).data.user;
-    const { error } = await supabase.from('pagos_cxp').insert({
-      compra_id: showPago.id, fecha: pagoForm.fecha, monto, forma_pago: pagoForm.forma_pago,
-      referencia: pagoForm.referencia || null, banco_cuenta_id: pagoForm.banco_cuenta_id || null,
-      notas: pagoForm.notas || null, creado_por: user?.id,
+    const { error, quedaSaldada } = await registrarPagoCompra({
+      compraId: showPago.id,
+      compraTotal: Number(showPago.total),
+      montoYaPagado: sumPagos(showPago),
+      monto,
+      fecha: pagoForm.fecha,
+      formaPago: pagoForm.forma_pago,
+      referencia: pagoForm.referencia,
+      bancoCuentaId: pagoForm.banco_cuenta_id,
+      notas: pagoForm.notas,
     });
     if (error) { toast.error(error.message); return; }
-    toast.success(`Pago de $${monto.toFixed(2)} registrado`);
+    toast.success(`Pago de $${monto.toFixed(2)} registrado${quedaSaldada ? ' — compra saldada' : ''}`);
     setShowPago(null); load();
   };
 
