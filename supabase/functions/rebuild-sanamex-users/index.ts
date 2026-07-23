@@ -57,10 +57,13 @@ serve(async (req) => {
 
     const supaUrl = Deno.env.get("SUPABASE_URL")!;
     const svc = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const token = authHeader.replace(/^Bearer\s+/i, "");
     const userClient = createClient(supaUrl, Deno.env.get("SUPABASE_ANON_KEY")!, { global: { headers: { Authorization: authHeader } } });
-    const { data: { user: caller } } = await userClient.auth.getUser();
-    if (!caller) {
-      return new Response(JSON.stringify({ error: "Sesión inválida" }), { status: 401, headers: { ...cors, "Content-Type": "application/json" } });
+    const { data: claimsData, error: claimsErr } = await userClient.auth.getClaims(token);
+    const caller = claimsData?.claims ? { id: claimsData.claims.sub as string } : null;
+    if (claimsErr || !caller) {
+      console.error("getClaims failed", claimsErr);
+      return new Response(JSON.stringify({ error: "Sesión inválida", detail: claimsErr?.message }), { status: 401, headers: { ...cors, "Content-Type": "application/json" } });
     }
 
     const admin = createClient(supaUrl, svc, { auth: { autoRefreshToken: false, persistSession: false } });
