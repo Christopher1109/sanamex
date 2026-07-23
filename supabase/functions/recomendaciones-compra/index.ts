@@ -10,6 +10,20 @@ serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: cors });
 
   try {
+    // Requiere sesión válida (cualquier usuario autenticado del sistema;
+    // antes no verificaba nada, quedaba abierta a cualquiera en internet).
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader) {
+      return new Response(JSON.stringify({ error: "No autenticado" }), { status: 401, headers: { ...cors, "Content-Type": "application/json" } });
+    }
+    const supaUrlCheck = Deno.env.get("SUPABASE_URL")!;
+    const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
+    const callerClient = createClient(supaUrlCheck, anonKey, { global: { headers: { Authorization: authHeader } } });
+    const { data: { user: caller } } = await callerClient.auth.getUser();
+    if (!caller) {
+      return new Response(JSON.stringify({ error: "Sesión inválida" }), { status: 401, headers: { ...cors, "Content-Type": "application/json" } });
+    }
+
     const { sucursal_id, force } = await req.json();
     if (!sucursal_id) return new Response(JSON.stringify({ error: "sucursal_id requerido" }), { status: 400, headers: { ...cors, "Content-Type": "application/json" } });
 

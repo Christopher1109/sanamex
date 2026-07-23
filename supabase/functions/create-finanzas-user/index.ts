@@ -1,106 +1,25 @@
-import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
-
+// ⛔ FUNCIÓN DESHABILITADA POR SEGURIDAD — auditoría 22-jul-2026.
+//
+// Este edge function usaba la SERVICE_ROLE_KEY (acceso total a la base de
+// datos, sin restricciones) y NO verificaba quién la llamaba: cualquier
+// persona en internet con la anon key pública del proyecto (siempre
+// extraíble del sitio web) podía invocarla directamente por HTTP sin haber
+// iniciado sesión. Se deja el nombre de la función reservado (para no
+// romper referencias) pero su lógica fue retirada.
+//
+// Si esta función SÍ se necesita en el futuro, debe reescribirse
+// verificando primero que el llamante esté autenticado y tenga el rol
+// 'super_admin' (ver supabase/functions/super-admin-toggle-user/index.ts
+// como referencia del patrón correcto), antes de tocar cualquier dato.
 const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-serve(async (req) => {
-  if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
-  }
-
-  try {
-    const supabaseAdmin = createClient(
-      Deno.env.get("SUPABASE_URL") ?? "",
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
-      {
-        auth: {
-          autoRefreshToken: false,
-          persistSession: false,
-        },
-      }
-    );
-
-    const username = "finanzas";
-    const email = `${username}@cbmedica.com`;
-    const password = "Imss2024!";
-
-    // Check if user already exists (using sistema.local format)
-    const emailForAuth = `${username}@sistema.local`;
-    const { data: existingUsers } = await supabaseAdmin.auth.admin.listUsers();
-    const existingUser = existingUsers?.users?.find(u => u.email === emailForAuth);
-
-    if (existingUser) {
-      return new Response(
-        JSON.stringify({
-          success: true,
-          message: "Usuario de finanzas ya existe",
-          credentials: {
-            username,
-            email,
-            password: username
-          }
-        }),
-        {
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-          status: 200,
-        }
-      );
-    }
-
-    // Create user with sistema.local email format (matching other users)
-    const { data: newUser, error: createError } = await supabaseAdmin.auth.admin.createUser({
-      email: `${username}@sistema.local`,
-      password,
-      email_confirm: true,
-      user_metadata: {
-        nombre_completo: "Departamento de Finanzas",
-        role: "finanzas",
-      },
-    });
-
-    if (createError) {
-      throw createError;
-    }
-
-    // Create profile
-    await supabaseAdmin.from("profiles").insert({
-      id: newUser.user.id,
-      nombre: "Departamento de Finanzas",
-      username: username,
-    });
-
-    // Assign finanzas role
-    await supabaseAdmin.from("user_roles").insert({
-      user_id: newUser.user.id,
-      role: "finanzas",
-    });
-
-    return new Response(
-      JSON.stringify({
-        success: true,
-        message: "Usuario de finanzas creado exitosamente",
-        credentials: {
-          username,
-          email,
-          password: username
-        }
-      }),
-      {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-        status: 200,
-      }
-    );
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : "Error desconocido";
-    return new Response(
-      JSON.stringify({ error: errorMessage }),
-      {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-        status: 400,
-      }
-    );
-  }
+Deno.serve(async (req) => {
+  if (req.method === 'OPTIONS') return new Response(null, { headers: corsHeaders });
+  return new Response(
+    JSON.stringify({ error: 'Esta función fue deshabilitada por seguridad. Contacta al Super Administrador.' }),
+    { status: 410, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+  );
 });
