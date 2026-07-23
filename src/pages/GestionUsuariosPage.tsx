@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { Fragment, useEffect, useMemo, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -7,8 +7,9 @@ import { Badge } from '@/components/ui/badge';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from 'sonner';
-import { UserCog, Plus, KeyRound, UserX, UserCheck, Trash2, Save, Search, Mail } from 'lucide-react';
+import { UserCog, Plus, KeyRound, UserX, UserCheck, Trash2, Save, Search, Mail, Shield, RefreshCw } from 'lucide-react';
 import { MODULOS, NIVEL_LABELS, NivelAcceso, defaultAccessForRole } from '@/config/modulos';
 import { useAuth } from '@/hooks/useAuth';
 
@@ -25,7 +26,19 @@ interface UserRow {
   sucursal_nombre: string;
 }
 
-const ROLES: Rol[] = ['super_admin','admin','direccion','gerente','subgerente','supervisor','contador','contabilidad','contraloria','tesoreria','auditoria','ventas','almacen_ventas','almacen','repartidor'];
+const ROLES: Rol[] = ['super_admin','direccion','gerente','subgerente','contabilidad','contraloria','ventas','almacen_ventas'];
+
+// Roster limpio: solo los roles operativos (4x sucursal) y administrativos definidos.
+const ROLES_MATRIZ: { rol: Rol; label: string }[] = [
+  { rol: 'super_admin', label: 'Super Administrador' },
+  { rol: 'direccion', label: 'Dirección' },
+  { rol: 'contabilidad', label: 'Contabilidad' },
+  { rol: 'contraloria', label: 'Contraloría' },
+  { rol: 'gerente', label: 'Gerente' },
+  { rol: 'subgerente', label: 'Subgerente' },
+  { rol: 'almacen_ventas', label: 'Almacenista' },
+  { rol: 'ventas', label: 'Ventas' },
+];
 
 export default function GestionUsuariosPage() {
   const { user: currentUser, userRole: currentRole } = useAuth();
@@ -85,6 +98,61 @@ export default function GestionUsuariosPage() {
       sucursal_nombre: sucMap.get(p.id)?.codigo || '—',
     })));
     setLoading(false);
+  }
+
+  // ── Matriz de roles (solo super_admin) ──────────────────────────────
+  const [roleMatrix, setRoleMatrix] = useState<Record<string, Record<string, NivelAcceso>>>({});
+  const [matrixLoading, setMatrixLoading] = useState(true);
+  const [savingCell, setSavingCell] = useState<string | null>(null);
+  const [rebuilding, setRebuilding] = useState(false);
+
+  useEffect(() => { loadRoleMatrix(); }, []);
+
+  async function loadRoleMatrix() {
+    setMatrixLoading(true);
+    const { data, error } = await supabase.from('role_module_defaults').select('rol, modulo, nivel_acceso');
+    if (error) { toast.error('Error al cargar la matriz de roles'); setMatrixLoading(false); return; }
+    const map: Record<string, Record<string, NivelAcceso>> = {};
+    ROLES_MATRIZ.forEach(({ rol }) => { map[rol] = {}; MODULOS.forEach(m => { map[rol][m.key] = 'sin_acceso'; }); });
+    (data || []).forEach((r: any) => { if (map[r.rol]) map[r.rol][r.modulo] = r.nivel_acceso; });
+    setRoleMatrix(map);
+    setMatrixLoading(false);
+  }
+
+  // Cambiar una celda: guarda el default del rol y lo aplica en cascada
+  // a todos los usuarios que hoy tienen ese rol (efecto inmediato).
+  async function updateRoleMatrixCell(rol: Rol, moduloKey: string, nivel: NivelAcceso) {
+    const cellKey = `${rol}:${moduloKey}`;
+    setSavingCell(cellKey);
+    setRoleMatrix(prev => ({ ...prev, [rol]: { ...prev[rol], [moduloKey]: nivel } }));
+
+    const { error: upsertErr } = await supabase.from('role_module_defaults')
+      .upsert({ rol, modulo: moduloKey, nivel_acceso: nivel, updated_by: currentUser?.id || null }, { onConflict: 'rol,modulo' });
+    if (upsertErr) { toast.error('Error al guardar: ' + upsertErr.message); setSavingCell(null); return; }
+
+    const { data: afectados } = await supabase.from('user_roles').select('user_id').eq('role', rol);
+    const ids = (afectados || []).map((r: any) => r.user_id);
+    if (ids.length > 0) {
+      const rows = ids.map(uid => ({ user_id: uid, modulo: moduloKey, nivel_acceso: nivel, otorgado_por: currentUser?.id || null }));
+      const { error: castErr } = await supabase.from('user_module_access').upsert(rows, { onConflict: 'user_id,modulo' });
+      if (castErr) toast.error('Se guardó el default, pero falló aplicar a usuarios activos: ' + castErr.message);
+      else toast.success(`Aplicado a ${ids.length} usuario(s) con rol ${rol}`);
+    } else {
+      toast.success('Guardado (ningún usuario tiene este rol todavía)');
+    }
+    setSavingCell(null);
+  }
+
+  async function rebuildUsers() {
+    setRebuilding(true);
+    const { data, error } = await supabase.functions.invoke('rebuild-sanamex-users', { body: {} });
+    setRebuilding(false);
+    if (error || (data as any)?.error) {
+      toast.error(error?.message || (data as any)?.error || 'Error al reconstruir usuarios');
+      return;
+    }
+    toast.success((data as any)?.message || 'Usuarios reconstruidos');
+    load();
   }
 
   async function selectUser(u: UserRow) {
@@ -217,11 +285,24 @@ export default function GestionUsuariosPage() {
             <p className="text-sm text-muted-foreground">Control fino de acceso por usuario y módulo.</p>
           </div>
         </div>
-        <Button onClick={() => setCreateModal(true)}>
-          <Plus className="mr-2 h-4 w-4" />Crear usuario
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={rebuildUsers} disabled={rebuilding}>
+            <RefreshCw className={`mr-2 h-4 w-4 ${rebuilding ? 'animate-spin' : ''}`} />
+            {rebuilding ? 'Reconstruyendo…' : 'Reconstruir usuarios (roster limpio)'}
+          </Button>
+          <Button onClick={() => setCreateModal(true)}>
+            <Plus className="mr-2 h-4 w-4" />Crear usuario
+          </Button>
+        </div>
       </div>
 
+      <Tabs defaultValue="usuarios">
+        <TabsList>
+          <TabsTrigger value="usuarios">Usuarios</TabsTrigger>
+          <TabsTrigger value="matriz"><Shield className="h-3.5 w-3.5 mr-1.5" />Matriz de roles</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="usuarios" className="space-y-6 pt-4">
       <Card className="p-4">
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -343,8 +424,75 @@ export default function GestionUsuariosPage() {
           )}
         </div>
       </div>
+        </TabsContent>
 
-      {/* Modal: confirmar guardado */}
+        <TabsContent value="matriz" className="pt-4">
+          <Card className="p-4 mb-4 bg-muted/30">
+            <p className="text-sm text-muted-foreground">
+              Define aquí qué puede ver y hacer cada <strong>rol</strong> en cada módulo del sistema.
+              Al cambiar una celda, el cambio se aplica de inmediato a todos los usuarios que ya
+              tengan ese rol asignado — no hace falta editarlos uno por uno.
+              Esta pantalla es visible <strong>solo para el Super Administrador</strong>.
+            </p>
+          </Card>
+
+          {matrixLoading ? (
+            <p className="text-sm text-muted-foreground py-8 text-center">Cargando matriz…</p>
+          ) : (
+            <div className="overflow-x-auto border rounded-lg">
+              <table className="w-full text-sm">
+                <thead className="bg-muted sticky top-0 z-10">
+                  <tr>
+                    <th className="p-2 text-left font-semibold sticky left-0 bg-muted z-20 min-w-[180px]">Módulo</th>
+                    {ROLES_MATRIZ.map(({ rol, label }) => (
+                      <th key={rol} className="p-2 text-center font-semibold min-w-[150px] whitespace-nowrap">{label}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {modulosByCat.map(({ cat, items }) => (
+                    <Fragment key={cat}>
+                      <tr key={`cat-${cat}`} className="bg-accent/30">
+                        <td colSpan={ROLES_MATRIZ.length + 1} className="p-1.5 px-2 text-xs font-bold text-muted-foreground uppercase tracking-wide sticky left-0 bg-accent/30">
+                          {cat}
+                        </td>
+                      </tr>
+                      {items.map(m => (
+                        <tr key={m.key} className="border-t hover:bg-accent/10">
+                          <td className="p-2 sticky left-0 bg-background z-10 font-medium">{m.label}</td>
+                          {ROLES_MATRIZ.map(({ rol }) => {
+                            const cellKey = `${rol}:${m.key}`;
+                            const nivel = roleMatrix[rol]?.[m.key] || 'sin_acceso';
+                            const disabled = rol === 'super_admin'; // siempre administrar, no editable
+                            return (
+                              <td key={cellKey} className="p-1.5 text-center">
+                                <Select
+                                  value={nivel}
+                                  onValueChange={v => updateRoleMatrixCell(rol, m.key, v as NivelAcceso)}
+                                  disabled={disabled || savingCell === cellKey}
+                                >
+                                  <SelectTrigger className={`h-8 text-xs ${nivel === 'sin_acceso' ? 'text-muted-foreground' : 'font-medium'}`}>
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {m.niveles.map(n => (
+                                      <SelectItem key={n} value={n} className="text-xs">{NIVEL_LABELS[n]}</SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              </td>
+                            );
+                          })}
+                        </tr>
+                      ))}
+                    </Fragment>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </TabsContent>
+      </Tabs>
       <Dialog open={saveModal} onOpenChange={setSaveModal}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
