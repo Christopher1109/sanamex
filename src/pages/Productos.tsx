@@ -20,7 +20,7 @@ import { Plus, Search, Upload, Pencil, Trash2, Eye } from 'lucide-react';
 import { PaginationControls } from '@/components/ui/pagination-controls';
 import { toast } from 'sonner';
 
-const PAGE_SIZE = 25;
+const PAGE_SIZE = 50;
 
 const empty = {
   sku: '', codigo_interno: '', nombre: '', descripcion: '', codigo_barras: '',
@@ -345,8 +345,8 @@ const Productos = () => {
                     const faltante = (v: any) => v === null || v === undefined || String(v).trim() === '';
                     const SinDef = () => <Badge variant="outline" className="text-amber-600 border-amber-500 text-xs whitespace-nowrap">⚠ Sin definir</Badge>;
                     return (
-                    <TableRow key={p.id} className={!p.activo ? 'opacity-50' : ''}>
-                      <TableCell>
+                    <TableRow key={p.id} className={`cursor-pointer hover:bg-muted/50 ${!p.activo ? 'opacity-50' : ''}`} onClick={() => openEdit(p)}>
+                      <TableCell onClick={e => e.stopPropagation()}>
                         <Checkbox checked={selectedIds.has(p.id)} onCheckedChange={v => toggleSelect(p.id, !!v)} />
                       </TableCell>
                       <TableCell className="font-mono text-xs">{p.codigo_interno || p.sku}</TableCell>
@@ -361,7 +361,7 @@ const Productos = () => {
                           : p.estatus === 'A' ? <Badge variant="default">Activo</Badge>
                           : <Badge variant="secondary">{p.estatus || '—'}</Badge>}
                       </TableCell>
-                      <TableCell className="text-right">
+                      <TableCell className="text-right" onClick={e => e.stopPropagation()}>
                         <div className="flex justify-end gap-1">
                           <Button size="icon" variant="ghost" onClick={() => openEdit(p)} title="Ver/Editar">
                             <Eye className="h-4 w-4" />
