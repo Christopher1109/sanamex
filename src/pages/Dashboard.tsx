@@ -208,9 +208,9 @@ const Dashboard = ({ userRole }: DashboardProps) => {
 
     const [cfdiRes, cxpRes, usersRes, sucRes, auditRes] = await Promise.all([
       sb.from('cfdi_emitidos').select('id', { count: 'exact', head: true }).gte('created_at', firstDay).eq('es_demo', false),
-      sb.from('cuentas_por_pagar').select('id', { count: 'exact', head: true }).neq('estado', 'pagada'),
+      sb.from('compras').select('id', { count: 'exact', head: true }).eq('pagada', false).not('fecha_factura', 'is', null).neq('estado', 'cancelada'),
       sb.from('profiles').select('id', { count: 'exact', head: true }),
-      sb.from('sucursales').select('id', { count: 'exact', head: true }).eq('activa', true),
+      sb.from('sucursales').select('id', { count: 'exact', head: true }).eq('activo', true),
       sb.from('audit_log').select('id, accion, tabla, created_at, descripcion').order('created_at', { ascending: false }).limit(8),
     ]);
 

@@ -484,22 +484,53 @@ function AsistenciaTab() {
 function RecibosTab() {
   const [recs, setRecs] = useState<any[]>([]);
   const [emps, setEmps] = useState<any[]>([]);
+  const [sucursales, setSucursales] = useState<any[]>([]);
+  const [conceptos, setConceptos] = useState<any[]>([]);
   const [empId, setEmpId] = useState('');
   const [inicio, setInicio] = useState('');
   const [fin, setFin] = useState('');
+
+  // ── Filtros de la lista (independientes del generador de arriba) ──
+  const [fSucursal, setFSucursal] = useState('all');
+  const [fEmpleado, setFEmpleado] = useState('all');
+  const [fPeriodoDesde, setFPeriodoDesde] = useState('');
+  const [fPeriodoHasta, setFPeriodoHasta] = useState('');
+  const [fEstatus, setFEstatus] = useState('all');
+  const [fConcepto, setFConcepto] = useState('all');
+
   const [preview, setPreview] = useState<any>(null);
   const [pendingTimbrar, setPendingTimbrar] = useState<string | null>(null);
+
   const load = async () => {
-    const { data } = await supabase
-      .from('recibos_nomina')
-      .select('*, empleados(nombre), cfdi_emitidos(xml_storage_path, pdf_storage_path, uuid_sat)')
-      .order('periodo_fin',{ascending:false}).limit(50);
-    setRecs((data as any) || []);
+    let q = supabase.from('recibos_nomina')
+      .select('*, empleados(nombre, sucursal_id), cfdi_emitidos(xml_storage_path, pdf_storage_path, uuid_sat)')
+      .order('periodo_fin', { ascending: false }).limit(200);
+
+    if (fEmpleado !== 'all') q = q.eq('empleado_id', fEmpleado);
+    if (fPeriodoDesde) q = q.gte('periodo_inicio', fPeriodoDesde);
+    if (fPeriodoHasta) q = q.lte('periodo_fin', fPeriodoHasta);
+    if (fEstatus !== 'all') q = q.eq('estatus', fEstatus);
+
+    let { data } = await q;
+    let rows = (data as any[]) || [];
+
+    if (fSucursal !== 'all') rows = rows.filter(r => r.empleados?.sucursal_id === fSucursal);
+
+    if (fConcepto !== 'all') {
+      const { data: rc } = await supabase.from('recibo_conceptos').select('recibo_id').eq('clave', fConcepto);
+      const idsConConcepto = new Set((rc || []).map((r: any) => r.recibo_id));
+      rows = rows.filter(r => idsConConcepto.has(r.id));
+    }
+
+    setRecs(rows);
   };
   useEffect(() => {
     load();
-    supabase.from('empleados').select('id,nombre').eq('activo',true).order('nombre').then(({data})=>setEmps((data as any)||[]));
+    supabase.from('empleados').select('id,nombre,sucursal_id').eq('activo',true).order('nombre').then(({data})=>setEmps((data as any)||[]));
+    supabase.from('sucursales').select('id,nombre').eq('activo', true).order('nombre').then(({data})=>setSucursales((data as any)||[]));
+    supabase.from('conceptos_nomina').select('clave,descripcion,tipo').order('tipo').then(({data})=>setConceptos((data as any)||[]));
   }, []);
+  useEffect(() => { load(); }, [fSucursal, fEmpleado, fPeriodoDesde, fPeriodoHasta, fEstatus, fConcepto]);
   const calcular = async () => {
     if (!empId || !inicio || !fin) { toast.error('Datos incompletos'); return; }
     try { setPreview(await NominaCalculator.calcularRecibo(empId, inicio, fin)); }
@@ -572,9 +603,44 @@ function RecibosTab() {
           )}
         </CardContent>
       </Card>
+      <Card><CardHeader><CardTitle className="text-base">Filtros</CardTitle></CardHeader>
+        <CardContent className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+          <div><Label>Sucursal</Label>
+            <select className="w-full h-9 border rounded px-2 text-sm" value={fSucursal} onChange={e=>setFSucursal(e.target.value)}>
+              <option value="all">Todas</option>
+              {sucursales.map(s=><option key={s.id} value={s.id}>{s.nombre}</option>)}
+            </select>
+          </div>
+          <div><Label>Empleado</Label>
+            <select className="w-full h-9 border rounded px-2 text-sm" value={fEmpleado} onChange={e=>setFEmpleado(e.target.value)}>
+              <option value="all">Todos</option>
+              {emps.map(e=><option key={e.id} value={e.id}>{e.nombre}</option>)}
+            </select>
+          </div>
+          <div><Label>Periodo desde</Label><Input type="date" value={fPeriodoDesde} onChange={e=>setFPeriodoDesde(e.target.value)} /></div>
+          <div><Label>Periodo hasta</Label><Input type="date" value={fPeriodoHasta} onChange={e=>setFPeriodoHasta(e.target.value)} /></div>
+          <div><Label>Estatus</Label>
+            <select className="w-full h-9 border rounded px-2 text-sm" value={fEstatus} onChange={e=>setFEstatus(e.target.value)}>
+              <option value="all">Todos</option>
+              <option value="pendiente">Pendiente</option>
+              <option value="calculado">Calculado</option>
+              <option value="timbrado">Timbrado</option>
+            </select>
+          </div>
+          <div><Label>Concepto (percep./deduc.)</Label>
+            <select className="w-full h-9 border rounded px-2 text-sm" value={fConcepto} onChange={e=>setFConcepto(e.target.value)}>
+              <option value="all">Todos</option>
+              {conceptos.map(c=><option key={c.clave} value={c.clave}>{c.tipo==='deduccion'?'↓':'↑'} {c.descripcion}</option>)}
+            </select>
+          </div>
+        </CardContent>
+      </Card>
+
       <Card><CardContent className="p-0"><table className="w-full text-sm">
         <thead className="bg-muted"><tr><th className="p-2 text-left">Periodo</th><th className="p-2 text-left">Empleado</th><th className="p-2 text-right">Percep.</th><th className="p-2 text-right">Deduc.</th><th className="p-2 text-right">Neto</th><th className="p-2 text-left">Estatus</th><th className="p-2">Acciones</th></tr></thead>
-        <tbody>{recs.map(r => {
+        <tbody>{recs.length === 0 ? (
+          <tr><td colSpan={7} className="p-6 text-center text-muted-foreground">Sin recibos con estos filtros.</td></tr>
+        ) : recs.map(r => {
           const xmlPath = r.xml_storage_path || r.cfdi_emitidos?.xml_storage_path;
           const pdfPath = r.pdf_storage_path || r.cfdi_emitidos?.pdf_storage_path;
           return (
