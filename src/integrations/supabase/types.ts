@@ -508,41 +508,91 @@ export type Database = {
       clientes: {
         Row: {
           activo: boolean | null
+          aplica_retenciones: boolean | null
+          celular_suplente: string | null
+          clave: string | null
+          comentario: string | null
           created_at: string | null
+          desglosa_ieps: boolean | null
+          dias_credito: number | null
           direccion: string | null
           email: string | null
+          factura_calle: string | null
+          factura_cp: string | null
           id: string
+          limite_credito: number | null
           nombre: string
+          numero_precio: number | null
+          razon_social: string | null
+          representante_suplente: string | null
           rfc: string | null
+          servicio_domicilio: boolean | null
+          sucursal_id: string | null
           telefono: string | null
           tipo: string | null
           updated_at: string | null
         }
         Insert: {
           activo?: boolean | null
+          aplica_retenciones?: boolean | null
+          celular_suplente?: string | null
+          clave?: string | null
+          comentario?: string | null
           created_at?: string | null
+          desglosa_ieps?: boolean | null
+          dias_credito?: number | null
           direccion?: string | null
           email?: string | null
+          factura_calle?: string | null
+          factura_cp?: string | null
           id?: string
+          limite_credito?: number | null
           nombre: string
+          numero_precio?: number | null
+          razon_social?: string | null
+          representante_suplente?: string | null
           rfc?: string | null
+          servicio_domicilio?: boolean | null
+          sucursal_id?: string | null
           telefono?: string | null
           tipo?: string | null
           updated_at?: string | null
         }
         Update: {
           activo?: boolean | null
+          aplica_retenciones?: boolean | null
+          celular_suplente?: string | null
+          clave?: string | null
+          comentario?: string | null
           created_at?: string | null
+          desglosa_ieps?: boolean | null
+          dias_credito?: number | null
           direccion?: string | null
           email?: string | null
+          factura_calle?: string | null
+          factura_cp?: string | null
           id?: string
+          limite_credito?: number | null
           nombre?: string
+          numero_precio?: number | null
+          razon_social?: string | null
+          representante_suplente?: string | null
           rfc?: string | null
+          servicio_domicilio?: boolean | null
+          sucursal_id?: string | null
           telefono?: string | null
           tipo?: string | null
           updated_at?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "clientes_sucursal_id_fkey"
+            columns: ["sucursal_id"]
+            isOneToOne: false
+            referencedRelation: "sucursales"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       comisiones: {
         Row: {
@@ -1504,6 +1554,7 @@ export type Database = {
           sucursal_id: string | null
           tipo_contrato: string | null
           updated_at: string
+          user_id: string | null
         }
         Insert: {
           activo?: boolean
@@ -1533,6 +1584,7 @@ export type Database = {
           sucursal_id?: string | null
           tipo_contrato?: string | null
           updated_at?: string
+          user_id?: string | null
         }
         Update: {
           activo?: boolean
@@ -1562,6 +1614,7 @@ export type Database = {
           sucursal_id?: string | null
           tipo_contrato?: string | null
           updated_at?: string
+          user_id?: string | null
         }
         Relationships: [
           {
@@ -3642,6 +3695,36 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      role_module_defaults: {
+        Row: {
+          created_at: string
+          id: string
+          modulo: string
+          nivel_acceso: string
+          rol: Database["public"]["Enums"]["app_role"]
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          modulo: string
+          nivel_acceso?: string
+          rol: Database["public"]["Enums"]["app_role"]
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          modulo?: string
+          nivel_acceso?: string
+          rol?: Database["public"]["Enums"]["app_role"]
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
       }
       role_permissions: {
         Row: {
