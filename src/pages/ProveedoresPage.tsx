@@ -47,7 +47,6 @@ export default function ProveedoresPage() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [selected, setSelected] = useState<Proveedor | null>(null);
-  const [editing, setEditing] = useState(false);
   const [form, setForm] = useState<Partial<Proveedor>>(empty);
   const [createOpen, setCreateOpen] = useState(false);
 
@@ -67,7 +66,6 @@ export default function ProveedoresPage() {
   function openDetail(p: Proveedor) {
     setSelected(p);
     setForm(p);
-    setEditing(false);
     setCatalogoSearch('');
     loadCatalogo(p.id);
   }
@@ -101,11 +99,8 @@ export default function ProveedoresPage() {
     const { error } = await supabase.from('proveedores').update(payload).eq('id', selected.id);
     if (error) { toast.error('Error al guardar: ' + error.message); return; }
     toast.success('Proveedor actualizado');
-    setEditing(false);
+    setSelected(null);
     await load();
-    const updated = (await supabase.from('proveedores').select('*').eq('id', selected.id).single()).data as Proveedor;
-    setSelected(updated);
-    setForm(updated);
   }
 
   async function createProveedor() {
@@ -137,7 +132,6 @@ export default function ProveedoresPage() {
     }
     toast.success('Proveedor eliminado');
     setSelected(null);
-    setEditing(false);
     load();
   }
 
@@ -235,16 +229,12 @@ export default function ProveedoresPage() {
   }
 
   const Field = ({ label, value, onChange, type = 'text', textarea = false }: any) => (
-    <div className="space-y-1">
-      <Label className="text-xs text-muted-foreground">{label}</Label>
-      {editing ? (
-        textarea ? (
-          <Textarea value={value ?? ''} onChange={e => onChange(e.target.value)} rows={2} />
-        ) : (
-          <Input type={type} value={value ?? ''} onChange={e => onChange(type === 'number' ? (e.target.value === '' ? null : Number(e.target.value)) : e.target.value)} />
-        )
+    <div>
+      <Label>{label}</Label>
+      {textarea ? (
+        <Textarea value={value ?? ''} onChange={e => onChange(e.target.value)} rows={2} />
       ) : (
-        <div className="text-sm py-2 px-3 rounded-md bg-muted/40 min-h-[36px] break-words">{value || <span className="text-muted-foreground italic">Sin información</span>}</div>
+        <Input type={type} value={value ?? ''} onChange={e => onChange(type === 'number' ? (e.target.value === '' ? null : Number(e.target.value)) : e.target.value)} />
       )}
     </div>
   );
@@ -319,14 +309,11 @@ export default function ProveedoresPage() {
       </Card>
 
       {/* Detail sheet */}
-      <Dialog open={!!selected} onOpenChange={(o) => { if (!o) { setSelected(null); setEditing(false); } }}>
+      <Dialog open={!!selected} onOpenChange={(o) => { if (!o) setSelected(null); }}>
         <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle className="flex items-center justify-between gap-2 pr-6">
-              <span>{selected?.nombre}</span>
-              {!editing && <Button size="sm" variant="outline" onClick={() => setEditing(true)}>Editar</Button>}
-            </DialogTitle>
-            <DialogDescription>Consulta y edita la información del proveedor en las distintas pestañas.</DialogDescription>
+            <DialogTitle>{selected?.nombre}</DialogTitle>
+            <DialogDescription>Completa la información del proveedor en las distintas pestañas.</DialogDescription>
           </DialogHeader>
 
           {selected && (
@@ -340,7 +327,7 @@ export default function ProveedoresPage() {
 
               <TabsContent value="contacto" className="space-y-6 pt-4">
                 <section>
-                  <h3 className="font-semibold text-sm mb-3 text-primary">Contacto</h3>
+                  <h3 className="font-semibold text-sm mb-3">Contacto</h3>
                   <div className="grid grid-cols-2 gap-3">
                     <Field label="Nombre" value={form.nombre} onChange={(v: string) => setForm({ ...form, nombre: v })} />
                     <Field label="Persona responsable" value={form.contacto} onChange={(v: string) => setForm({ ...form, contacto: v })} />
@@ -351,7 +338,7 @@ export default function ProveedoresPage() {
                 </section>
 
                 <section>
-                  <h3 className="font-semibold text-sm mb-3 text-primary">Condiciones comerciales</h3>
+                  <h3 className="font-semibold text-sm mb-3">Condiciones comerciales</h3>
                   <div className="grid grid-cols-2 gap-3">
                     <Field label="Plazo de pago (días) *" type="number" value={form.plazo_pago_dias} onChange={(v: any) => setForm({ ...form, plazo_pago_dias: v })} />
                     <Field label="Condiciones" value={form.condiciones} onChange={(v: string) => setForm({ ...form, condiciones: v })} />
@@ -360,14 +347,14 @@ export default function ProveedoresPage() {
                 </section>
 
                 <section>
-                  <h3 className="font-semibold text-sm mb-3 text-primary">Notas internas</h3>
+                  <h3 className="font-semibold text-sm mb-3">Notas internas</h3>
                   <Field label="Notas" textarea value={form.notas} onChange={(v: string) => setForm({ ...form, notas: v })} />
                 </section>
               </TabsContent>
 
               <TabsContent value="fiscal" className="space-y-6 pt-4">
                 <section>
-                  <h3 className="font-semibold text-sm mb-3 text-primary">Datos fiscales y bancarios</h3>
+                  <h3 className="font-semibold text-sm mb-3">Datos fiscales y bancarios</h3>
                   <div className="grid grid-cols-2 gap-3">
                     <Field label="RFC" value={form.rfc} onChange={(v: string) => setForm({ ...form, rfc: v })} />
                     <Field label="Banco" value={form.banco} onChange={(v: string) => setForm({ ...form, banco: v })} />
@@ -382,7 +369,7 @@ export default function ProveedoresPage() {
               <TabsContent value="expediente" className="space-y-6 pt-4">
                 <section>
                   <div className="flex items-center justify-between mb-3">
-                    <h3 className="font-semibold text-sm text-primary">Expediente digital</h3>
+                    <h3 className="font-semibold text-sm">Expediente digital</h3>
                     {(() => {
                       const campos = ['constancia_situacion_fiscal_url', 'aviso_funcionamiento_url', 'comprobante_domicilio_url', 'identificacion_oficial_url'] as const;
                       const completos = campos.filter(c => (form as any)[c]).length;
@@ -406,7 +393,7 @@ export default function ProveedoresPage() {
 
               <TabsContent value="catalogo" className="space-y-6 pt-4">
                 <section>
-                  <h3 className="font-semibold text-sm mb-3 text-primary">Catálogo y precios de este proveedor</h3>
+                  <h3 className="font-semibold text-sm mb-3">Catálogo y precios de este proveedor</h3>
                   {catalogo.length === 0 && !catalogoLoading ? (
                     <p className="text-sm text-muted-foreground bg-muted/40 rounded-md p-3">
                       Sin lista de precios cargada todavía. Se sube desde Compras → Catálogos → Proveedores (carga masiva por Excel).
@@ -481,12 +468,10 @@ export default function ProveedoresPage() {
                 </AlertDialogFooter>
               </AlertDialogContent>
             </AlertDialog>
-            {editing && (
-              <div className="flex gap-2">
-                <Button variant="outline" onClick={() => { setForm(selected!); setEditing(false); }}>Cancelar</Button>
-                <Button onClick={saveDetail}>Guardar cambios</Button>
-              </div>
-            )}
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={() => { setSelected(null); }}>Cancelar</Button>
+              <Button onClick={saveDetail}>Guardar cambios</Button>
+            </div>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -497,7 +482,7 @@ export default function ProveedoresPage() {
           <DialogHeader><DialogTitle>Nuevo Proveedor</DialogTitle></DialogHeader>
           <div className="space-y-5">
             <section>
-              <h3 className="font-semibold text-sm mb-2 text-primary">Contacto</h3>
+              <h3 className="font-semibold text-sm mb-2">Contacto</h3>
               <div className="grid grid-cols-2 gap-3">
                 <div className="col-span-2"><Label>Nombre *</Label><Input value={form.nombre || ''} onChange={e => setForm({ ...form, nombre: e.target.value })} /></div>
                 <div><Label>Persona responsable</Label><Input value={form.contacto || ''} onChange={e => setForm({ ...form, contacto: e.target.value })} /></div>
@@ -507,7 +492,7 @@ export default function ProveedoresPage() {
               </div>
             </section>
             <section>
-              <h3 className="font-semibold text-sm mb-2 text-primary">Condiciones comerciales</h3>
+              <h3 className="font-semibold text-sm mb-2">Condiciones comerciales</h3>
               <div className="grid grid-cols-2 gap-3">
                 <div><Label>Plazo de pago (días) *</Label><Input type="number" min={0} value={form.plazo_pago_dias ?? ''} onChange={e => setForm({ ...form, plazo_pago_dias: e.target.value === '' ? null : Number(e.target.value) })} /></div>
                 <div><Label>Condiciones</Label><Input placeholder="Ej. CONTADO, 30 DÍAS..." value={form.condiciones || ''} onChange={e => setForm({ ...form, condiciones: e.target.value })} /></div>
@@ -515,7 +500,7 @@ export default function ProveedoresPage() {
               <p className="text-xs text-muted-foreground mt-2">Use 0 si es de contado. Obligatorio para Cuentas por Pagar.</p>
             </section>
             <section>
-              <h3 className="font-semibold text-sm mb-2 text-primary">Datos fiscales y bancarios</h3>
+              <h3 className="font-semibold text-sm mb-2">Datos fiscales y bancarios</h3>
               <div className="grid grid-cols-2 gap-3">
                 <div><Label>RFC</Label><Input value={form.rfc || ''} onChange={e => setForm({ ...form, rfc: e.target.value })} /></div>
                 <div><Label>Banco</Label><Input value={form.banco || ''} onChange={e => setForm({ ...form, banco: e.target.value })} /></div>
@@ -524,7 +509,7 @@ export default function ProveedoresPage() {
               </div>
             </section>
             <section>
-              <h3 className="font-semibold text-sm mb-2 text-primary">Notas</h3>
+              <h3 className="font-semibold text-sm mb-2">Notas</h3>
               <Textarea rows={2} value={form.notas || ''} onChange={e => setForm({ ...form, notas: e.target.value })} />
             </section>
             <p className="text-xs text-muted-foreground">Los documentos (constancia fiscal, aviso sanitario, etc.) se pueden adjuntar después desde la ficha del proveedor.</p>
