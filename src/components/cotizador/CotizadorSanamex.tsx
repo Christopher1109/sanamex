@@ -9,8 +9,10 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { Loader2, RefreshCw, ShoppingCart, Search, EyeOff, TrendingUp, TrendingDown, AlertTriangle, Download, ChevronRight, Package, Layers } from 'lucide-react';
+import { Loader2, RefreshCw, ShoppingCart, Search, EyeOff, TrendingUp, TrendingDown, AlertTriangle, Download, ChevronRight, Package, Layers, RotateCcw, Truck, Save } from 'lucide-react';
 import { toast } from 'sonner';
+
+const HIDDEN_KEY = 'cotizador_hidden_v1';
 
 type Sucursal = { id: string; codigo: string; nombre: string; es_cedis: boolean };
 type Postor = { proveedor_id: string; proveedor_nombre: string; proveedor_codigo?: string; precio: number; precio_bruto?: number; existencia: number; dias_entrega: number; entrega_por_sucursal?: boolean; con_oferta?: boolean } | null;
@@ -33,6 +35,7 @@ type Fila = {
 };
 type Snapshot = { sucursales: Sucursal[]; productos: Fila[] };
 type EditMap = Record<string, Record<string, number>>;
+type OverrideKey = string; // `${producto_id}|${sucursal_id}`
 
 const ESTATUS_COLORS: Record<string, string> = {
   A: 'bg-green-100 text-green-800', I: 'bg-blue-100 text-blue-800', C: 'bg-yellow-100 text-yellow-800',
@@ -51,29 +54,44 @@ export default function CotizadorSanamex() {
   const [filtroVar, setFiltroVar] = useState<'todos' | 'subieron' | 'bajaron'>('todos');
   const [filtroEstatus, setFiltroEstatus] = useState<string>('all');
   const [soloConOferta, setSoloConOferta] = useState(false);
-  const [ocultas, setOcultas] = useState<Set<string>>(new Set());
+  const [ocultas, setOcultas] = useState<Set<string>>(() => {
+    try { return new Set(JSON.parse(localStorage.getItem(HIDDEN_KEY) || '[]')); } catch { return new Set(); }
+  });
   const [seleccion, setSeleccion] = useState<Set<string>>(new Set());
   const [edits, setEdits] = useState<EditMap>({});
+  const [overrides, setOverrides] = useState<Record<OverrideKey, number>>({});
+  const [savingOv, setSavingOv] = useState<Set<string>>(new Set());
   const [genOpen, setGenOpen] = useState(false);
   const [generando, setGenerando] = useState(false);
   const [detalle, setDetalle] = useState<Fila | null>(null);
   const [histData, setHistData] = useState<any[]>([]);
   const [ocAbiertas, setOcAbiertas] = useState<any[]>([]);
 
+  useEffect(() => {
+    try { localStorage.setItem(HIDDEN_KEY, JSON.stringify(Array.from(ocultas))); } catch {}
+  }, [ocultas]);
+
   const folioRun = useMemo(() => 'COT-' + new Date().toISOString().slice(0, 10).replace(/-/g, '') + '-' + Math.random().toString(36).slice(2, 6).toUpperCase(), []);
 
   async function cargar() {
     setLoading(true);
     try {
-      const { data, error } = await supabase.rpc('cotizador_snapshot', {
-        p_incluir_sin_lista: incluirSinLista,
-        p_excluir_estatus_e: excluirE,
-        p_solo_con_faltante: soloFaltantes,
-        p_search: search || null,
-        p_limit: 1000, p_offset: 0,
-      });
+      const [{ data, error }, { data: ovs, error: eOv }] = await Promise.all([
+        supabase.rpc('cotizador_snapshot', {
+          p_incluir_sin_lista: incluirSinLista,
+          p_excluir_estatus_e: excluirE,
+          p_solo_con_faltante: soloFaltantes,
+          p_search: search || null,
+          p_limit: 1000, p_offset: 0,
+        }),
+        supabase.rpc('cotizador_overrides_list' as any),
+      ]);
       if (error) throw error;
+      if (eOv) throw eOv;
       setSnap(data as unknown as Snapshot);
+      const ovMap: Record<string, number> = {};
+      ((ovs as any[]) || []).forEach(o => { ovMap[`${o.producto_id}|${o.sucursal_id}`] = o.cantidad; });
+      setOverrides(ovMap);
       setEdits({});
     } catch (e: any) { toast.error('Error al cargar cotizador: ' + e.message); }
     finally { setLoading(false); }
@@ -91,12 +109,54 @@ export default function CotizadorSanamex() {
     }
     return s;
   }
+  function ovKey(pid: string, sid: string) { return `${pid}|${sid}`; }
   function sugeridoValor(f: Fila, sCodigo: string) {
+    const c = f.sucursales?.[sCodigo];
     const edited = edits[f.producto_id]?.[sCodigo];
-    return edited !== undefined ? edited : sugeridoCalc(f, sCodigo);
+    if (edited !== undefined) return edited;
+    if (c) {
+      const ov = overrides[ovKey(f.producto_id, c.sucursal_id)];
+      if (ov !== undefined) return ov;
+    }
+    return sugeridoCalc(f, sCodigo);
+  }
+  function hasOverride(f: Fila, sCodigo: string) {
+    const c = f.sucursales?.[sCodigo];
+    return !!(c && overrides[ovKey(f.producto_id, c.sucursal_id)] !== undefined);
   }
   function setEdit(pid: string, sCodigo: string, val: number) {
     setEdits(prev => ({ ...prev, [pid]: { ...(prev[pid] || {}), [sCodigo]: val } }));
+  }
+  async function guardarOverride(f: Fila, sCodigo: string) {
+    const c = f.sucursales?.[sCodigo];
+    if (!c) return;
+    const val = sugeridoValor(f, sCodigo);
+    const key = ovKey(f.producto_id, c.sucursal_id);
+    setSavingOv(prev => new Set(prev).add(key));
+    try {
+      const { error } = await supabase.rpc('cotizador_upsert_override' as any, {
+        p_producto_id: f.producto_id, p_sucursal_id: c.sucursal_id, p_cantidad: val, p_motivo: null,
+      });
+      if (error) throw error;
+      setOverrides(prev => ({ ...prev, [key]: val }));
+      setEdits(prev => { const n = { ...prev }; if (n[f.producto_id]) { delete n[f.producto_id][sCodigo]; } return n; });
+      toast.success('Sugerido guardado');
+    } catch (e: any) { toast.error('No se pudo guardar: ' + e.message); }
+    finally { setSavingOv(prev => { const n = new Set(prev); n.delete(key); return n; }); }
+  }
+  async function restaurarOverride(f: Fila, sCodigo: string) {
+    const c = f.sucursales?.[sCodigo];
+    if (!c) return;
+    const key = ovKey(f.producto_id, c.sucursal_id);
+    try {
+      const { error } = await supabase.rpc('cotizador_upsert_override' as any, {
+        p_producto_id: f.producto_id, p_sucursal_id: c.sucursal_id, p_cantidad: null as any, p_motivo: null,
+      });
+      if (error) throw error;
+      setOverrides(prev => { const n = { ...prev }; delete n[key]; return n; });
+      setEdits(prev => { const n = { ...prev }; if (n[f.producto_id]) { delete n[f.producto_id][sCodigo]; } return n; });
+      toast.success('Restaurado al valor del sistema');
+    } catch (e: any) { toast.error('No se pudo restaurar: ' + e.message); }
   }
 
   const filasFiltradas = useMemo(() => {
@@ -328,21 +388,47 @@ export default function CotizadorSanamex() {
                     {sucursales.flatMap(s => {
                       const c = f.sucursales?.[s.codigo];
                       const sug = sugeridoValor(f, s.codigo);
+                      const ov = hasOverride(f, s.codigo);
+                      const savKey = c ? ovKey(f.producto_id, c.sucursal_id) : '';
+                      const saving = savingOv.has(savKey);
+                      const transito = c?.transito ?? 0;
                       const estBadge = c?.estatus ? <span className={`ml-0.5 text-[8px] px-0.5 rounded ${ESTATUS_COLORS[c.estatus] || 'bg-gray-100'}`}>{c.estatus}</span> : null;
+                      const existCell = (
+                        <span className="inline-flex items-center gap-0.5">
+                          {c?.existencia ?? 0}
+                          {transito > 0 && (
+                            <Tooltip><TooltipTrigger asChild><Truck className="h-3 w-3 text-blue-600" /></TooltipTrigger>
+                              <TooltipContent>Tránsito abierto: {transito} pzas hacia {s.codigo}</TooltipContent></Tooltip>
+                          )}
+                          {estBadge}
+                        </span>
+                      );
                       return [
-                        <TableCell key={f.producto_id + s.id + '-e'} className="text-right text-xs border-l">{c?.existencia ?? 0}{estBadge}</TableCell>,
+                        <TableCell key={f.producto_id + s.id + '-e'} className="text-right text-xs border-l">{existCell}</TableCell>,
                         <TableCell key={f.producto_id + s.id + '-u'} className="text-right text-xs">{Number(c?.ult30 ?? 0).toFixed(0)}</TableCell>,
                         <TableCell key={f.producto_id + s.id + '-n'} className="text-right text-xs">{Number(c?.necesidad ?? 0).toFixed(0)}</TableCell>,
                         <TableCell key={f.producto_id + s.id + '-d'} className={`text-right text-xs ${(c?.dif ?? 0) > 0 ? 'text-red-600 font-medium' : ''}`}>{Number(c?.dif ?? 0).toFixed(0)}</TableCell>,
-                        <TableCell key={f.producto_id + s.id + '-s'} className="text-right text-xs bg-primary/5 p-1">
-                          <Input type="number" min={0} value={sug} onChange={e => setEdit(f.producto_id, s.codigo, Math.max(0, parseInt(e.target.value) || 0))} className="h-7 w-16 text-right text-xs px-1" />
+                        <TableCell key={f.producto_id + s.id + '-s'} className={`text-right text-xs p-1 ${ov ? 'bg-amber-100' : 'bg-primary/5'}`}>
+                          <div className="flex items-center gap-0.5">
+                            <Input
+                              type="number" min={0} value={sug}
+                              onChange={e => setEdit(f.producto_id, s.codigo, Math.max(0, parseInt(e.target.value) || 0))}
+                              onBlur={() => { const cur = sugeridoValor(f, s.codigo); const sys = sugeridoCalc(f, s.codigo); if (cur !== sys) { guardarOverride(f, s.codigo); } }}
+                              className="h-7 w-14 text-right text-xs px-1"
+                            />
+                            {saving ? <Loader2 className="h-3 w-3 animate-spin" /> :
+                              ov ? <Tooltip><TooltipTrigger asChild>
+                                <button onClick={() => restaurarOverride(f, s.codigo)} className="text-muted-foreground hover:text-foreground"><RotateCcw className="h-3 w-3" /></button>
+                              </TooltipTrigger><TooltipContent>Restaurar propuesta del sistema (era {sugeridoCalc(f, s.codigo)})</TooltipContent></Tooltip>
+                              : <Save className="h-3 w-3 opacity-0" />}
+                          </div>
                         </TableCell>,
                       ];
                     })}
                     <TableCell className="text-right text-xs border-l">{f.ultimo_precio_compra ? '$' + Number(f.ultimo_precio_compra).toFixed(2) : '—'}</TableCell>
                     <TableCell className="text-right text-xs font-semibold">{f.mejor_precio ? '$' + Number(f.mejor_precio).toFixed(2) : '—'}</TableCell>
-                    <TableCell className={`text-right text-xs ${varPct && varPct > 0 ? 'text-red-600' : varPct && varPct < 0 ? 'text-green-600' : ''}`}>
-                      {varPct != null ? (<span className="inline-flex items-center gap-0.5">{varPct > 0 ? <TrendingUp className="h-3 w-3" /> : varPct < 0 ? <TrendingDown className="h-3 w-3" /> : null}{varPct.toFixed(1)}%</span>) : '—'}
+                    <TableCell className={`text-right text-xs ${varPct != null && varPct > 15 ? 'bg-red-100 text-red-700 font-semibold' : varPct != null && varPct > 5 ? 'bg-amber-100 text-amber-700' : varPct != null && varPct < 0 ? 'text-green-600' : ''}`}>
+                      {varPct != null ? (<span className="inline-flex items-center gap-0.5">{varPct > 0 ? <TrendingUp className="h-3 w-3" /> : varPct < 0 ? <TrendingDown className="h-3 w-3" /> : null}{varPct.toFixed(1)}%{f.variacion_precio_abs ? <span className="ml-1 text-[10px] opacity-70">({f.variacion_precio_abs > 0 ? '+' : ''}${Number(f.variacion_precio_abs).toFixed(2)})</span> : null}</span>) : '—'}
                     </TableCell>
                     <TableCell className="text-xs">
                       {f.ganador ? <>
