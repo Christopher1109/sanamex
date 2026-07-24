@@ -200,9 +200,11 @@ export default function MapeoProveedorUploader({ onDone }: { onDone?: () => void
     setCommitting(true);
     try {
       // Crear carga
+      const today = new Date().toISOString().slice(0, 10);
       const { data: carga, error: eCarga } = await supabase.from('lista_precio_cargas').insert({
-        proveedor_id: proveedorId, archivo_nombre: fileName, productos_cargados: validas.length, estado: 'procesado', origen: 'mapeo_proveedor',
-      }).select('id').single();
+        proveedor_id: proveedorId, archivo_nombre: fileName, productos_cargados: validas.length,
+        fecha_vigencia_desde: today, precio_incluye_iva: mapeo.iva_incluido_default,
+      } as any).select('id').single();
       if (eCarga) throw eCarga;
 
       // Desactivar activas
