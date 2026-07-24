@@ -54,14 +54,22 @@ export default function CotizadorSanamex() {
   const [filtroVar, setFiltroVar] = useState<'todos' | 'subieron' | 'bajaron'>('todos');
   const [filtroEstatus, setFiltroEstatus] = useState<string>('all');
   const [soloConOferta, setSoloConOferta] = useState(false);
-  const [ocultas, setOcultas] = useState<Set<string>>(new Set());
+  const [ocultas, setOcultas] = useState<Set<string>>(() => {
+    try { return new Set(JSON.parse(localStorage.getItem(HIDDEN_KEY) || '[]')); } catch { return new Set(); }
+  });
   const [seleccion, setSeleccion] = useState<Set<string>>(new Set());
   const [edits, setEdits] = useState<EditMap>({});
+  const [overrides, setOverrides] = useState<Record<OverrideKey, number>>({});
+  const [savingOv, setSavingOv] = useState<Set<string>>(new Set());
   const [genOpen, setGenOpen] = useState(false);
   const [generando, setGenerando] = useState(false);
   const [detalle, setDetalle] = useState<Fila | null>(null);
   const [histData, setHistData] = useState<any[]>([]);
   const [ocAbiertas, setOcAbiertas] = useState<any[]>([]);
+
+  useEffect(() => {
+    try { localStorage.setItem(HIDDEN_KEY, JSON.stringify(Array.from(ocultas))); } catch {}
+  }, [ocultas]);
 
   const folioRun = useMemo(() => 'COT-' + new Date().toISOString().slice(0, 10).replace(/-/g, '') + '-' + Math.random().toString(36).slice(2, 6).toUpperCase(), []);
 
