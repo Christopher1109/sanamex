@@ -388,21 +388,47 @@ export default function CotizadorSanamex() {
                     {sucursales.flatMap(s => {
                       const c = f.sucursales?.[s.codigo];
                       const sug = sugeridoValor(f, s.codigo);
+                      const ov = hasOverride(f, s.codigo);
+                      const savKey = c ? ovKey(f.producto_id, c.sucursal_id) : '';
+                      const saving = savingOv.has(savKey);
+                      const transito = c?.transito ?? 0;
                       const estBadge = c?.estatus ? <span className={`ml-0.5 text-[8px] px-0.5 rounded ${ESTATUS_COLORS[c.estatus] || 'bg-gray-100'}`}>{c.estatus}</span> : null;
+                      const existCell = (
+                        <span className="inline-flex items-center gap-0.5">
+                          {c?.existencia ?? 0}
+                          {transito > 0 && (
+                            <Tooltip><TooltipTrigger asChild><Truck className="h-3 w-3 text-blue-600" /></TooltipTrigger>
+                              <TooltipContent>Tránsito abierto: {transito} pzas hacia {s.codigo}</TooltipContent></Tooltip>
+                          )}
+                          {estBadge}
+                        </span>
+                      );
                       return [
-                        <TableCell key={f.producto_id + s.id + '-e'} className="text-right text-xs border-l">{c?.existencia ?? 0}{estBadge}</TableCell>,
+                        <TableCell key={f.producto_id + s.id + '-e'} className="text-right text-xs border-l">{existCell}</TableCell>,
                         <TableCell key={f.producto_id + s.id + '-u'} className="text-right text-xs">{Number(c?.ult30 ?? 0).toFixed(0)}</TableCell>,
                         <TableCell key={f.producto_id + s.id + '-n'} className="text-right text-xs">{Number(c?.necesidad ?? 0).toFixed(0)}</TableCell>,
                         <TableCell key={f.producto_id + s.id + '-d'} className={`text-right text-xs ${(c?.dif ?? 0) > 0 ? 'text-red-600 font-medium' : ''}`}>{Number(c?.dif ?? 0).toFixed(0)}</TableCell>,
-                        <TableCell key={f.producto_id + s.id + '-s'} className="text-right text-xs bg-primary/5 p-1">
-                          <Input type="number" min={0} value={sug} onChange={e => setEdit(f.producto_id, s.codigo, Math.max(0, parseInt(e.target.value) || 0))} className="h-7 w-16 text-right text-xs px-1" />
+                        <TableCell key={f.producto_id + s.id + '-s'} className={`text-right text-xs p-1 ${ov ? 'bg-amber-100' : 'bg-primary/5'}`}>
+                          <div className="flex items-center gap-0.5">
+                            <Input
+                              type="number" min={0} value={sug}
+                              onChange={e => setEdit(f.producto_id, s.codigo, Math.max(0, parseInt(e.target.value) || 0))}
+                              onBlur={() => { const cur = sugeridoValor(f, s.codigo); const sys = sugeridoCalc(f, s.codigo); if (cur !== sys) { guardarOverride(f, s.codigo); } }}
+                              className="h-7 w-14 text-right text-xs px-1"
+                            />
+                            {saving ? <Loader2 className="h-3 w-3 animate-spin" /> :
+                              ov ? <Tooltip><TooltipTrigger asChild>
+                                <button onClick={() => restaurarOverride(f, s.codigo)} className="text-muted-foreground hover:text-foreground"><RotateCcw className="h-3 w-3" /></button>
+                              </TooltipTrigger><TooltipContent>Restaurar propuesta del sistema (era {sugeridoCalc(f, s.codigo)})</TooltipContent></Tooltip>
+                              : <Save className="h-3 w-3 opacity-0" />}
+                          </div>
                         </TableCell>,
                       ];
                     })}
                     <TableCell className="text-right text-xs border-l">{f.ultimo_precio_compra ? '$' + Number(f.ultimo_precio_compra).toFixed(2) : '—'}</TableCell>
                     <TableCell className="text-right text-xs font-semibold">{f.mejor_precio ? '$' + Number(f.mejor_precio).toFixed(2) : '—'}</TableCell>
-                    <TableCell className={`text-right text-xs ${varPct && varPct > 0 ? 'text-red-600' : varPct && varPct < 0 ? 'text-green-600' : ''}`}>
-                      {varPct != null ? (<span className="inline-flex items-center gap-0.5">{varPct > 0 ? <TrendingUp className="h-3 w-3" /> : varPct < 0 ? <TrendingDown className="h-3 w-3" /> : null}{varPct.toFixed(1)}%</span>) : '—'}
+                    <TableCell className={`text-right text-xs ${varPct != null && varPct > 15 ? 'bg-red-100 text-red-700 font-semibold' : varPct != null && varPct > 5 ? 'bg-amber-100 text-amber-700' : varPct != null && varPct < 0 ? 'text-green-600' : ''}`}>
+                      {varPct != null ? (<span className="inline-flex items-center gap-0.5">{varPct > 0 ? <TrendingUp className="h-3 w-3" /> : varPct < 0 ? <TrendingDown className="h-3 w-3" /> : null}{varPct.toFixed(1)}%{f.variacion_precio_abs ? <span className="ml-1 text-[10px] opacity-70">({f.variacion_precio_abs > 0 ? '+' : ''}${Number(f.variacion_precio_abs).toFixed(2)})</span> : null}</span>) : '—'}
                     </TableCell>
                     <TableCell className="text-xs">
                       {f.ganador ? <>
