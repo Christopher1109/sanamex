@@ -4841,23 +4841,9 @@ export type Database = {
           sucursal_id: string | null
           unidades: number | null
           unidades_dia_anterior: number | null
+          unidades_periodo_anterior: number | null
         }
-        Relationships: [
-          {
-            foreignKeyName: "venta_lineas_producto_id_fkey"
-            columns: ["producto_id"]
-            isOneToOne: false
-            referencedRelation: "productos"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "ventas_sucursal_id_fkey"
-            columns: ["sucursal_id"]
-            isOneToOne: false
-            referencedRelation: "sucursales"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
       v_ventas_historico_mensual: {
         Row: {
@@ -4931,6 +4917,21 @@ export type Database = {
       cotizador_historial_mensual: {
         Args: { p_producto_id: string }
         Returns: Json
+      }
+      cotizador_oc_abiertas: {
+        Args: { p_producto_id?: string }
+        Returns: {
+          estado: string
+          fecha_creacion: string
+          folio: string
+          piezas_pendientes: number
+          piezas_solicitadas: number
+          producto_id: string
+          proveedor_id: string
+          proveedor_nombre: string
+          sucursal_codigo: string
+          sucursal_id: string
+        }[]
       }
       cotizador_snapshot: {
         Args: {

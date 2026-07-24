@@ -9,6 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Search, FileSpreadsheet, TrendingUp, History, Undo2, Loader2 } from 'lucide-react';
 import ListaPreciosUploader from '@/components/cargas/ListaPreciosUploader';
+import MapeoProveedorUploader from '@/components/cargas/MapeoProveedorUploader';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
 
@@ -234,8 +235,15 @@ export default function ListasPreciosPage() {
 
         <TabsContent value="cargar">
           <Card>
-            <CardContent className="pt-6">
-              <ListaPreciosUploader onDone={() => { load(); setTab('ver'); }} />
+            <CardContent className="pt-6 space-y-6">
+              <div>
+                <h3 className="font-semibold text-sm mb-2">Archivo tal cual del proveedor (mapeo guardado)</h3>
+                <MapeoProveedorUploader onDone={() => { load(); setTab('ver'); }} />
+              </div>
+              <div className="border-t pt-6">
+                <h3 className="font-semibold text-sm mb-2">Plantilla estándar</h3>
+                <ListaPreciosUploader onDone={() => { load(); setTab('ver'); }} />
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
