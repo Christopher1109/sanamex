@@ -22,7 +22,9 @@ export default function ProveedoresUploader({ onDone }: { onDone?: () => void })
     const ws = XLSX.utils.json_to_sheet([{
       codigo: 'FANASA', nombre: 'Fanasa', razon_social: 'FANASA SA DE CV', rfc: 'FAN800101AAA',
       contacto_nombre: 'Juan Pérez', contacto_telefono: '5555555555', contacto_email: 'ventas@fanasa.com',
-      dias_credito: 30, acepta_devoluciones: 'sí', pago_contra_entrega: 'no', notas_credito: 'sí',
+      dias_credito: 30, dias_entrega: 3, entrega_por_sucursal: 'no',
+      tiene_lista_regular: 'sí', frecuencia_listas: 'semanal',
+      acepta_devoluciones: 'sí', pago_contra_entrega: 'no', notas_credito: 'sí',
       lead_time_dias: 3, monto_minimo_pedido: 5000, observaciones: 'Mayoreo farmacéutico nacional',
     }]);
     const wb = XLSX.utils.book_new();
@@ -62,9 +64,13 @@ export default function ProveedoresUploader({ onDone }: { onDone?: () => void })
         telefono: r.contacto_telefono || r.telefono || null,
         email: r.contacto_email || r.email || null,
         plazo_pago_dias: parseInt2(r.dias_credito) ?? 0,
+        dias_entrega: parseInt2(r.dias_entrega) ?? parseInt2(r.lead_time_dias) ?? null,
+        entrega_por_sucursal: parseBool(r.entrega_por_sucursal) ?? false,
+        tiene_lista_regular: parseBool(r.tiene_lista_regular) ?? true,
+        frecuencia_listas: r.frecuencia_listas || null,
         acepta_devoluciones: parseBool(r.acepta_devoluciones) ?? false,
         pago_contra_entrega: parseBool(r.pago_contra_entrega) ?? false,
-        notas_credito: parseBool(r.notas_credito) ?? false,
+        acepta_notas_credito: parseBool(r.notas_credito) ?? false,
         lead_time_prometido_dias: parseInt2(r.lead_time_dias) ?? null,
         monto_minimo_pedido: parseNum(r.monto_minimo_pedido) ?? 0,
         notas: r.observaciones || null,
