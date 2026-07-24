@@ -348,7 +348,7 @@ export default function ProveedoresPage() {
                   <div className="grid grid-cols-2 gap-3 mt-3">
                     <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={!!(form as any).entrega_por_sucursal} onChange={e => setForm({ ...form, ...( { entrega_por_sucursal: e.target.checked } as any) })} />Entrega directa por sucursal</label>
                     <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={(form as any).tiene_lista_regular !== false} onChange={e => setForm({ ...form, ...( { tiene_lista_regular: e.target.checked } as any) })} />Tiene lista de precios regular</label>
-                    <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={!!(form as any).acepta_notas_credito} onChange={e => setForm({ ...form, ...( { acepta_notas_credito: e.target.checked } as any) })} />Acepta notas de crédito</label>
+                    <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={!!(form as any).notas_credito} onChange={e => setForm({ ...form, ...( { notas_credito: e.target.checked } as any) })} />Acepta notas de crédito</label>
                     <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={!!(form as any).pago_contra_entrega} onChange={e => setForm({ ...form, ...( { pago_contra_entrega: e.target.checked } as any) })} />Pago contra entrega</label>
                   </div>
                   <p className="text-xs text-muted-foreground mt-2">Use 0 si el proveedor es de contado. "Entrega por sucursal" hace que el Cotizador genere una OC por sucursal en lugar de una consolidada.</p>

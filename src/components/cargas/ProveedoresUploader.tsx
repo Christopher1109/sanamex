@@ -70,7 +70,7 @@ export default function ProveedoresUploader({ onDone }: { onDone?: () => void })
         frecuencia_listas: r.frecuencia_listas || null,
         acepta_devoluciones: parseBool(r.acepta_devoluciones) ?? false,
         pago_contra_entrega: parseBool(r.pago_contra_entrega) ?? false,
-        acepta_notas_credito: parseBool(r.notas_credito) ?? false,
+        notas_credito: parseBool(r.notas_credito) ?? false,
         lead_time_prometido_dias: parseInt2(r.lead_time_dias) ?? null,
         monto_minimo_pedido: parseNum(r.monto_minimo_pedido) ?? 0,
         notas: r.observaciones || null,
