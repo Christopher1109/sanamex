@@ -76,15 +76,22 @@ export default function CotizadorSanamex() {
   async function cargar() {
     setLoading(true);
     try {
-      const { data, error } = await supabase.rpc('cotizador_snapshot', {
-        p_incluir_sin_lista: incluirSinLista,
-        p_excluir_estatus_e: excluirE,
-        p_solo_con_faltante: soloFaltantes,
-        p_search: search || null,
-        p_limit: 1000, p_offset: 0,
-      });
+      const [{ data, error }, { data: ovs, error: eOv }] = await Promise.all([
+        supabase.rpc('cotizador_snapshot', {
+          p_incluir_sin_lista: incluirSinLista,
+          p_excluir_estatus_e: excluirE,
+          p_solo_con_faltante: soloFaltantes,
+          p_search: search || null,
+          p_limit: 1000, p_offset: 0,
+        }),
+        supabase.rpc('cotizador_overrides_list' as any),
+      ]);
       if (error) throw error;
+      if (eOv) throw eOv;
       setSnap(data as unknown as Snapshot);
+      const ovMap: Record<string, number> = {};
+      ((ovs as any[]) || []).forEach(o => { ovMap[`${o.producto_id}|${o.sucursal_id}`] = o.cantidad; });
+      setOverrides(ovMap);
       setEdits({});
     } catch (e: any) { toast.error('Error al cargar cotizador: ' + e.message); }
     finally { setLoading(false); }
@@ -102,12 +109,54 @@ export default function CotizadorSanamex() {
     }
     return s;
   }
+  function ovKey(pid: string, sid: string) { return `${pid}|${sid}`; }
   function sugeridoValor(f: Fila, sCodigo: string) {
+    const c = f.sucursales?.[sCodigo];
     const edited = edits[f.producto_id]?.[sCodigo];
-    return edited !== undefined ? edited : sugeridoCalc(f, sCodigo);
+    if (edited !== undefined) return edited;
+    if (c) {
+      const ov = overrides[ovKey(f.producto_id, c.sucursal_id)];
+      if (ov !== undefined) return ov;
+    }
+    return sugeridoCalc(f, sCodigo);
+  }
+  function hasOverride(f: Fila, sCodigo: string) {
+    const c = f.sucursales?.[sCodigo];
+    return !!(c && overrides[ovKey(f.producto_id, c.sucursal_id)] !== undefined);
   }
   function setEdit(pid: string, sCodigo: string, val: number) {
     setEdits(prev => ({ ...prev, [pid]: { ...(prev[pid] || {}), [sCodigo]: val } }));
+  }
+  async function guardarOverride(f: Fila, sCodigo: string) {
+    const c = f.sucursales?.[sCodigo];
+    if (!c) return;
+    const val = sugeridoValor(f, sCodigo);
+    const key = ovKey(f.producto_id, c.sucursal_id);
+    setSavingOv(prev => new Set(prev).add(key));
+    try {
+      const { error } = await supabase.rpc('cotizador_upsert_override' as any, {
+        p_producto_id: f.producto_id, p_sucursal_id: c.sucursal_id, p_cantidad: val, p_motivo: null,
+      });
+      if (error) throw error;
+      setOverrides(prev => ({ ...prev, [key]: val }));
+      setEdits(prev => { const n = { ...prev }; if (n[f.producto_id]) { delete n[f.producto_id][sCodigo]; } return n; });
+      toast.success('Sugerido guardado');
+    } catch (e: any) { toast.error('No se pudo guardar: ' + e.message); }
+    finally { setSavingOv(prev => { const n = new Set(prev); n.delete(key); return n; }); }
+  }
+  async function restaurarOverride(f: Fila, sCodigo: string) {
+    const c = f.sucursales?.[sCodigo];
+    if (!c) return;
+    const key = ovKey(f.producto_id, c.sucursal_id);
+    try {
+      const { error } = await supabase.rpc('cotizador_upsert_override' as any, {
+        p_producto_id: f.producto_id, p_sucursal_id: c.sucursal_id, p_cantidad: null as any, p_motivo: null,
+      });
+      if (error) throw error;
+      setOverrides(prev => { const n = { ...prev }; delete n[key]; return n; });
+      setEdits(prev => { const n = { ...prev }; if (n[f.producto_id]) { delete n[f.producto_id][sCodigo]; } return n; });
+      toast.success('Restaurado al valor del sistema');
+    } catch (e: any) { toast.error('No se pudo restaurar: ' + e.message); }
   }
 
   const filasFiltradas = useMemo(() => {
