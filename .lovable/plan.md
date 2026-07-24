@@ -1,84 +1,117 @@
-# Plan de implementación — Sanamex Fase 1
+# Plan: Cotizador Sanamex — paridad con Excel real
 
-Trabajaré en 9 bloques. Después de cada bloque te aviso para que valides antes de pasar al siguiente, así no acumulamos cambios sin revisión.
+Un proyecto grande. Lo entrego en **5 fases** que puedes aprobar/pausar entre cada una. Nada rompe POS, inventario ni módulos ya conectados.
 
-## Bloque 1 — Sucursales (15 min)
-- Limpiar sucursales actuales y crear exactamente 4:
-  - Sanamex San Vicente (SMX-SV)
-  - Sanamex Iztapalapa F36 (SMX-F36)
-  - Sanamex Iztapalapa H (SMX-H)
-  - Sanamex Ecatepec (SMX-ECA)
-- Crear 1 almacén principal por sucursal.
-
-## Bloque 2 — Roles y permisos según Matriz SICAR
-- Agregar al enum `app_role`: `super_admin`, `supervisor`, `subgerente`, `auditoria`, `almacen_ventas`, `ventas`. Mantener `admin`, `gerente`.
-- Crear tabla `role_permissions` (rol, modulo, submodulo, permitido).
-- Sembrar los permisos del Excel **ignorando módulos de restaurante** (Comandero, Cocina, Platillos, Combos, Membresías, Producción, Checador, Asistencia, Vacaciones).
-- Crear función `has_permission(user_id, modulo, submodulo)` SECURITY DEFINER.
-- Actualizar Sidebar y guards de página para usar `has_permission`.
-
-## Bloque 3 — Usuarios genéricos por sucursal
-Edge function `seed-sanamex-users` que crea (contraseña genérica `Sanamex2026!`):
-
-| Usuario | Rol | Sucursal |
-|---|---|---|
-| superadmin | super_admin | global |
-| admin_general | admin | global |
-| gerente_sv, gerente_f36, gerente_h, gerente_eca | gerente | c/u |
-| subgerente_sv, subgerente_f36, subgerente_h, subgerente_eca | subgerente | c/u |
-| ventas1_sv, ventas2_sv … (8) | ventas | c/u |
-| almacen_sv, almacen_f36, almacen_h, almacen_eca | almacen_ventas | c/u |
-| chofer_sv, chofer_f36, chofer_h, chofer_eca | repartidor | c/u |
-
-Total: 24 usuarios. Tabla `user_sucursal_asignacion` para vincular usuario↔sucursal.
-
-## Bloque 4 — Panel del Super Admin
-Nueva página `/super-admin` visible solo para `super_admin`:
-- Lista usuarios con: rol, username, sucursal, estado activo, última contraseña asignada por admin.
-- Acciones: **Resetear contraseña** (asigna nueva visible una sola vez), **Habilitar/Deshabilitar**, **Renombrar usuario**.
-- Tabla `password_resets_log` registra cada reset (auditoría).
-- **No guardamos contraseñas en texto plano** (decisión aprobada: opción segura). Mostramos solo la última asignada por el admin; si el usuario la cambia luego, el panel indica "modificada por el usuario" y permite forzar nuevo reset.
-
-## Bloque 5 — Centro de notificaciones (umbral 30)
-- Tabla `notificaciones` (user_id|sucursal_id, tipo, severidad, titulo, mensaje, entidad_id, leida_at).
-- Trigger en `inventario`: cuando stock total de un producto en una sucursal queda ≤ 30, genera notificación "stock bajo".
-- Trigger en `lotes`: notificación cuando un lote está a 30/15/7 días de caducar.
-- Campana en Header con badge de no leídas + dropdown de últimas 20 + página `/notificaciones`.
-- Realtime suscripción para push instantáneo.
-
-## Bloque 6 — Costo real + Costo promedio ponderado (CPP)
-- `productos.costo_promedio` (numeric).
-- Función `recalc_costo_promedio(producto_id)` = Σ(cantidad × costo) / Σ(cantidad) de inventario activo.
-- Trigger en `movimientos_inventario` (entradas) que recalcula CPP del producto.
-- En `InventarioPage`: columnas Costo último, Costo promedio, Valor total (cantidad × CPP) y total valorizado por sucursal.
-
-## Bloque 7 — Módulo fiscal (estructura, sin PAC)
-- Tabla `cfdi_emitidos` (venta_id, uuid_sat, serie, folio, xml_url, pdf_url, estado [pendiente, timbrado, cancelado, error], pac_response, timbrado_at).
-- Tabla `configuracion_fiscal` (rfc_emisor, razon_social, regimen_fiscal, lugar_expedicion, certificado_url, llave_url, pac_proveedor placeholder).
-- Página `/fiscal` con: configuración del emisor, lista de CFDI emitidos, botón "Timbrar" deshabilitado con leyenda "Integración PAC pendiente". Solo `admin`/`super_admin`.
-
-## Bloque 8 — Módulo de recomendaciones (con IA)
-- Edge function `recomendaciones-compra` que:
-  1. Consulta histórico (ventas últimos 90 días, compras, lotes, mermas).
-  2. Calcula consumo diario promedio, días de cobertura, mejor proveedor histórico por producto.
-  3. Manda contexto resumido a Lovable AI (`google/gemini-2.5-flash`) para que genere recomendaciones en lenguaje natural con: producto, fecha sugerida, proveedor sugerido, cantidad, justificación.
-- Tabla `recomendaciones` para cachear resultados (refresca cada 24h).
-- Página `/recomendaciones` con tarjetas por producto + acción "Crear orden de compra".
-
-## Bloque 9 — Cargas masivas
-- Página `/cargas-masivas` (solo `gerente`, `admin`, `super_admin`).
-- 3 plantillas Excel descargables: Productos, Proveedores, Clientes.
-- Parser cliente con `xlsx`, valida y muestra preview antes de insertar.
-- Tabla `cargas_masivas_historico` (tipo, archivo_nombre, filas_ok, filas_error, errores_json, usuario_id, fecha) → alimenta a `recomendaciones-compra`.
-- Sección "Históricos" lista todas las cargas previas con detalle de errores.
+## Alcance del negocio (recordatorio)
+- 4 sucursales: F37, GH, SV, ECA + CEDIS.
+- Sugeridos = **cuánto**. Cotizador = **con quién**.
+- Cálculos y elección de postor **corren en backend** (RPC/vistas). El cliente solo pinta y edita.
 
 ---
 
-## Detalle técnico relevante
-- Todas las nuevas tablas: `GRANT` correcto + RLS por rol usando `has_role`/`has_permission`.
-- Notificaciones y permisos cacheados en `useAuth` para evitar consultas en cada render.
-- Edge functions nuevas: `seed-sanamex-users`, `super-admin-reset-password`, `super-admin-toggle-user`, `recomendaciones-compra`.
-- El módulo fiscal queda con todo el esqueleto de BD listo para enchufar Facturama/cualquier PAC después con solo crear `timbrar-venta`.
+## Fase 1 — Modelo de datos (migración)
 
-## Ejecución
-Empiezo por los Bloques 1 + 2 + 3 juntos (son la base de todo lo demás), te aviso, y continúo. ¿Le damos?
+**Extender `proveedores`** (nuevos campos, sin romper lo existente):
+- `entrega_por_sucursal boolean default false`
+- `dias_entrega int` (peso alto en ranking)
+- `acepta_notas_credito boolean` (ya existe `notas_credito` → alias)
+- `frecuencia_listas text` (ej. "lunes y jueves")
+- `tiene_lista_regular boolean default true`
+- Confirmar/aprovechar: `dias_credito`, `pago_contra_entrega`.
+
+**Nuevas tablas:**
+- `cotizador_mapeo_columnas` — mapeo por proveedor de columnas del Excel entrante (codigo_barras_col, precio_col, cantidad_col, hoja, fila_inicio). Guardado y reutilizable.
+- `ordenes_compra_transito` — vista/tabla derivada: por (producto_id, sucursal_id) → piezas en tránsito según OC abiertas.
+- `productos_sin_lista_flag` — usar `productos.sin_lista_regular boolean` (columna nueva) para exclusión del análisis.
+
+**Extender `ordenes_compra`:**
+- `sucursal_destino_id` (para OC por sucursal cuando `entrega_por_sucursal`).
+- `folio_cotizacion_ref text` (folio interno de la corrida del cotizador que la originó).
+
+**Vistas materializadas / RPC (motor de cálculo):**
+- `v_producto_ventas_30d` (por producto × sucursal, ventana móvil 30 días).
+- `v_producto_historico_mensual` (últimos 12 meses × sucursal, con tendencia).
+- `v_producto_transito` (piezas abiertas por producto × sucursal).
+- **RPC `cotizador_snapshot(filtros)`** → devuelve la tabla principal ya calculada: existencias, ult30, necesidad, DIF, sugerido, DDI, tránsito, ganador, 2º/3º postor, variación de precio. Paginada y filtrable server-side.
+- **RPC `cotizador_generar_oc(payload)`** → recibe líneas editadas + proveedor; si `entrega_por_sucursal` genera N órdenes, si no una sola; marca tránsito; regresa folios.
+
+**Fórmulas exactas:**
+```
+NECESIDAD = clasif ∈ {A,B,C} ? ult30 × 1.3 : ult30 / 1.25
+DIF       = NECESIDAD − existencia_sucursal
+SUGERIDO  = ceil_a_corrugado(max(0, DIF))  // solo si ganador exige caja
+TRANSITO  = existencia_total − Σ existencias_sucursal
+DDI       = existencia_total / ult30_total × 30
+```
+
+**Ranking de postor** (solo con existencia > 0; `-` y `0` fuera):
+```
+score = w_precio · z(precio) + w_entrega · z(dias_entrega)
+```
+Con `w_entrega` > `w_precio` (mayor peso al tiempo de entrega). Empate → menor precio.
+
+---
+
+## Fase 2 — Motor de cotización (backend)
+
+- Implementar las RPCs y vistas anteriores.
+- Alimentar `venta_dia_anterior` y `ult30` desde `venta_lineas` filtrado por sucursal (últimos 30 días corridos).
+- Histórico mensual desde `venta_lineas` + `ventas_historicas` (12 meses, agrupado).
+- Variación precio = `mejor_precio_actual − ultimo_precio_compra` en $ y %.
+- Alerta oferta: si `mejor_precio > oferta_vigente.precio_venta` → flag `alerta_oferta`.
+- Índices sobre `venta_lineas(fecha, sucursal_id, producto_id)`, `lista_precio_proveedor(producto_id, proveedor_id)` para ~2k productos × 30 proveedores.
+
+---
+
+## Fase 3 — Uploaders y proveedores
+
+- **ProveedoresPage**: campos nuevos (entrega_por_sucursal, dias_entrega, frecuencia_listas, tiene_lista_regular, sin lista → toggle).
+- **ListaPreciosUploader**:
+  - Modo A: archivo del proveedor + editor de mapeo (columnas). Se guarda en `cotizador_mapeo_columnas` la primera vez y se reutiliza.
+  - Modo B: plantilla descargable.
+  - Preview: nuevos productos, cambios de precio (Δ$, Δ%), errores. Confirmación antes de commit.
+- Al importar, actualizar `ofertas_proveedor` cuando el archivo lo indique.
+
+---
+
+## Fase 4 — UI CotizadorPage (la hoja de cálculo)
+
+Rebuild de la tabla usando **TanStack Table** (ya en el stack o se agrega):
+- Columnas fijas a la izquierda: clave, SKU, descripción, clasif, estatus.
+- Bloques: CEDIS, totales, tránsito, DDI, venta día anterior, venta 30d.
+- Por sucursal (F37/GH/SV/ECA): histórico mensual con tendencia ↑/↓, ult30, necesidad, existencia, DIF, estatus, **SUGERIDO editable**.
+- Post-sucursales: último precio compra, mejor precio, Δ$, Δ%, ganador+existencia, 2º, 3º, piezas/corrugado, "sin lista".
+- Columnas por proveedor **colapsables** (existencia y precio).
+- Filtros/orden/búsqueda en toda columna. Filtros rápidos: por ganador, por estatus (excluir "E"), por sin-lista, por variación.
+- Selección múltiple, ocultar filas (soft-hide en estado local), export a Excel.
+- Sugerido editable persiste en estado de corrida (localStorage + tabla `cotizaciones_carrito` ya existente).
+
+---
+
+## Fase 5 — Generación de OC + tránsito
+
+- Botón **"Generar orden de compra"** por proveedor ganador (agrupa filas seleccionadas):
+  - `entrega_por_sucursal=true` → N órdenes (una por sucursal con piezas > 0).
+  - `false` → 1 orden consolidada.
+- OC incluye: folio consecutivo, fecha, proveedor+condiciones, sucursal destino, folio cotización ref, renglones (código barras, descripción, piezas, precio con imp., unitario bruto desglosando IVA/IEPS según flags), totales.
+- Descarga PDF/Excel; guardada en histórico (OrdenesCompraPage).
+- Al generar: `INSERT` en `ordenes_compra_transito`. Al recibir/cerrar → liberar. En cotizador se muestra tránsito para no duplicar.
+
+---
+
+## Pantallas modificadas
+- `CotizadorPage.tsx` (rebuild de tabla)
+- `CotizadorHubPage.tsx` (tabs sin cambios, solo integración)
+- `ReporteSugeridos.tsx` (mantiene fórmula nueva)
+- `OrdenesCompraPage.tsx` (mostrar tránsito y origen cotización)
+- `ProveedoresPage.tsx` (campos nuevos)
+- `ListaPreciosUploader.tsx` + nuevo `MapeoColumnasEditor.tsx`
+
+## Consideraciones técnicas
+- Cálculos en RPC Postgres (mejor rendimiento que edge functions para joins).
+- `.returns<T>()` en selects grandes para no matar el typecheck (2k×30).
+- Paginación server-side (100 filas) con filtros aplicados en el RPC.
+- RLS: RPCs `SECURITY DEFINER` con validación de rol Compras/Gerente/Admin.
+
+## Confirmación
+Es mucho trabajo. Sugiero aprobar **Fase 1 (migración) primero**; una vez corriendo, avanzo Fase 2 en el mismo turno y las UI en turnos siguientes. ¿Empiezo por Fase 1?
