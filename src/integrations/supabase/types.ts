@@ -1189,6 +1189,93 @@ export type Database = {
         }
         Relationships: []
       }
+      cotizador_mapeo_columnas: {
+        Row: {
+          col_cantidad: string | null
+          col_codigo_barras: string | null
+          col_descripcion: string | null
+          col_precio: string | null
+          col_precio_con_iva: string | null
+          col_sku: string | null
+          created_at: string
+          fila_encabezado: number
+          id: string
+          iva_incluido_default: boolean
+          nombre_hoja: string | null
+          notas: string | null
+          proveedor_id: string
+          updated_at: string
+        }
+        Insert: {
+          col_cantidad?: string | null
+          col_codigo_barras?: string | null
+          col_descripcion?: string | null
+          col_precio?: string | null
+          col_precio_con_iva?: string | null
+          col_sku?: string | null
+          created_at?: string
+          fila_encabezado?: number
+          id?: string
+          iva_incluido_default?: boolean
+          nombre_hoja?: string | null
+          notas?: string | null
+          proveedor_id: string
+          updated_at?: string
+        }
+        Update: {
+          col_cantidad?: string | null
+          col_codigo_barras?: string | null
+          col_descripcion?: string | null
+          col_precio?: string | null
+          col_precio_con_iva?: string | null
+          col_sku?: string | null
+          created_at?: string
+          fila_encabezado?: number
+          id?: string
+          iva_incluido_default?: boolean
+          nombre_hoja?: string | null
+          notas?: string | null
+          proveedor_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cotizador_mapeo_columnas_proveedor_id_fkey"
+            columns: ["proveedor_id"]
+            isOneToOne: true
+            referencedRelation: "proveedores"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cotizador_mapeo_columnas_proveedor_id_fkey"
+            columns: ["proveedor_id"]
+            isOneToOne: true
+            referencedRelation: "vista_fill_rate_proveedores"
+            referencedColumns: ["proveedor_id"]
+          },
+        ]
+      }
+      cotizador_params: {
+        Row: {
+          descripcion: string | null
+          parametro: string
+          updated_at: string
+          valor: number
+        }
+        Insert: {
+          descripcion?: string | null
+          parametro: string
+          updated_at?: string
+          valor: number
+        }
+        Update: {
+          descripcion?: string | null
+          parametro?: string
+          updated_at?: string
+          valor?: number
+        }
+        Relationships: []
+      }
       cuentas_bancarias: {
         Row: {
           activo: boolean
@@ -2376,6 +2463,7 @@ export type Database = {
           fecha_recepcion_esperada: string | null
           fecha_recepcion_real: string | null
           folio: string
+          folio_cotizacion_ref: string | null
           grupo_id: string | null
           id: string
           iva: number
@@ -2400,6 +2488,7 @@ export type Database = {
           fecha_recepcion_esperada?: string | null
           fecha_recepcion_real?: string | null
           folio?: string
+          folio_cotizacion_ref?: string | null
           grupo_id?: string | null
           id?: string
           iva?: number
@@ -2424,6 +2513,7 @@ export type Database = {
           fecha_recepcion_esperada?: string | null
           fecha_recepcion_real?: string | null
           folio?: string
+          folio_cotizacion_ref?: string | null
           grupo_id?: string | null
           id?: string
           iva?: number
@@ -2525,6 +2615,78 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "vista_fill_rate_proveedores"
             referencedColumns: ["proveedor_id"]
+          },
+        ]
+      }
+      ordenes_compra_transito: {
+        Row: {
+          cantidad: number
+          cerrado: boolean
+          created_at: string
+          id: string
+          orden_id: string
+          producto_id: string
+          proveedor_id: string | null
+          sucursal_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          cantidad: number
+          cerrado?: boolean
+          created_at?: string
+          id?: string
+          orden_id: string
+          producto_id: string
+          proveedor_id?: string | null
+          sucursal_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          cantidad?: number
+          cerrado?: boolean
+          created_at?: string
+          id?: string
+          orden_id?: string
+          producto_id?: string
+          proveedor_id?: string | null
+          sucursal_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ordenes_compra_transito_orden_id_fkey"
+            columns: ["orden_id"]
+            isOneToOne: false
+            referencedRelation: "ordenes_compra"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ordenes_compra_transito_producto_id_fkey"
+            columns: ["producto_id"]
+            isOneToOne: false
+            referencedRelation: "productos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ordenes_compra_transito_proveedor_id_fkey"
+            columns: ["proveedor_id"]
+            isOneToOne: false
+            referencedRelation: "proveedores"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ordenes_compra_transito_proveedor_id_fkey"
+            columns: ["proveedor_id"]
+            isOneToOne: false
+            referencedRelation: "vista_fill_rate_proveedores"
+            referencedColumns: ["proveedor_id"]
+          },
+          {
+            foreignKeyName: "ordenes_compra_transito_sucursal_id_fkey"
+            columns: ["sucursal_id"]
+            isOneToOne: false
+            referencedRelation: "sucursales"
+            referencedColumns: ["id"]
           },
         ]
       }
@@ -3214,6 +3376,7 @@ export type Database = {
           receta_medica: boolean | null
           registro_sanitario: string | null
           requiere_lote: boolean | null
+          sin_lista_regular: boolean
           sku: string
           stock_minimo: number | null
           sustancia_activa: string | null
@@ -3251,6 +3414,7 @@ export type Database = {
           receta_medica?: boolean | null
           registro_sanitario?: string | null
           requiere_lote?: boolean | null
+          sin_lista_regular?: boolean
           sku: string
           stock_minimo?: number | null
           sustancia_activa?: string | null
@@ -3288,6 +3452,7 @@ export type Database = {
           receta_medica?: boolean | null
           registro_sanitario?: string | null
           requiere_lote?: boolean | null
+          sin_lista_regular?: boolean
           sku?: string
           stock_minimo?: number | null
           sustancia_activa?: string | null
@@ -3410,8 +3575,11 @@ export type Database = {
           correo_aux: string | null
           created_at: string | null
           cuenta_banco: string | null
+          dias_entrega: number | null
           direccion_fiscal: string | null
           email: string | null
+          entrega_por_sucursal: boolean
+          frecuencia_listas: string | null
           id: string
           identificacion_oficial_url: string | null
           lead_time_prometido_dias: number | null
@@ -3424,6 +3592,7 @@ export type Database = {
           razon_social: string | null
           rfc: string | null
           telefono: string | null
+          tiene_lista_regular: boolean
           updated_at: string | null
         }
         Insert: {
@@ -3439,8 +3608,11 @@ export type Database = {
           correo_aux?: string | null
           created_at?: string | null
           cuenta_banco?: string | null
+          dias_entrega?: number | null
           direccion_fiscal?: string | null
           email?: string | null
+          entrega_por_sucursal?: boolean
+          frecuencia_listas?: string | null
           id?: string
           identificacion_oficial_url?: string | null
           lead_time_prometido_dias?: number | null
@@ -3453,6 +3625,7 @@ export type Database = {
           razon_social?: string | null
           rfc?: string | null
           telefono?: string | null
+          tiene_lista_regular?: boolean
           updated_at?: string | null
         }
         Update: {
@@ -3468,8 +3641,11 @@ export type Database = {
           correo_aux?: string | null
           created_at?: string | null
           cuenta_banco?: string | null
+          dias_entrega?: number | null
           direccion_fiscal?: string | null
           email?: string | null
+          entrega_por_sucursal?: boolean
+          frecuencia_listas?: string | null
           id?: string
           identificacion_oficial_url?: string | null
           lead_time_prometido_dias?: number | null
@@ -3482,6 +3658,7 @@ export type Database = {
           razon_social?: string | null
           rfc?: string | null
           telefono?: string | null
+          tiene_lista_regular?: boolean
           updated_at?: string | null
         }
         Relationships: []
@@ -4593,6 +4770,29 @@ export type Database = {
       }
     }
     Views: {
+      v_existencia_producto_sucursal: {
+        Row: {
+          existencia: number | null
+          producto_id: string | null
+          sucursal_id: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "almacenes_sucursal_id_fkey"
+            columns: ["sucursal_id"]
+            isOneToOne: false
+            referencedRelation: "sucursales"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lotes_producto_id_fkey"
+            columns: ["producto_id"]
+            isOneToOne: false
+            referencedRelation: "productos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       v_ordenes_compra_grupo_resumen: {
         Row: {
           autorizadas: number | null
@@ -4611,6 +4811,77 @@ export type Database = {
           total_sucursales: number | null
         }
         Relationships: []
+      }
+      v_transito_abierto: {
+        Row: {
+          piezas_transito: number | null
+          producto_id: string | null
+          sucursal_id: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ordenes_compra_transito_producto_id_fkey"
+            columns: ["producto_id"]
+            isOneToOne: false
+            referencedRelation: "productos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ordenes_compra_transito_sucursal_id_fkey"
+            columns: ["sucursal_id"]
+            isOneToOne: false
+            referencedRelation: "sucursales"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      v_ventas_30d: {
+        Row: {
+          producto_id: string | null
+          sucursal_id: string | null
+          unidades: number | null
+          unidades_dia_anterior: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "venta_lineas_producto_id_fkey"
+            columns: ["producto_id"]
+            isOneToOne: false
+            referencedRelation: "productos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ventas_sucursal_id_fkey"
+            columns: ["sucursal_id"]
+            isOneToOne: false
+            referencedRelation: "sucursales"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      v_ventas_historico_mensual: {
+        Row: {
+          mes: string | null
+          producto_id: string | null
+          sucursal_id: string | null
+          unidades: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "venta_lineas_producto_id_fkey"
+            columns: ["producto_id"]
+            isOneToOne: false
+            referencedRelation: "productos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ventas_sucursal_id_fkey"
+            columns: ["sucursal_id"]
+            isOneToOne: false
+            referencedRelation: "sucursales"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       vista_fill_rate_proveedores: {
         Row: {
@@ -4655,6 +4926,22 @@ export type Database = {
       clasificacion_abc_productos: {
         Args: { p_dias_ventana?: number }
         Returns: undefined
+      }
+      cotizador_generar_oc: { Args: { payload: Json }; Returns: Json }
+      cotizador_historial_mensual: {
+        Args: { p_producto_id: string }
+        Returns: Json
+      }
+      cotizador_snapshot: {
+        Args: {
+          p_excluir_estatus_e?: boolean
+          p_incluir_sin_lista?: boolean
+          p_limit?: number
+          p_offset?: number
+          p_search?: string
+          p_solo_con_faltante?: boolean
+        }
+        Returns: Json
       }
       dispersar_nomina: {
         Args: {
