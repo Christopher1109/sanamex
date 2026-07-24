@@ -9,8 +9,10 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { Loader2, RefreshCw, ShoppingCart, Search, EyeOff, TrendingUp, TrendingDown, AlertTriangle, Download, ChevronRight, Package, Layers } from 'lucide-react';
+import { Loader2, RefreshCw, ShoppingCart, Search, EyeOff, TrendingUp, TrendingDown, AlertTriangle, Download, ChevronRight, Package, Layers, RotateCcw, Truck, Save } from 'lucide-react';
 import { toast } from 'sonner';
+
+const HIDDEN_KEY = 'cotizador_hidden_v1';
 
 type Sucursal = { id: string; codigo: string; nombre: string; es_cedis: boolean };
 type Postor = { proveedor_id: string; proveedor_nombre: string; proveedor_codigo?: string; precio: number; precio_bruto?: number; existencia: number; dias_entrega: number; entrega_por_sucursal?: boolean; con_oferta?: boolean } | null;
@@ -33,6 +35,7 @@ type Fila = {
 };
 type Snapshot = { sucursales: Sucursal[]; productos: Fila[] };
 type EditMap = Record<string, Record<string, number>>;
+type OverrideKey = string; // `${producto_id}|${sucursal_id}`
 
 const ESTATUS_COLORS: Record<string, string> = {
   A: 'bg-green-100 text-green-800', I: 'bg-blue-100 text-blue-800', C: 'bg-yellow-100 text-yellow-800',
