@@ -1276,6 +1276,48 @@ export type Database = {
         }
         Relationships: []
       }
+      cotizador_sugerido_override: {
+        Row: {
+          cantidad: number
+          motivo: string | null
+          producto_id: string
+          sucursal_id: string
+          updated_at: string
+          usuario_id: string | null
+        }
+        Insert: {
+          cantidad: number
+          motivo?: string | null
+          producto_id: string
+          sucursal_id: string
+          updated_at?: string
+          usuario_id?: string | null
+        }
+        Update: {
+          cantidad?: number
+          motivo?: string | null
+          producto_id?: string
+          sucursal_id?: string
+          updated_at?: string
+          usuario_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cotizador_sugerido_override_producto_id_fkey"
+            columns: ["producto_id"]
+            isOneToOne: false
+            referencedRelation: "productos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cotizador_sugerido_override_sucursal_id_fkey"
+            columns: ["sucursal_id"]
+            isOneToOne: false
+            referencedRelation: "sucursales"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       cuentas_bancarias: {
         Row: {
           activo: boolean
@@ -4933,6 +4975,15 @@ export type Database = {
           sucursal_id: string
         }[]
       }
+      cotizador_overrides_list: {
+        Args: never
+        Returns: {
+          cantidad: number
+          producto_id: string
+          sucursal_id: string
+          updated_at: string
+        }[]
+      }
       cotizador_snapshot: {
         Args: {
           p_excluir_estatus_e?: boolean
@@ -4943,6 +4994,15 @@ export type Database = {
           p_solo_con_faltante?: boolean
         }
         Returns: Json
+      }
+      cotizador_upsert_override: {
+        Args: {
+          p_cantidad: number
+          p_motivo?: string
+          p_producto_id: string
+          p_sucursal_id: string
+        }
+        Returns: undefined
       }
       dispersar_nomina: {
         Args: {
