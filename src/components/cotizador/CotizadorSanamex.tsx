@@ -327,7 +327,7 @@ export default function CotizadorSanamex() {
 
       <TooltipProvider>
         <Card className="overflow-auto max-h-[75vh] relative">
-          <table className="w-full caption-bottom text-sm border-separate border-spacing-0">
+          <table className="w-full caption-bottom text-sm border-separate border-spacing-0 [&_td]:border-b [&_tr]:border-0">
             <TableHeader className="[&_th]:border-b">
               <TableRow className="bg-background">
                 <TableHead className="sticky top-0 left-0 z-40 bg-background px-1" style={{ width: 36, minWidth: 36, maxWidth: 36 }}></TableHead>
