@@ -479,7 +479,7 @@ export default function CotizadorSanamex() {
                 );
               })}
             </TableBody>
-          </Table>
+          </table>
         </Card>
       </TooltipProvider>
 
