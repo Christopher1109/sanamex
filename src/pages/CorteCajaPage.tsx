@@ -305,9 +305,22 @@ const CorteCajaPage = () => {
                       <TableRow><TableCell colSpan={5} className="text-center py-8">Cargando...</TableCell></TableRow>
                     ) : rows.length === 0 ? (
                       <TableRow><TableCell colSpan={5} className="text-center py-8 text-muted-foreground">Sin movimientos en este día.</TableCell></TableRow>
-                    ) : rows.map(m => (
-                      <TableRow key={m.tipo + m.id}>
-                        <TableCell className="text-xs">{new Date(m.hora).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })}</TableCell>
+                    ) : rows.map(m => {
+                      const cols = 3 + (key === 'todos' ? 1 : 0) + (esGeneral ? 1 : 0);
+                      const abierta = expandidas.has(m.id);
+                      return (
+                      <>
+                      <TableRow
+                        key={m.tipo + m.id}
+                        className={m.tipo === 'venta' ? 'cursor-pointer' : ''}
+                        onClick={m.tipo === 'venta' ? () => toggleLineas(m.id) : undefined}
+                      >
+                        <TableCell className="text-xs">
+                          <span className="inline-flex items-center gap-1">
+                            {m.tipo === 'venta' && (abierta ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />)}
+                            {new Date(m.hora).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })}
+                          </span>
+                        </TableCell>
                         {key === 'todos' && (
                           <TableCell>
                             {m.tipo === 'venta'
@@ -321,7 +334,11 @@ const CorteCajaPage = () => {
                           {m.tipo === 'compra' ? '-' : ''}{money(m.monto)}
                         </TableCell>
                       </TableRow>
-                    ))}
+                      {m.tipo === 'venta' && abierta && renderLineas(m.id, cols)}
+                      </>
+                      );
+                    })}
+
                   </TableBody>
                 </Table>
               </TabsContent>
