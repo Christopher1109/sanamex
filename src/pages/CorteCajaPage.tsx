@@ -445,14 +445,23 @@ const CorteCajaPage = () => {
                   ) : (detalle?.ventas.length || 0) === 0 ? (
                     <TableRow><TableCell colSpan={5} className="text-center py-6 text-muted-foreground">Sin ventas ese día.</TableCell></TableRow>
                   ) : detalle!.ventas.map((v: any) => (
-                    <TableRow key={v.id}>
-                      <TableCell className="text-xs">{new Date(v.fecha).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })}</TableCell>
+                    <Fragment key={v.id}>
+                    <TableRow className="cursor-pointer" onClick={() => toggleLineas(v.id)}>
+                      <TableCell className="text-xs">
+                        <span className="inline-flex items-center gap-1">
+                          {expandidas.has(v.id) ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
+                          {new Date(v.fecha).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })}
+                        </span>
+                      </TableCell>
                       <TableCell className="font-mono text-xs">{v.numero_venta || v.id.slice(0, 8)}</TableCell>
                       <TableCell className="text-right">{money(v.subtotal)}</TableCell>
                       <TableCell className="text-right">{money(v.impuestos)}</TableCell>
                       <TableCell className="text-right font-medium">{money(v.total)}</TableCell>
                     </TableRow>
+                    {expandidas.has(v.id) && renderLineas(v.id, 5)}
+                    </Fragment>
                   ))}
+
                 </TableBody>
               </Table>
             </TabsContent>
