@@ -171,15 +171,44 @@ export default function CotizadorSanamex() {
     if (!snap) return [];
     return snap.productos.filter(f => {
       if (ocultas.has(f.producto_id)) return false;
-      if (filtroEstatus.size > 0 && !filtroEstatus.has(f.estatus || '')) return false;
+      if (filtroEstatus.length > 0 && !filtroEstatus.includes(f.estatus || '')) return false;
+      if (filtroClasif.length > 0 && !filtroClasif.includes(f.clasificacion || '')) return false;
       if (soloConOferta && !f.alerta_oferta) return false;
+      if (filtroProveedor.length > 0) {
+        const ids = new Set<string>();
+        if (f.ganador) ids.add(f.ganador.proveedor_id);
+        (f.todos_proveedores || []).forEach(p => ids.add(p.proveedor_id));
+        if (!filtroProveedor.some(p => ids.has(p))) return false;
+      }
+      if (filtroSucursal.length > 0) {
+        // Muestra el producto solo si tiene faltante en alguna sucursal seleccionada.
+        const hay = filtroSucursal.some(cod => {
+          const c = f.sucursales?.[cod];
+          return !!c && (c.dif - (c.transito || 0)) > 0;
+        });
+        if (!hay) return false;
+      }
       return true;
     });
-  }, [snap, ocultas, filtroEstatus, soloConOferta]);
+  }, [snap, ocultas, filtroEstatus, filtroClasif, filtroProveedor, filtroSucursal, soloConOferta]);
 
   const estatusPresentes = useMemo(() => {
     return Array.from(new Set((snap?.productos || []).map(f => f.estatus).filter(Boolean))) as string[];
   }, [snap]);
+
+  const clasifPresentes = useMemo(() => {
+    return Array.from(new Set((snap?.productos || []).map(f => f.clasificacion).filter(Boolean))).sort() as string[];
+  }, [snap]);
+
+  const proveedoresPresentes = useMemo(() => {
+    const m = new Map<string, string>();
+    (snap?.productos || []).forEach(f => {
+      if (f.ganador) m.set(f.ganador.proveedor_id, f.ganador.proveedor_nombre);
+      (f.todos_proveedores || []).forEach(p => m.set(p.proveedor_id, p.proveedor_nombre));
+    });
+    return Array.from(m, ([value, label]) => ({ value, label })).sort((a, b) => a.label.localeCompare(b.label));
+  }, [snap]);
+
 
   const grupoPorProv = useMemo(() => {
     const g: Record<string, { proveedor_nombre: string; entrega_por_sucursal: boolean; lineas: any[]; total: number }> = {};
