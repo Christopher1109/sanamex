@@ -13,6 +13,9 @@ import { Loader2, RefreshCw, ShoppingCart, Search, EyeOff, TrendingUp, TrendingD
 import { toast } from 'sonner';
 
 const HIDDEN_KEY = 'cotizador_hidden_v1';
+// Encabezados fijos: fila 1 (top 0) y fila 2 (top 48) del header del cotizador.
+const TH1 = 'sticky top-0 z-30 bg-background';
+const TH2 = 'sticky z-30 bg-background border-b top-12';
 
 type Sucursal = { id: string; codigo: string; nombre: string; es_cedis: boolean };
 type Postor = { proveedor_id: string; proveedor_nombre: string; proveedor_codigo?: string; precio: number; precio_bruto?: number; existencia: number; dias_entrega: number; entrega_por_sucursal?: boolean; con_oferta?: boolean } | null;
@@ -323,49 +326,49 @@ export default function CotizadorSanamex() {
       )}
 
       <TooltipProvider>
-        <Card className="overflow-auto max-h-[75vh]">
-          <Table>
-            <TableHeader>
-              <TableRow className="sticky top-0 z-30 bg-background">
-                <TableHead className="sticky left-0 z-40 bg-background px-1" style={{ width: 36, minWidth: 36, maxWidth: 36 }}></TableHead>
-                <TableHead className="sticky z-40 bg-background border-r overflow-hidden px-2" style={{ left: 36, width: 110, minWidth: 110, maxWidth: 110 }}>SKU</TableHead>
-                <TableHead className="sticky z-40 bg-background border-r overflow-hidden px-2" style={{ left: 146, width: 220, minWidth: 220, maxWidth: 220 }}>Descripción</TableHead>
-                <TableHead className="text-center">Clasif</TableHead>
-                <TableHead className="text-center">Est.</TableHead>
-                <TableHead className="text-right">CEDIS</TableHead>
-                <TableHead className="text-right">Exist total</TableHead>
-                <TableHead className="text-right">Suma suc.</TableHead>
-                <TableHead className="text-right">Tránsito</TableHead>
-                <TableHead className="text-right">DDI</TableHead>
-                <TableHead className="text-right">Vta ayer</TableHead>
-                <TableHead className="text-right">Últ30</TableHead>
-                <TableHead className="text-right">Δ 30d</TableHead>
+        <Card className="overflow-auto max-h-[75vh] relative">
+          <table className="w-full caption-bottom text-sm border-separate border-spacing-0 [&_td]:border-b [&_tr]:border-0">
+            <TableHeader className="[&_th]:border-b">
+              <TableRow className="bg-background">
+                <TableHead className="sticky top-0 left-0 z-40 bg-background px-1" style={{ width: 36, minWidth: 36, maxWidth: 36 }}></TableHead>
+                <TableHead className="sticky top-0 z-40 bg-background overflow-hidden px-2" style={{ left: 36, width: 110, minWidth: 110, maxWidth: 110 }}>SKU</TableHead>
+                <TableHead className="sticky top-0 z-40 bg-background border-r shadow-[2px_0_4px_-2px_rgba(0,0,0,0.25)] overflow-hidden px-2" style={{ left: 146, width: 220, minWidth: 220, maxWidth: 220 }}>Descripción</TableHead>
+                <TableHead className={TH1}>Clasif</TableHead>
+                <TableHead className={`${TH1} text-center`}>Est.</TableHead>
+                <TableHead className={`${TH1} text-right`}>CEDIS</TableHead>
+                <TableHead className={`${TH1} text-right`}>Exist total</TableHead>
+                <TableHead className={`${TH1} text-right`}>Suma suc.</TableHead>
+                <TableHead className={`${TH1} text-right`}>Tránsito</TableHead>
+                <TableHead className={`${TH1} text-right`}>DDI</TableHead>
+                <TableHead className={`${TH1} text-right`}>Vta ayer</TableHead>
+                <TableHead className={`${TH1} text-right`}>Últ30</TableHead>
+                <TableHead className={`${TH1} text-right`}>Δ 30d</TableHead>
                 {sucursales.map(s => (
-                  <TableHead key={s.id} className="text-center border-l bg-muted/40" colSpan={5}>{s.codigo}</TableHead>
+                  <TableHead key={s.id} className={`${TH1} text-center border-l bg-muted`} colSpan={5}>{s.codigo}</TableHead>
                 ))}
-                <TableHead className="text-right border-l">Últ. $</TableHead>
-                <TableHead className="text-right">Mejor $</TableHead>
-                <TableHead className="text-right">Δ%</TableHead>
-                <TableHead>Ganador</TableHead>
-                <TableHead>2º</TableHead>
-                <TableHead>3º</TableHead>
-                <TableHead className="text-right">P/Corrug</TableHead>
-                <TableHead className="w-8"></TableHead>
-                <TableHead className="w-8"></TableHead>
+                <TableHead className={`${TH1} text-right border-l`}>Últ. $</TableHead>
+                <TableHead className={`${TH1} text-right`}>Mejor $</TableHead>
+                <TableHead className={`${TH1} text-right`}>Δ%</TableHead>
+                <TableHead className={TH1}>Ganador</TableHead>
+                <TableHead className={TH1}>2º</TableHead>
+                <TableHead className={TH1}>3º</TableHead>
+                <TableHead className={`${TH1} text-right`}>P/Corrug</TableHead>
+                <TableHead className={`${TH1} w-8`}></TableHead>
+                <TableHead className={`${TH1} w-8`}></TableHead>
               </TableRow>
-              <TableRow className="text-[10px] sticky z-30 bg-background h-9" style={{ top: 48 }}>
-                <TableHead className="sticky left-0 z-40 bg-background h-9" style={{ width: 36, minWidth: 36 }}></TableHead>
-                <TableHead className="sticky z-40 bg-background border-r h-9" style={{ left: 36, width: 110, minWidth: 110 }}></TableHead>
-                <TableHead className="sticky z-40 bg-background border-r h-9" style={{ left: 146, width: 220, minWidth: 220 }}></TableHead>
-                <TableHead colSpan={10} className="h-9"></TableHead>
+              <TableRow className="text-[10px] bg-background h-9">
+                <TableHead className="sticky left-0 z-40 bg-background h-9 border-b" style={{ top: 48, width: 36, minWidth: 36 }}></TableHead>
+                <TableHead className="sticky z-40 bg-background h-9 border-b" style={{ top: 48, left: 36, width: 110, minWidth: 110 }}></TableHead>
+                <TableHead className="sticky z-40 bg-background border-r shadow-[2px_0_4px_-2px_rgba(0,0,0,0.25)] h-9 border-b" style={{ top: 48, left: 146, width: 220, minWidth: 220 }}></TableHead>
+                <TableHead colSpan={10} className={`${TH2} h-9`}></TableHead>
                 {sucursales.flatMap(s => [
-                  <TableHead key={s.id + '-e'} className="text-right border-l">Exist</TableHead>,
-                  <TableHead key={s.id + '-u'} className="text-right">Últ30</TableHead>,
-                  <TableHead key={s.id + '-n'} className="text-right">Nec.</TableHead>,
-                  <TableHead key={s.id + '-d'} className="text-right">DIF</TableHead>,
-                  <TableHead key={s.id + '-s'} className="text-right bg-primary/10">Sug.</TableHead>,
+                  <TableHead key={s.id + '-e'} className={`${TH2} text-right border-l`}>Exist</TableHead>,
+                  <TableHead key={s.id + '-u'} className={`${TH2} text-right`}>Últ30</TableHead>,
+                  <TableHead key={s.id + '-n'} className={`${TH2} text-right`}>Nec.</TableHead>,
+                  <TableHead key={s.id + '-d'} className={`${TH2} text-right`}>DIF</TableHead>,
+                  <TableHead key={s.id + '-s'} className={`${TH2} text-right bg-primary/10`}>Sug.</TableHead>,
                 ])}
-                <TableHead colSpan={8}></TableHead>
+                <TableHead colSpan={8} className={TH2}></TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -390,9 +393,9 @@ export default function CotizadorSanamex() {
                 const tend = f.tendencia_pct;
                 return (
                   <TableRow key={f.producto_id} className={seleccion.has(f.producto_id) ? 'bg-primary/5' : ''}>
-                    <TableCell className="sticky left-0 z-10 bg-inherit px-1" style={{ width: 36, minWidth: 36, maxWidth: 36 }}><Checkbox checked={seleccion.has(f.producto_id)} onCheckedChange={() => toggleSeleccion(f.producto_id)} /></TableCell>
-                    <TableCell className="sticky z-10 bg-inherit font-mono text-xs border-r overflow-hidden px-2" style={{ left: 36, width: 110, minWidth: 110, maxWidth: 110 }}>{f.sku}</TableCell>
-                    <TableCell className="sticky z-10 bg-inherit text-xs border-r overflow-hidden px-2" style={{ left: 146, width: 220, minWidth: 220, maxWidth: 220 }}>
+                    <TableCell className={"sticky left-0 z-20 px-1 bg-background"} style={{ width: 36, minWidth: 36, maxWidth: 36 }}><Checkbox checked={seleccion.has(f.producto_id)} onCheckedChange={() => toggleSeleccion(f.producto_id)} /></TableCell>
+                    <TableCell className="sticky z-20 bg-background font-mono text-xs overflow-hidden px-2" style={{ left: 36, width: 110, minWidth: 110, maxWidth: 110 }}>{f.sku}</TableCell>
+                    <TableCell className="sticky z-20 bg-background text-xs border-r shadow-[2px_0_4px_-2px_rgba(0,0,0,0.25)] overflow-hidden px-2" style={{ left: 146, width: 220, minWidth: 220, maxWidth: 220 }}>
                       <button className="text-left hover:underline line-clamp-2 leading-tight" onClick={() => verDetalle(f)} title={f.nombre}>{f.nombre}</button>
                       <div className="flex gap-1 mt-0.5">
                         {f.alerta_oferta && <Tooltip><TooltipTrigger><AlertTriangle className="h-3 w-3 text-orange-500" /></TooltipTrigger><TooltipContent>Mejor precio supera oferta vigente</TooltipContent></Tooltip>}
@@ -476,7 +479,7 @@ export default function CotizadorSanamex() {
                 );
               })}
             </TableBody>
-          </Table>
+          </table>
         </Card>
       </TooltipProvider>
 

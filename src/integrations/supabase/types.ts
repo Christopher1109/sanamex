@@ -1059,8 +1059,9 @@ export type Database = {
       }
       cortes_caja: {
         Row: {
-          cajero_id: string
+          cajero_id: string | null
           cerrado_at: string | null
+          cerrado_automatico: boolean | null
           cerrado_por: string | null
           created_at: string | null
           diferencia: number | null
@@ -1070,11 +1071,17 @@ export type Database = {
           fecha: string
           id: string
           notas: string | null
+          num_compras: number | null
+          num_ventas: number | null
           sucursal_id: string
+          total_compras: number | null
+          total_ventas: number | null
+          ventas_por_metodo: Json | null
         }
         Insert: {
-          cajero_id: string
+          cajero_id?: string | null
           cerrado_at?: string | null
+          cerrado_automatico?: boolean | null
           cerrado_por?: string | null
           created_at?: string | null
           diferencia?: number | null
@@ -1084,11 +1091,17 @@ export type Database = {
           fecha?: string
           id?: string
           notas?: string | null
+          num_compras?: number | null
+          num_ventas?: number | null
           sucursal_id: string
+          total_compras?: number | null
+          total_ventas?: number | null
+          ventas_por_metodo?: Json | null
         }
         Update: {
-          cajero_id?: string
+          cajero_id?: string | null
           cerrado_at?: string | null
+          cerrado_automatico?: boolean | null
           cerrado_por?: string | null
           created_at?: string | null
           diferencia?: number | null
@@ -1098,7 +1111,12 @@ export type Database = {
           fecha?: string
           id?: string
           notas?: string | null
+          num_compras?: number | null
+          num_ventas?: number | null
           sucursal_id?: string
+          total_compras?: number | null
+          total_ventas?: number | null
+          ventas_por_metodo?: Json | null
         }
         Relationships: [
           {
@@ -4947,10 +4965,54 @@ export type Database = {
           saldo: number
         }[]
       }
+      calcular_totales_dia: {
+        Args: { p_fecha: string; p_sucursal_id: string }
+        Returns: {
+          num_compras: number
+          num_ventas: number
+          total_compras: number
+          total_ventas: number
+          ventas_por_metodo: Json
+        }[]
+      }
       cancelar_traspaso: {
         Args: { p_motivo: string; p_traspaso_id: string }
         Returns: Json
       }
+      cerrar_corte_caja: {
+        Args: {
+          p_automatico?: boolean
+          p_fecha?: string
+          p_sucursal_id: string
+        }
+        Returns: {
+          cajero_id: string | null
+          cerrado_at: string | null
+          cerrado_automatico: boolean | null
+          cerrado_por: string | null
+          created_at: string | null
+          diferencia: number | null
+          efectivo_esperado: number | null
+          efectivo_recibido: number | null
+          estado: string
+          fecha: string
+          id: string
+          notas: string | null
+          num_compras: number | null
+          num_ventas: number | null
+          sucursal_id: string
+          total_compras: number | null
+          total_ventas: number | null
+          ventas_por_metodo: Json | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "cortes_caja"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      cerrar_cortes_automaticos: { Args: never; Returns: undefined }
       clasificacion_abc_productos: {
         Args: { p_dias_ventana?: number }
         Returns: undefined
