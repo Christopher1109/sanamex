@@ -50,9 +50,7 @@ export default function CotizadorSanamex() {
   const [incluirSinLista, setIncluirSinLista] = useState(false);
   const [excluirE, setExcluirE] = useState(true);
   const [soloFaltantes, setSoloFaltantes] = useState(true);
-  const [filtroProv, setFiltroProv] = useState<string>('all');
-  const [filtroVar, setFiltroVar] = useState<'todos' | 'subieron' | 'bajaron'>('todos');
-  const [filtroEstatus, setFiltroEstatus] = useState<string>('all');
+  const [filtroEstatus, setFiltroEstatus] = useState<Set<string>>(new Set());
   const [soloConOferta, setSoloConOferta] = useState(false);
   const [ocultas, setOcultas] = useState<Set<string>>(() => {
     try { return new Set(JSON.parse(localStorage.getItem(HIDDEN_KEY) || '[]')); } catch { return new Set(); }
@@ -163,19 +161,14 @@ export default function CotizadorSanamex() {
     if (!snap) return [];
     return snap.productos.filter(f => {
       if (ocultas.has(f.producto_id)) return false;
-      if (filtroProv !== 'all' && f.ganador?.proveedor_id !== filtroProv) return false;
-      if (filtroVar === 'subieron' && !(f.variacion_precio_abs > 0)) return false;
-      if (filtroVar === 'bajaron' && !(f.variacion_precio_abs < 0)) return false;
-      if (filtroEstatus !== 'all' && (f.estatus || '') !== filtroEstatus) return false;
+      if (filtroEstatus.size > 0 && !filtroEstatus.has(f.estatus || '')) return false;
       if (soloConOferta && !f.alerta_oferta) return false;
       return true;
     });
-  }, [snap, ocultas, filtroProv, filtroVar, filtroEstatus, soloConOferta]);
+  }, [snap, ocultas, filtroEstatus, soloConOferta]);
 
-  const proveedoresGanadores = useMemo(() => {
-    const map = new Map<string, string>();
-    (snap?.productos || []).forEach(f => { if (f.ganador?.proveedor_id) map.set(f.ganador.proveedor_id, f.ganador.proveedor_nombre); });
-    return Array.from(map.entries());
+  const estatusPresentes = useMemo(() => {
+    return Array.from(new Set((snap?.productos || []).map(f => f.estatus).filter(Boolean))) as string[];
   }, [snap]);
 
   const grupoPorProv = useMemo(() => {
@@ -270,32 +263,37 @@ export default function CotizadorSanamex() {
             <Button variant="outline" size="sm" onClick={cargar}><Search className="h-4 w-4" /></Button>
           </div>
         </div>
-        <label className="flex items-center gap-1 text-xs"><Checkbox checked={soloFaltantes} onCheckedChange={v => setSoloFaltantes(!!v)} />Solo faltantes</label>
-        <label className="flex items-center gap-1 text-xs"><Checkbox checked={excluirE} onCheckedChange={v => setExcluirE(!!v)} />Excluir estatus "E"</label>
-        <label className="flex items-center gap-1 text-xs"><Checkbox checked={incluirSinLista} onCheckedChange={v => setIncluirSinLista(!!v)} />Incluir sin lista</label>
-        <label className="flex items-center gap-1 text-xs"><Checkbox checked={soloConOferta} onCheckedChange={v => setSoloConOferta(!!v)} />Solo con oferta</label>
-        <Select value={filtroProv} onValueChange={setFiltroProv}>
-          <SelectTrigger className="w-[180px] h-9"><SelectValue placeholder="Proveedor ganador" /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Todos los ganadores</SelectItem>
-            {proveedoresGanadores.map(([id, nom]) => <SelectItem key={id} value={id}>{nom}</SelectItem>)}
-          </SelectContent>
-        </Select>
-        <Select value={filtroEstatus} onValueChange={setFiltroEstatus}>
-          <SelectTrigger className="w-[140px] h-9"><SelectValue /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Estatus: todos</SelectItem>
-            {['A','I','C','S','N','K','G'].map(e => <SelectItem key={e} value={e}>Estatus "{e}"</SelectItem>)}
-          </SelectContent>
-        </Select>
-        <Select value={filtroVar} onValueChange={(v: any) => setFiltroVar(v)}>
-          <SelectTrigger className="w-[160px] h-9"><SelectValue /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="todos">Variación: todos</SelectItem>
-            <SelectItem value="subieron">Subieron</SelectItem>
-            <SelectItem value="bajaron">Bajaron</SelectItem>
-          </SelectContent>
-        </Select>
+        <Tooltip><TooltipTrigger asChild>
+          <label className="flex items-center gap-1 text-xs cursor-help"><Checkbox checked={soloFaltantes} onCheckedChange={v => setSoloFaltantes(!!v)} />Solo faltantes</label>
+        </TooltipTrigger><TooltipContent>Oculta productos que ya tienen suficiente inventario/tránsito para cubrir la necesidad — solo muestra lo que sí hay que pedir.</TooltipContent></Tooltip>
+        <Tooltip><TooltipTrigger asChild>
+          <label className="flex items-center gap-1 text-xs cursor-help"><Checkbox checked={excluirE} onCheckedChange={v => setExcluirE(!!v)} />Excluir estatus "E"</label>
+        </TooltipTrigger><TooltipContent>"E" = artículo de única ocasión / especial. No se resurte normalmente, por eso se excluye del cotizador por default.</TooltipContent></Tooltip>
+        <Tooltip><TooltipTrigger asChild>
+          <label className="flex items-center gap-1 text-xs cursor-help"><Checkbox checked={incluirSinLista} onCheckedChange={v => setIncluirSinLista(!!v)} />Incluir sin lista</label>
+        </TooltipTrigger><TooltipContent>Cuando está apagado, oculta productos que no tienen precio de ningún proveedor regular cargado (no se les puede calcular "mejor precio").</TooltipContent></Tooltip>
+        <Tooltip><TooltipTrigger asChild>
+          <label className="flex items-center gap-1 text-xs cursor-help"><Checkbox checked={soloConOferta} onCheckedChange={v => setSoloConOferta(!!v)} />Solo con oferta</label>
+        </TooltipTrigger><TooltipContent>Muestra solo productos donde el mejor precio disponible supera el de una oferta vigente — vale la pena revisar antes de comprar.</TooltipContent></Tooltip>
+
+        <div className="flex items-center gap-1">
+          <span className="text-xs text-muted-foreground">Estatus:</span>
+          {['A','I','C','S','N','K','G'].map(e => (
+            <label key={e} className="flex items-center gap-0.5 text-xs cursor-pointer">
+              <Checkbox
+                checked={filtroEstatus.size === 0 || filtroEstatus.has(e)}
+                onCheckedChange={v => setFiltroEstatus(prev => {
+                  // Si no hay filtro activo, "destildar" uno arranca la selección desde todos menos ese.
+                  const base = prev.size === 0 ? new Set(estatusPresentes.length ? estatusPresentes : ['A','I','C','S','N','K','G']) : new Set(prev);
+                  if (v) base.add(e); else base.delete(e);
+                  // Si quedaron todos marcados, volvemos a "sin filtro" (más simple internamente).
+                  return base.size >= (estatusPresentes.length || 7) ? new Set() : base;
+                })}
+              />
+              <span className={`px-1 rounded text-[10px] ${ESTATUS_COLORS[e] || 'bg-gray-100'}`}>{e}</span>
+            </label>
+          ))}
+        </div>
         <Button variant="outline" size="sm" onClick={cargar} disabled={loading}>{loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />} Recalcular</Button>
         <Button variant="outline" size="sm" onClick={exportarCSV} disabled={!snap}><Download className="h-4 w-4 mr-1" /> CSV</Button>
         <Button size="sm" onClick={() => setGenOpen(true)} disabled={seleccion.size === 0}>
@@ -313,11 +311,10 @@ export default function CotizadorSanamex() {
         <Card className="overflow-auto max-h-[75vh]">
           <Table>
             <TableHeader>
-              <TableRow>
-                <TableHead className="w-8 sticky left-0 bg-background"></TableHead>
-                <TableHead className="min-w-[110px]">Clave</TableHead>
-                <TableHead>SKU</TableHead>
-                <TableHead className="min-w-[220px]">Descripción</TableHead>
+              <TableRow className="sticky top-0 z-30 bg-background">
+                <TableHead className="w-8 sticky left-0 z-40 bg-background"></TableHead>
+                <TableHead className="sticky left-8 z-40 bg-background w-[90px] min-w-[90px] border-r">SKU</TableHead>
+                <TableHead className="sticky left-[122px] z-40 bg-background w-[200px] min-w-[200px] border-r">Descripción</TableHead>
                 <TableHead className="text-center">Clasif</TableHead>
                 <TableHead className="text-center">Est.</TableHead>
                 <TableHead className="text-right">CEDIS</TableHead>
@@ -341,9 +338,9 @@ export default function CotizadorSanamex() {
                 <TableHead className="w-8"></TableHead>
                 <TableHead className="w-8"></TableHead>
               </TableRow>
-              <TableRow className="text-[10px]">
-                <TableHead colSpan={13}></TableHead>
-                <TableHead></TableHead>
+              <TableRow className="text-[10px] sticky top-[41px] z-30 bg-background">
+                <TableHead colSpan={2} className="sticky left-0 z-40 bg-background"></TableHead>
+                <TableHead colSpan={11} className="border-r"></TableHead>
                 {sucursales.flatMap(s => [
                   <TableHead key={s.id + '-e'} className="text-right border-l">Exist</TableHead>,
                   <TableHead key={s.id + '-u'} className="text-right">Últ30</TableHead>,
@@ -362,11 +359,10 @@ export default function CotizadorSanamex() {
                 const tend = f.tendencia_pct;
                 return (
                   <TableRow key={f.producto_id} className={seleccion.has(f.producto_id) ? 'bg-primary/5' : ''}>
-                    <TableCell className="sticky left-0 bg-inherit"><Checkbox checked={seleccion.has(f.producto_id)} onCheckedChange={() => toggleSeleccion(f.producto_id)} /></TableCell>
-                    <TableCell className="font-mono text-[10px]">{f.codigo_barras || '—'}</TableCell>
-                    <TableCell className="font-mono text-xs">{f.sku}</TableCell>
-                    <TableCell className="text-xs max-w-[260px]">
-                      <button className="text-left hover:underline block truncate" onClick={() => verDetalle(f)} title={f.nombre}>{f.nombre}</button>
+                    <TableCell className="sticky left-0 z-10 bg-inherit"><Checkbox checked={seleccion.has(f.producto_id)} onCheckedChange={() => toggleSeleccion(f.producto_id)} /></TableCell>
+                    <TableCell className="sticky left-8 z-10 bg-inherit font-mono text-xs w-[90px] min-w-[90px] border-r">{f.sku}</TableCell>
+                    <TableCell className="sticky left-[122px] z-10 bg-inherit text-xs w-[200px] min-w-[200px] max-w-[200px] border-r">
+                      <button className="text-left hover:underline line-clamp-2 leading-tight" onClick={() => verDetalle(f)} title={f.nombre}>{f.nombre}</button>
                       <div className="flex gap-1 mt-0.5">
                         {f.alerta_oferta && <Tooltip><TooltipTrigger><AlertTriangle className="h-3 w-3 text-orange-500" /></TooltipTrigger><TooltipContent>Mejor precio supera oferta vigente</TooltipContent></Tooltip>}
                         {f.sin_lista_regular && <Badge variant="outline" className="text-[9px] px-1 py-0">sin lista</Badge>}
