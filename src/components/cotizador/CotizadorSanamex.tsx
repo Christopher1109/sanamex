@@ -327,9 +327,9 @@ export default function CotizadorSanamex() {
           <Table>
             <TableHeader>
               <TableRow className="sticky top-0 z-30 bg-background">
-                <TableHead className="w-8 sticky left-0 z-40 bg-background"></TableHead>
-                <TableHead className="sticky left-8 z-40 bg-background w-[90px] min-w-[90px] border-r">SKU</TableHead>
-                <TableHead className="sticky left-[122px] z-40 bg-background w-[200px] min-w-[200px] border-r">Descripción</TableHead>
+                <TableHead className="sticky left-0 z-40 bg-background px-1" style={{ width: 36, minWidth: 36, maxWidth: 36 }}></TableHead>
+                <TableHead className="sticky z-40 bg-background border-r overflow-hidden px-2" style={{ left: 36, width: 110, minWidth: 110, maxWidth: 110 }}>SKU</TableHead>
+                <TableHead className="sticky z-40 bg-background border-r overflow-hidden px-2" style={{ left: 146, width: 220, minWidth: 220, maxWidth: 220 }}>Descripción</TableHead>
                 <TableHead className="text-center">Clasif</TableHead>
                 <TableHead className="text-center">Est.</TableHead>
                 <TableHead className="text-right">CEDIS</TableHead>
@@ -353,9 +353,11 @@ export default function CotizadorSanamex() {
                 <TableHead className="w-8"></TableHead>
                 <TableHead className="w-8"></TableHead>
               </TableRow>
-              <TableRow className="text-[10px] sticky top-[41px] z-30 bg-background">
-                <TableHead colSpan={2} className="sticky left-0 z-40 bg-background"></TableHead>
-                <TableHead colSpan={11} className="border-r"></TableHead>
+              <TableRow className="text-[10px] sticky z-30 bg-background h-9" style={{ top: 48 }}>
+                <TableHead className="sticky left-0 z-40 bg-background h-9" style={{ width: 36, minWidth: 36 }}></TableHead>
+                <TableHead className="sticky z-40 bg-background border-r h-9" style={{ left: 36, width: 110, minWidth: 110 }}></TableHead>
+                <TableHead className="sticky z-40 bg-background border-r h-9" style={{ left: 146, width: 220, minWidth: 220 }}></TableHead>
+                <TableHead colSpan={10} className="h-9"></TableHead>
                 {sucursales.flatMap(s => [
                   <TableHead key={s.id + '-e'} className="text-right border-l">Exist</TableHead>,
                   <TableHead key={s.id + '-u'} className="text-right">Últ30</TableHead>,
@@ -388,9 +390,9 @@ export default function CotizadorSanamex() {
                 const tend = f.tendencia_pct;
                 return (
                   <TableRow key={f.producto_id} className={seleccion.has(f.producto_id) ? 'bg-primary/5' : ''}>
-                    <TableCell className="sticky left-0 z-10 bg-inherit"><Checkbox checked={seleccion.has(f.producto_id)} onCheckedChange={() => toggleSeleccion(f.producto_id)} /></TableCell>
-                    <TableCell className="sticky left-8 z-10 bg-inherit font-mono text-xs w-[90px] min-w-[90px] border-r">{f.sku}</TableCell>
-                    <TableCell className="sticky left-[122px] z-10 bg-inherit text-xs w-[200px] min-w-[200px] max-w-[200px] border-r">
+                    <TableCell className="sticky left-0 z-10 bg-inherit px-1" style={{ width: 36, minWidth: 36, maxWidth: 36 }}><Checkbox checked={seleccion.has(f.producto_id)} onCheckedChange={() => toggleSeleccion(f.producto_id)} /></TableCell>
+                    <TableCell className="sticky z-10 bg-inherit font-mono text-xs border-r overflow-hidden px-2" style={{ left: 36, width: 110, minWidth: 110, maxWidth: 110 }}>{f.sku}</TableCell>
+                    <TableCell className="sticky z-10 bg-inherit text-xs border-r overflow-hidden px-2" style={{ left: 146, width: 220, minWidth: 220, maxWidth: 220 }}>
                       <button className="text-left hover:underline line-clamp-2 leading-tight" onClick={() => verDetalle(f)} title={f.nombre}>{f.nombre}</button>
                       <div className="flex gap-1 mt-0.5">
                         {f.alerta_oferta && <Tooltip><TooltipTrigger><AlertTriangle className="h-3 w-3 text-orange-500" /></TooltipTrigger><TooltipContent>Mejor precio supera oferta vigente</TooltipContent></Tooltip>}
