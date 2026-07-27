@@ -307,6 +307,21 @@ export default function CotizadorSanamex() {
         {ocultas.size > 0 && <><span>· {ocultas.size} ocultos</span><Button variant="link" size="sm" className="h-auto p-0" onClick={() => setOcultas(new Set())}>Restaurar</Button></>}
       </div>
 
+      {!loading && snap && (snap.filas?.length ?? 0) > 0 && (
+        <>
+          {(snap.filas || []).every(f => !f.ult30_total) && (
+            <div className="text-xs rounded-md border border-amber-300 bg-amber-50 text-amber-900 px-3 py-2">
+              No hay ventas registradas en los últimos 30 días, por lo que la necesidad y el sugerido salen en 0. Carga el histórico de ventas o desactiva “Solo faltantes” para revisar el catálogo completo.
+            </div>
+          )}
+          {(snap.filas || []).every(f => !f.mejor_precio) && (
+            <div className="text-xs rounded-md border border-amber-300 bg-amber-50 text-amber-900 px-3 py-2">
+              No hay listas de precios de proveedor cargadas: no se puede calcular mejor precio ni proveedor ganador. Cárgalas en Compras → Catálogos → Proveedores.
+            </div>
+          )}
+        </>
+      )}
+
       <TooltipProvider>
         <Card className="overflow-auto max-h-[75vh]">
           <Table>
