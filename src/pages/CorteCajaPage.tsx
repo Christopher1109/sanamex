@@ -5,17 +5,26 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
-import { Lock, ShoppingCart, PackageCheck, RefreshCw, Clock } from 'lucide-react';
+import { Lock, ShoppingCart, PackageCheck, RefreshCw, Clock, CalendarDays } from 'lucide-react';
 import { toast } from 'sonner';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend } from 'recharts';
 
-type Movimiento = { tipo: 'venta' | 'compra'; id: string; folio: string; monto: number; hora: string };
+type Movimiento = { tipo: 'venta' | 'compra'; id: string; folio: string; monto: number; hora: string; sucursal_id: string };
 
+const money = (n: number) => `$${Number(n || 0).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 const CorteCajaPage = () => {
-  const { selectedSucursal } = useSucursal();
+  const { selectedSucursal, availableSucursales, canSwitchSucursal } = useSucursal();
   const hoy = new Date().toISOString().slice(0, 10);
+
+  const [fecha, setFecha] = useState(hoy);
+  const [alcance, setAlcance] = useState<'sucursal' | 'todas'>('sucursal');
 
   const [movimientos, setMovimientos] = useState<Movimiento[]>([]);
   const [totales, setTotales] = useState({ total_ventas: 0, num_ventas: 0, total_compras: 0, num_compras: 0, ventas_por_metodo: {} as Record<string, number> });
@@ -25,44 +34,69 @@ const CorteCajaPage = () => {
   const [cerrando, setCerrando] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
 
+  // Detalle del corte histórico seleccionado
+  const [detalle, setDetalle] = useState<{ corte: any; ventas: any[]; compras: any[] } | null>(null);
+  const [detalleLoading, setDetalleLoading] = useState(false);
+
+  const sucursalIds = useMemo(
+    () => (alcance === 'todas' ? availableSucursales.map(s => s.id) : selectedSucursal ? [selectedSucursal.id] : []),
+    [alcance, availableSucursales, selectedSucursal]
+  );
+  const nombreSucursal = (id: string) => availableSucursales.find(s => s.id === id)?.nombre || '—';
+  const esGeneral = alcance === 'todas';
+  const esHoy = fecha === hoy;
+
   const load = useCallback(async () => {
-    if (!selectedSucursal) return;
+    if (sucursalIds.length === 0) return;
     setLoading(true);
 
-    const [{ data: ventasHoy }, { data: comprasHoy }, { data: tot }, { data: corte }, { data: hist }] = await Promise.all([
-      supabase.from('ventas').select('id, folio, total, fecha').eq('sucursal_id', selectedSucursal.id).eq('estado', 'completada').gte('fecha', `${hoy}T00:00:00`).lte('fecha', `${hoy}T23:59:59`).order('fecha', { ascending: false }).limit(200),
-      supabase.from('compras').select('id, numero_compra, total, created_at').eq('sucursal_id', selectedSucursal.id).neq('estado', 'cancelada').gte('created_at', `${hoy}T00:00:00`).lte('created_at', `${hoy}T23:59:59`).order('created_at', { ascending: false }).limit(200),
-      (supabase as any).rpc('calcular_totales_dia', { p_sucursal_id: selectedSucursal.id, p_fecha: hoy }),
-      supabase.from('cortes_caja').select('*').eq('sucursal_id', selectedSucursal.id).eq('fecha', hoy).maybeSingle(),
-      supabase.from('cortes_caja').select('*').eq('sucursal_id', selectedSucursal.id).order('fecha', { ascending: false }).limit(30),
+    const [{ data: ventasDia }, { data: comprasDia }, { data: hist }] = await Promise.all([
+      supabase.from('ventas').select('id, folio, total, fecha, sucursal_id').in('sucursal_id', sucursalIds).eq('estado', 'completada').gte('fecha', `${fecha}T00:00:00`).lte('fecha', `${fecha}T23:59:59`).order('fecha', { ascending: false }).limit(500),
+      supabase.from('compras').select('id, numero_compra, total, created_at, sucursal_id').in('sucursal_id', sucursalIds).neq('estado', 'cancelada').gte('created_at', `${fecha}T00:00:00`).lte('created_at', `${fecha}T23:59:59`).order('created_at', { ascending: false }).limit(500),
+      supabase.from('cortes_caja').select('*').in('sucursal_id', sucursalIds).order('fecha', { ascending: false }).limit(esGeneral ? 120 : 30),
     ]);
 
     const movs: Movimiento[] = [
-      ...(ventasHoy || []).map((v: any) => ({ tipo: 'venta' as const, id: v.id, folio: v.folio || v.id.slice(0, 8), monto: Number(v.total), hora: v.fecha })),
-      ...(comprasHoy || []).map((c: any) => ({ tipo: 'compra' as const, id: c.id, folio: c.numero_compra || c.id.slice(0, 8), monto: Number(c.total), hora: c.created_at })),
+      ...(ventasDia || []).map((v: any) => ({ tipo: 'venta' as const, id: v.id, folio: v.folio || v.id.slice(0, 8), monto: Number(v.total), hora: v.fecha, sucursal_id: v.sucursal_id })),
+      ...(comprasDia || []).map((c: any) => ({ tipo: 'compra' as const, id: c.id, folio: c.numero_compra || c.id.slice(0, 8), monto: Number(c.total), hora: c.created_at, sucursal_id: c.sucursal_id })),
     ].sort((a, b) => new Date(b.hora).getTime() - new Date(a.hora).getTime());
     setMovimientos(movs);
 
-    const t = (tot as any)?.[0];
-    if (t) setTotales({ total_ventas: Number(t.total_ventas), num_ventas: t.num_ventas, total_compras: Number(t.total_compras), num_compras: t.num_compras, ventas_por_metodo: t.ventas_por_metodo || {} });
-    setCorteHoy(corte || null);
+    // Totales por RPC (suma de todas las sucursales del alcance)
+    const rpcs = await Promise.all(
+      sucursalIds.map(id => (supabase as any).rpc('calcular_totales_dia', { p_sucursal_id: id, p_fecha: fecha }))
+    );
+    const acc = { total_ventas: 0, num_ventas: 0, total_compras: 0, num_compras: 0, ventas_por_metodo: {} as Record<string, number> };
+    rpcs.forEach(({ data }: any) => {
+      const t = data?.[0];
+      if (!t) return;
+      acc.total_ventas += Number(t.total_ventas || 0);
+      acc.num_ventas += Number(t.num_ventas || 0);
+      acc.total_compras += Number(t.total_compras || 0);
+      acc.num_compras += Number(t.num_compras || 0);
+      Object.entries(t.ventas_por_metodo || {}).forEach(([m, v]: any) => { acc.ventas_por_metodo[m] = (acc.ventas_por_metodo[m] || 0) + Number(v); });
+    });
+    setTotales(acc);
+
+    const cortesDia = (hist || []).filter((c: any) => c.fecha === fecha);
+    setCorteHoy(esGeneral ? null : cortesDia[0] || null);
     setHistorial(hist || []);
     setLoading(false);
-  }, [selectedSucursal, hoy]);
+  }, [sucursalIds, fecha, esGeneral]);
 
   useEffect(() => { load(); }, [load]);
 
-  // Refresca cada 60s mientras el día sigue abierto — el "en vivo" que se pidió.
+  // Refresca cada 60s mientras el día de hoy sigue abierto.
   useEffect(() => {
-    if (corteHoy?.estado === 'cerrado') return;
+    if (!esHoy || corteHoy?.estado === 'cerrado') return;
     const t = setInterval(load, 60000);
     return () => clearInterval(t);
-  }, [load, corteHoy?.estado]);
+  }, [load, corteHoy?.estado, esHoy]);
 
   async function terminarDia() {
     if (!selectedSucursal) return;
     setCerrando(true);
-    const { error } = await (supabase as any).rpc('cerrar_corte_caja', { p_sucursal_id: selectedSucursal.id, p_fecha: hoy, p_automatico: false });
+    const { error } = await (supabase as any).rpc('cerrar_corte_caja', { p_sucursal_id: selectedSucursal.id, p_fecha: fecha, p_automatico: false });
     setCerrando(false);
     setConfirmOpen(false);
     if (error) { toast.error('No se pudo cerrar el corte: ' + error.message); return; }
@@ -70,10 +104,22 @@ const CorteCajaPage = () => {
     load();
   }
 
+  async function abrirDetalle(corte: any) {
+    setDetalle({ corte, ventas: [], compras: [] });
+    setDetalleLoading(true);
+    const [{ data: ventas }, { data: compras }] = await Promise.all([
+      supabase.from('ventas').select('id, folio, total, subtotal, impuestos, fecha, estado').eq('sucursal_id', corte.sucursal_id).eq('estado', 'completada').gte('fecha', `${corte.fecha}T00:00:00`).lte('fecha', `${corte.fecha}T23:59:59`).order('fecha', { ascending: false }).limit(500),
+      supabase.from('compras').select('id, numero_compra, total, subtotal, estado, created_at, proveedor_id').eq('sucursal_id', corte.sucursal_id).neq('estado', 'cancelada').gte('created_at', `${corte.fecha}T00:00:00`).lte('created_at', `${corte.fecha}T23:59:59`).order('created_at', { ascending: false }).limit(500),
+    ]);
+    setDetalle({ corte, ventas: ventas || [], compras: compras || [] });
+    setDetalleLoading(false);
+  }
+
   const cerrado = corteHoy?.estado === 'cerrado';
   const neto = totales.total_ventas - totales.total_compras;
+  const ventasDelDia = movimientos.filter(m => m.tipo === 'venta');
+  const comprasDelDia = movimientos.filter(m => m.tipo === 'compra');
 
-  // Análisis financiero de los últimos cortes cerrados (los que ya están en historial).
   const analisis = useMemo(() => {
     const cerrados = historial.filter((c: any) => c.estado === 'cerrado');
     const ventas = cerrados.reduce((s, c: any) => s + Number(c.total_ventas || 0), 0);
@@ -81,20 +127,24 @@ const CorteCajaPage = () => {
     const tickets = cerrados.reduce((s, c: any) => s + Number(c.num_ventas || 0), 0);
     const difs = cerrados.reduce((s, c: any) => s + Number(c.diferencia || 0), 0);
     const conDif = cerrados.filter((c: any) => Math.abs(Number(c.diferencia || 0)) >= 20).length;
-    const serie = [...cerrados]
-      .sort((a: any, b: any) => a.fecha.localeCompare(b.fecha))
-      .map((c: any) => ({
-        fecha: String(c.fecha).slice(5),
-        Ventas: Number(c.total_ventas || 0),
-        Compras: Number(c.total_compras || 0),
-        Diferencia: Number(c.diferencia || 0),
-      }));
+    const porFecha = new Map<string, { fecha: string; Ventas: number; Compras: number; Diferencia: number }>();
+    cerrados.forEach((c: any) => {
+      const k = String(c.fecha);
+      const row = porFecha.get(k) || { fecha: k.slice(5), Ventas: 0, Compras: 0, Diferencia: 0 };
+      row.Ventas += Number(c.total_ventas || 0);
+      row.Compras += Number(c.total_compras || 0);
+      row.Diferencia += Number(c.diferencia || 0);
+      porFecha.set(k, row);
+    });
+    const serie = [...porFecha.entries()].sort((a, b) => a[0].localeCompare(b[0])).map(([, v]) => v);
+    const diasUnicos = porFecha.size;
     return {
-      dias: cerrados.length,
+      dias: diasUnicos,
+      registros: cerrados.length,
       ventas,
       compras,
       neto: ventas - compras,
-      promedioDiario: cerrados.length ? ventas / cerrados.length : 0,
+      promedioDiario: diasUnicos ? ventas / diasUnicos : 0,
       ticketPromedio: tickets ? ventas / tickets : 0,
       difs,
       conDif,
@@ -102,32 +152,49 @@ const CorteCajaPage = () => {
     };
   }, [historial]);
 
-  const money = (n: number) => `$${n.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-
-
-
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h1 className="text-2xl font-bold">Corte de Caja</h1>
-          <p className="text-muted-foreground">{selectedSucursal?.nombre} · {hoy}</p>
+          <p className="text-muted-foreground">
+            {esGeneral ? 'Todas las sucursales' : selectedSucursal?.nombre} · {fecha}
+          </p>
         </div>
         <div className="flex items-center gap-2">
-          {cerrado ? (
-            <Badge variant="outline" className="gap-1 py-1.5 px-3"><Lock className="h-3.5 w-3.5" />
-              Día cerrado {corteHoy?.cerrado_automatico ? '(automático a medianoche)' : ''}
-            </Badge>
-          ) : (
-            <>
-              <Button variant="outline" size="sm" onClick={load} disabled={loading}><RefreshCw className="h-4 w-4 mr-1" />Actualizar</Button>
-              <Button onClick={() => setConfirmOpen(true)}><Lock className="h-4 w-4 mr-2" />Terminar día / Corte de caja</Button>
-            </>
-          )}
+          <Button variant="outline" size="sm" onClick={load} disabled={loading}><RefreshCw className="h-4 w-4 mr-1" />Actualizar</Button>
+          {!esGeneral && esHoy && (cerrado
+            ? <Badge variant="outline" className="gap-1 py-1.5 px-3"><Lock className="h-3.5 w-3.5" />Día cerrado {corteHoy?.cerrado_automatico ? '(automático a medianoche)' : ''}</Badge>
+            : <Button onClick={() => setConfirmOpen(true)}><Lock className="h-4 w-4 mr-2" />Terminar día / Corte de caja</Button>)}
         </div>
       </div>
 
-      {!cerrado && (
+      {/* Filtros */}
+      <Card>
+        <CardContent className="pt-6 flex flex-wrap items-end gap-4">
+          <div className="space-y-1.5">
+            <Label className="text-xs text-muted-foreground flex items-center gap-1"><CalendarDays className="h-3.5 w-3.5" />Día del corte</Label>
+            <Input type="date" value={fecha} max={hoy} onChange={e => setFecha(e.target.value || hoy)} className="w-[180px]" />
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs text-muted-foreground">Alcance</Label>
+            <Select value={alcance} onValueChange={(v: any) => setAlcance(v)}>
+              <SelectTrigger className="w-[240px]"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="sucursal">Solo {selectedSucursal?.nombre || 'sucursal actual'}</SelectItem>
+                {(canSwitchSucursal || availableSucursales.length > 1) && (
+                  <SelectItem value="todas">Corte general (todas las sucursales)</SelectItem>
+                )}
+              </SelectContent>
+            </Select>
+          </div>
+          {!esHoy && (
+            <Button variant="ghost" size="sm" onClick={() => setFecha(hoy)}>Volver a hoy</Button>
+          )}
+        </CardContent>
+      </Card>
+
+      {esHoy && !esGeneral && !cerrado && (
         <p className="text-xs text-muted-foreground flex items-center gap-1">
           <Clock className="h-3.5 w-3.5" />
           El día se cierra solo a medianoche si nadie lo cierra antes. Esta lista se actualiza sola cada minuto.
@@ -136,53 +203,76 @@ const CorteCajaPage = () => {
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <Card><CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground font-normal">Ventas del día</CardTitle></CardHeader>
-          <CardContent><p className="text-2xl font-bold">${totales.total_ventas.toLocaleString('es-MX', { minimumFractionDigits: 2 })}</p><p className="text-xs text-muted-foreground">{totales.num_ventas} tickets</p></CardContent></Card>
+          <CardContent><p className="text-2xl font-bold">{money(totales.total_ventas)}</p><p className="text-xs text-muted-foreground">{totales.num_ventas} tickets</p></CardContent></Card>
         <Card><CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground font-normal">Compras del día</CardTitle></CardHeader>
-          <CardContent><p className="text-2xl font-bold">${totales.total_compras.toLocaleString('es-MX', { minimumFractionDigits: 2 })}</p><p className="text-xs text-muted-foreground">{totales.num_compras} compras</p></CardContent></Card>
+          <CardContent><p className="text-2xl font-bold">{money(totales.total_compras)}</p><p className="text-xs text-muted-foreground">{totales.num_compras} compras</p></CardContent></Card>
         <Card><CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground font-normal">Neto del día</CardTitle></CardHeader>
-          <CardContent><p className={`text-2xl font-bold ${neto >= 0 ? 'text-green-600' : 'text-destructive'}`}>${neto.toLocaleString('es-MX', { minimumFractionDigits: 2 })}</p></CardContent></Card>
+          <CardContent><p className={`text-2xl font-bold ${neto >= 0 ? 'text-green-600' : 'text-destructive'}`}>{money(neto)}</p></CardContent></Card>
         <Card><CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground font-normal">Por método de pago</CardTitle></CardHeader>
           <CardContent className="space-y-0.5">
             {Object.keys(totales.ventas_por_metodo).length === 0
-              ? <p className="text-xs text-muted-foreground">Sin ventas aún</p>
+              ? <p className="text-xs text-muted-foreground">Sin ventas</p>
               : Object.entries(totales.ventas_por_metodo).map(([m, v]) => (
-                  <div key={m} className="flex justify-between text-xs"><span>{m}</span><span className="font-medium">${Number(v).toLocaleString('es-MX', { minimumFractionDigits: 2 })}</span></div>
+                  <div key={m} className="flex justify-between text-xs"><span>{m}</span><span className="font-medium">{money(Number(v))}</span></div>
                 ))}
           </CardContent></Card>
       </div>
 
+      {/* Movimientos del día con pestañas */}
       <Card>
-        <CardHeader><CardTitle className="text-base">Movimientos de hoy (en vivo)</CardTitle></CardHeader>
-        <CardContent className="p-0">
-          <Table>
-            <TableHeader><TableRow><TableHead>Hora</TableHead><TableHead>Tipo</TableHead><TableHead>Folio</TableHead><TableHead className="text-right">Monto</TableHead></TableRow></TableHeader>
-            <TableBody>
-              {loading ? (
-                <TableRow><TableCell colSpan={4} className="text-center py-8">Cargando...</TableCell></TableRow>
-              ) : movimientos.length === 0 ? (
-                <TableRow><TableCell colSpan={4} className="text-center py-8 text-muted-foreground">Sin movimientos todavía hoy.</TableCell></TableRow>
-              ) : movimientos.map(m => (
-                <TableRow key={m.tipo + m.id}>
-                  <TableCell className="text-xs">{new Date(m.hora).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })}</TableCell>
-                  <TableCell>
-                    {m.tipo === 'venta'
-                      ? <Badge className="gap-1"><PackageCheck className="h-3 w-3" />Venta</Badge>
-                      : <Badge variant="secondary" className="gap-1"><ShoppingCart className="h-3 w-3" />Compra</Badge>}
-                  </TableCell>
-                  <TableCell className="font-mono text-xs">{m.folio}</TableCell>
-                  <TableCell className={`text-right font-medium ${m.tipo === 'compra' ? 'text-orange-600' : ''}`}>
-                    {m.tipo === 'compra' ? '-' : ''}${m.monto.toLocaleString('es-MX', { minimumFractionDigits: 2 })}
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base">Movimientos del {fecha}{esHoy ? ' (en vivo)' : ''}</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <Tabs defaultValue="todos">
+            <TabsList>
+              <TabsTrigger value="todos">Todos ({movimientos.length})</TabsTrigger>
+              <TabsTrigger value="ventas">Ventas ({ventasDelDia.length})</TabsTrigger>
+              <TabsTrigger value="compras">Compras ({comprasDelDia.length})</TabsTrigger>
+            </TabsList>
+            {([['todos', movimientos], ['ventas', ventasDelDia], ['compras', comprasDelDia]] as const).map(([key, rows]) => (
+              <TabsContent key={key} value={key} className="mt-4">
+                <Table>
+                  <TableHeader><TableRow>
+                    <TableHead>Hora</TableHead>
+                    {key === 'todos' && <TableHead>Tipo</TableHead>}
+                    <TableHead>Folio</TableHead>
+                    {esGeneral && <TableHead>Sucursal</TableHead>}
+                    <TableHead className="text-right">Monto</TableHead>
+                  </TableRow></TableHeader>
+                  <TableBody>
+                    {loading ? (
+                      <TableRow><TableCell colSpan={5} className="text-center py-8">Cargando...</TableCell></TableRow>
+                    ) : rows.length === 0 ? (
+                      <TableRow><TableCell colSpan={5} className="text-center py-8 text-muted-foreground">Sin movimientos en este día.</TableCell></TableRow>
+                    ) : rows.map(m => (
+                      <TableRow key={m.tipo + m.id}>
+                        <TableCell className="text-xs">{new Date(m.hora).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })}</TableCell>
+                        {key === 'todos' && (
+                          <TableCell>
+                            {m.tipo === 'venta'
+                              ? <Badge className="gap-1"><PackageCheck className="h-3 w-3" />Venta</Badge>
+                              : <Badge variant="secondary" className="gap-1"><ShoppingCart className="h-3 w-3" />Compra</Badge>}
+                          </TableCell>
+                        )}
+                        <TableCell className="font-mono text-xs">{m.folio}</TableCell>
+                        {esGeneral && <TableCell className="text-xs">{nombreSucursal(m.sucursal_id)}</TableCell>}
+                        <TableCell className={`text-right font-medium ${m.tipo === 'compra' ? 'text-orange-600' : ''}`}>
+                          {m.tipo === 'compra' ? '-' : ''}{money(m.monto)}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </TabsContent>
+            ))}
+          </Tabs>
         </CardContent>
       </Card>
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Análisis financiero de cortes ({analisis.dias} días cerrados)</CardTitle>
+          <CardTitle className="text-base">Análisis financiero de cortes ({analisis.dias} días cerrados{esGeneral ? `, ${analisis.registros} cortes` : ''})</CardTitle>
         </CardHeader>
         <CardContent className="space-y-6">
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
@@ -194,7 +284,7 @@ const CorteCajaPage = () => {
             <div>
               <p className="text-xs text-muted-foreground">Descuadres acumulados</p>
               <p className={`text-lg font-bold ${Math.abs(analisis.difs) < 20 ? '' : 'text-destructive'}`}>{money(analisis.difs)}</p>
-              <p className="text-xs text-muted-foreground">{analisis.conDif} día(s) con diferencia &gt; $20</p>
+              <p className="text-xs text-muted-foreground">{analisis.conDif} corte(s) con diferencia &gt; $20</p>
             </div>
           </div>
 
@@ -218,25 +308,35 @@ const CorteCajaPage = () => {
         </CardContent>
       </Card>
 
-
       <Card>
-        <CardHeader><CardTitle className="text-base">Historial de cortes</CardTitle></CardHeader>
+        <CardHeader>
+          <CardTitle className="text-base">Historial de cortes</CardTitle>
+          <p className="text-xs text-muted-foreground">Haz clic en un renglón para ver el desglose de ventas y compras de ese día.</p>
+        </CardHeader>
         <CardContent className="p-0">
           <Table>
-            <TableHeader><TableRow><TableHead>Fecha</TableHead><TableHead>Cierre</TableHead><TableHead className="text-right">Ventas</TableHead><TableHead className="text-right">Compras</TableHead><TableHead className="text-right">Neto</TableHead></TableRow></TableHeader>
+            <TableHeader><TableRow>
+              <TableHead>Fecha</TableHead>
+              {esGeneral && <TableHead>Sucursal</TableHead>}
+              <TableHead>Cierre</TableHead>
+              <TableHead className="text-right">Ventas</TableHead>
+              <TableHead className="text-right">Compras</TableHead>
+              <TableHead className="text-right">Neto</TableHead>
+            </TableRow></TableHeader>
             <TableBody>
               {historial.length === 0 ? (
-                <TableRow><TableCell colSpan={5} className="text-center py-8 text-muted-foreground">Sin cortes anteriores.</TableCell></TableRow>
+                <TableRow><TableCell colSpan={6} className="text-center py-8 text-muted-foreground">Sin cortes anteriores.</TableCell></TableRow>
               ) : historial.map((c: any) => (
-                <TableRow key={c.id}>
+                <TableRow key={c.id} className="cursor-pointer" onClick={() => abrirDetalle(c)}>
                   <TableCell>{c.fecha}</TableCell>
+                  {esGeneral && <TableCell className="text-xs">{nombreSucursal(c.sucursal_id)}</TableCell>}
                   <TableCell>
                     <Badge variant="outline" className="text-xs">{c.cerrado_automatico ? 'Automático (medianoche)' : 'Manual'}</Badge>
                   </TableCell>
-                  <TableCell className="text-right">${Number(c.total_ventas || 0).toLocaleString('es-MX', { minimumFractionDigits: 2 })}</TableCell>
-                  <TableCell className="text-right">${Number(c.total_compras || 0).toLocaleString('es-MX', { minimumFractionDigits: 2 })}</TableCell>
+                  <TableCell className="text-right">{money(c.total_ventas)}</TableCell>
+                  <TableCell className="text-right">{money(c.total_compras)}</TableCell>
                   <TableCell className={`text-right font-medium ${Number(c.total_ventas || 0) - Number(c.total_compras || 0) >= 0 ? 'text-green-600' : 'text-destructive'}`}>
-                    ${(Number(c.total_ventas || 0) - Number(c.total_compras || 0)).toLocaleString('es-MX', { minimumFractionDigits: 2 })}
+                    {money(Number(c.total_ventas || 0) - Number(c.total_compras || 0))}
                   </TableCell>
                 </TableRow>
               ))}
@@ -245,14 +345,71 @@ const CorteCajaPage = () => {
         </CardContent>
       </Card>
 
+      {/* Detalle del corte histórico */}
+      <Dialog open={!!detalle} onOpenChange={(o) => !o && setDetalle(null)}>
+        <DialogContent className="max-w-4xl">
+          <DialogHeader>
+            <DialogTitle>Desglose del corte · {detalle?.corte?.fecha}</DialogTitle>
+            <DialogDescription>
+              {nombreSucursal(detalle?.corte?.sucursal_id)} · Ventas {money(detalle?.corte?.total_ventas)} · Compras {money(detalle?.corte?.total_compras)} · Diferencia {money(detalle?.corte?.diferencia)}
+            </DialogDescription>
+          </DialogHeader>
+          <Tabs defaultValue="ventas">
+            <TabsList>
+              <TabsTrigger value="ventas">Ventas ({detalle?.ventas.length || 0})</TabsTrigger>
+              <TabsTrigger value="compras">Compras ({detalle?.compras.length || 0})</TabsTrigger>
+            </TabsList>
+            <TabsContent value="ventas" className="mt-4 max-h-[50vh] overflow-auto">
+              <Table>
+                <TableHeader><TableRow><TableHead>Hora</TableHead><TableHead>Folio</TableHead><TableHead className="text-right">Subtotal</TableHead><TableHead className="text-right">Impuestos</TableHead><TableHead className="text-right">Total</TableHead></TableRow></TableHeader>
+                <TableBody>
+                  {detalleLoading ? (
+                    <TableRow><TableCell colSpan={5} className="text-center py-6">Cargando...</TableCell></TableRow>
+                  ) : (detalle?.ventas.length || 0) === 0 ? (
+                    <TableRow><TableCell colSpan={5} className="text-center py-6 text-muted-foreground">Sin ventas ese día.</TableCell></TableRow>
+                  ) : detalle!.ventas.map((v: any) => (
+                    <TableRow key={v.id}>
+                      <TableCell className="text-xs">{new Date(v.fecha).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })}</TableCell>
+                      <TableCell className="font-mono text-xs">{v.folio || v.id.slice(0, 8)}</TableCell>
+                      <TableCell className="text-right">{money(v.subtotal)}</TableCell>
+                      <TableCell className="text-right">{money(v.impuestos)}</TableCell>
+                      <TableCell className="text-right font-medium">{money(v.total)}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </TabsContent>
+            <TabsContent value="compras" className="mt-4 max-h-[50vh] overflow-auto">
+              <Table>
+                <TableHeader><TableRow><TableHead>Hora</TableHead><TableHead>Folio</TableHead><TableHead>Estado</TableHead><TableHead className="text-right">Subtotal</TableHead><TableHead className="text-right">Total</TableHead></TableRow></TableHeader>
+                <TableBody>
+                  {detalleLoading ? (
+                    <TableRow><TableCell colSpan={5} className="text-center py-6">Cargando...</TableCell></TableRow>
+                  ) : (detalle?.compras.length || 0) === 0 ? (
+                    <TableRow><TableCell colSpan={5} className="text-center py-6 text-muted-foreground">Sin compras ese día.</TableCell></TableRow>
+                  ) : detalle!.compras.map((c: any) => (
+                    <TableRow key={c.id}>
+                      <TableCell className="text-xs">{new Date(c.created_at).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })}</TableCell>
+                      <TableCell className="font-mono text-xs">{c.numero_compra || c.id.slice(0, 8)}</TableCell>
+                      <TableCell><Badge variant="outline" className="text-xs">{c.estado}</Badge></TableCell>
+                      <TableCell className="text-right">{money(c.subtotal)}</TableCell>
+                      <TableCell className="text-right font-medium text-orange-600">{money(c.total)}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </TabsContent>
+          </Tabs>
+        </DialogContent>
+      </Dialog>
+
       <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>¿Terminar el día y cerrar el corte de caja?</AlertDialogTitle>
             <AlertDialogDescription>
-              Se registrará el corte de <strong>{selectedSucursal?.nombre}</strong> del <strong>{hoy}</strong> con
-              {' '}${totales.total_ventas.toLocaleString('es-MX', { minimumFractionDigits: 2 })} en ventas y
-              {' '}${totales.total_compras.toLocaleString('es-MX', { minimumFractionDigits: 2 })} en compras.
+              Se registrará el corte de <strong>{selectedSucursal?.nombre}</strong> del <strong>{fecha}</strong> con
+              {' '}{money(totales.total_ventas)} en ventas y {money(totales.total_compras)} en compras.
               Los movimientos posteriores del día seguirán registrándose en el sistema, pero ya no se sumarán a este corte.
             </AlertDialogDescription>
           </AlertDialogHeader>
