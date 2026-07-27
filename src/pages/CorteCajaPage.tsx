@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useMemo } from 'react';
+import { useEffect, useState, useCallback, useMemo, Fragment } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useSucursal } from '@/contexts/SucursalContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
-import { Lock, ShoppingCart, PackageCheck, RefreshCw, Clock, CalendarDays } from 'lucide-react';
+import { Lock, ShoppingCart, PackageCheck, RefreshCw, Clock, CalendarDays, ChevronDown, ChevronRight } from 'lucide-react';
 import { toast } from 'sonner';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend } from 'recharts';
 
@@ -37,6 +37,11 @@ const CorteCajaPage = () => {
   // Detalle del corte histórico seleccionado
   const [detalle, setDetalle] = useState<{ corte: any; ventas: any[]; compras: any[] } | null>(null);
   const [detalleLoading, setDetalleLoading] = useState(false);
+
+  // Desglose de artículos por venta
+  const [expandidas, setExpandidas] = useState<Set<string>>(new Set());
+  const [lineas, setLineas] = useState<Record<string, any[]>>({});
+
 
   const sucursalIds = useMemo(
     () => (alcance === 'todas' ? availableSucursales.map(s => s.id) : selectedSucursal ? [selectedSucursal.id] : []),
@@ -104,6 +109,20 @@ const CorteCajaPage = () => {
     load();
   }
 
+  async function toggleLineas(ventaId: string) {
+    setExpandidas(prev => {
+      const n = new Set(prev);
+      n.has(ventaId) ? n.delete(ventaId) : n.add(ventaId);
+      return n;
+    });
+    if (lineas[ventaId]) return;
+    const { data } = await supabase
+      .from('venta_lineas')
+      .select('id, cantidad, precio_unitario, subtotal, productos:producto_id ( sku, nombre, descripcion, unidad )')
+      .eq('venta_id', ventaId);
+    setLineas(prev => ({ ...prev, [ventaId]: data || [] }));
+  }
+
   async function abrirDetalle(corte: any) {
     setDetalle({ corte, ventas: [], compras: [] });
     setDetalleLoading(true);
@@ -114,6 +133,47 @@ const CorteCajaPage = () => {
     setDetalle({ corte, ventas: ventas || [], compras: compras || [] });
     setDetalleLoading(false);
   }
+
+  const renderLineas = (ventaId: string, colSpan: number) => {
+    const rows = lineas[ventaId];
+    return (
+      <TableRow className="bg-muted/40 hover:bg-muted/40">
+        <TableCell colSpan={colSpan} className="p-0">
+          <div className="px-6 py-3">
+            {!rows ? (
+              <p className="text-xs text-muted-foreground">Cargando artículos...</p>
+            ) : rows.length === 0 ? (
+              <p className="text-xs text-muted-foreground">Esta venta no tiene artículos capturados.</p>
+            ) : (
+              <table className="w-full text-xs">
+                <thead className="text-muted-foreground">
+                  <tr className="text-left">
+                    <th className="py-1 pr-4">SKU</th>
+                    <th className="py-1 pr-4">Descripción</th>
+                    <th className="py-1 pr-4 text-right">Cantidad</th>
+                    <th className="py-1 pr-4 text-right">P. unitario</th>
+                    <th className="py-1 text-right">Importe</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.map((l: any) => (
+                    <tr key={l.id} className="border-t border-border/60">
+                      <td className="py-1 pr-4 font-mono">{l.productos?.sku || '—'}</td>
+                      <td className="py-1 pr-4">{l.productos?.nombre || l.productos?.descripcion || '—'}</td>
+                      <td className="py-1 pr-4 text-right">{l.cantidad} {l.productos?.unidad || ''}</td>
+                      <td className="py-1 pr-4 text-right">{money(l.precio_unitario)}</td>
+                      <td className="py-1 text-right font-medium">{money(l.subtotal)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+        </TableCell>
+      </TableRow>
+    );
+  };
+
 
   const cerrado = corteHoy?.estado === 'cerrado';
   const neto = totales.total_ventas - totales.total_compras;
@@ -245,9 +305,22 @@ const CorteCajaPage = () => {
                       <TableRow><TableCell colSpan={5} className="text-center py-8">Cargando...</TableCell></TableRow>
                     ) : rows.length === 0 ? (
                       <TableRow><TableCell colSpan={5} className="text-center py-8 text-muted-foreground">Sin movimientos en este día.</TableCell></TableRow>
-                    ) : rows.map(m => (
-                      <TableRow key={m.tipo + m.id}>
-                        <TableCell className="text-xs">{new Date(m.hora).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })}</TableCell>
+                    ) : rows.map(m => {
+                      const cols = 3 + (key === 'todos' ? 1 : 0) + (esGeneral ? 1 : 0);
+                      const abierta = expandidas.has(m.id);
+                      return (
+                      <Fragment key={m.tipo + m.id}>
+                      <TableRow
+                       
+                        className={m.tipo === 'venta' ? 'cursor-pointer' : ''}
+                        onClick={m.tipo === 'venta' ? () => toggleLineas(m.id) : undefined}
+                      >
+                        <TableCell className="text-xs">
+                          <span className="inline-flex items-center gap-1">
+                            {m.tipo === 'venta' && (abierta ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />)}
+                            {new Date(m.hora).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })}
+                          </span>
+                        </TableCell>
                         {key === 'todos' && (
                           <TableCell>
                             {m.tipo === 'venta'
@@ -261,7 +334,11 @@ const CorteCajaPage = () => {
                           {m.tipo === 'compra' ? '-' : ''}{money(m.monto)}
                         </TableCell>
                       </TableRow>
-                    ))}
+                      {m.tipo === 'venta' && abierta && renderLineas(m.id, cols)}
+                      </Fragment>
+                      );
+                    })}
+
                   </TableBody>
                 </Table>
               </TabsContent>
@@ -368,14 +445,23 @@ const CorteCajaPage = () => {
                   ) : (detalle?.ventas.length || 0) === 0 ? (
                     <TableRow><TableCell colSpan={5} className="text-center py-6 text-muted-foreground">Sin ventas ese día.</TableCell></TableRow>
                   ) : detalle!.ventas.map((v: any) => (
-                    <TableRow key={v.id}>
-                      <TableCell className="text-xs">{new Date(v.fecha).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })}</TableCell>
+                    <Fragment key={v.id}>
+                    <TableRow className="cursor-pointer" onClick={() => toggleLineas(v.id)}>
+                      <TableCell className="text-xs">
+                        <span className="inline-flex items-center gap-1">
+                          {expandidas.has(v.id) ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
+                          {new Date(v.fecha).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })}
+                        </span>
+                      </TableCell>
                       <TableCell className="font-mono text-xs">{v.numero_venta || v.id.slice(0, 8)}</TableCell>
                       <TableCell className="text-right">{money(v.subtotal)}</TableCell>
                       <TableCell className="text-right">{money(v.impuestos)}</TableCell>
                       <TableCell className="text-right font-medium">{money(v.total)}</TableCell>
                     </TableRow>
+                    {expandidas.has(v.id) && renderLineas(v.id, 5)}
+                    </Fragment>
                   ))}
+
                 </TableBody>
               </Table>
             </TabsContent>
