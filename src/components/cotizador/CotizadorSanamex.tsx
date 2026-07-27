@@ -13,6 +13,9 @@ import { Loader2, RefreshCw, ShoppingCart, Search, EyeOff, TrendingUp, TrendingD
 import { toast } from 'sonner';
 
 const HIDDEN_KEY = 'cotizador_hidden_v1';
+// Encabezados fijos: fila 1 (top 0) y fila 2 (top 48) del header del cotizador.
+const TH1 = 'sticky top-0 z-30 bg-background';
+const TH2 = 'sticky z-30 bg-background border-b top-12';
 
 type Sucursal = { id: string; codigo: string; nombre: string; es_cedis: boolean };
 type Postor = { proveedor_id: string; proveedor_nombre: string; proveedor_codigo?: string; precio: number; precio_bruto?: number; existencia: number; dias_entrega: number; entrega_por_sucursal?: boolean; con_oferta?: boolean } | null;
