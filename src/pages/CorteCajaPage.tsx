@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useSucursal } from '@/contexts/SucursalContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -8,8 +8,10 @@ import { Button } from '@/components/ui/button';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Lock, ShoppingCart, PackageCheck, RefreshCw, Clock } from 'lucide-react';
 import { toast } from 'sonner';
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend } from 'recharts';
 
 type Movimiento = { tipo: 'venta' | 'compra'; id: string; folio: string; monto: number; hora: string };
+
 
 const CorteCajaPage = () => {
   const { selectedSucursal } = useSucursal();
@@ -70,6 +72,39 @@ const CorteCajaPage = () => {
 
   const cerrado = corteHoy?.estado === 'cerrado';
   const neto = totales.total_ventas - totales.total_compras;
+
+  // Análisis financiero de los últimos cortes cerrados (los que ya están en historial).
+  const analisis = useMemo(() => {
+    const cerrados = historial.filter((c: any) => c.estado === 'cerrado');
+    const ventas = cerrados.reduce((s, c: any) => s + Number(c.total_ventas || 0), 0);
+    const compras = cerrados.reduce((s, c: any) => s + Number(c.total_compras || 0), 0);
+    const tickets = cerrados.reduce((s, c: any) => s + Number(c.num_ventas || 0), 0);
+    const difs = cerrados.reduce((s, c: any) => s + Number(c.diferencia || 0), 0);
+    const conDif = cerrados.filter((c: any) => Math.abs(Number(c.diferencia || 0)) >= 20).length;
+    const serie = [...cerrados]
+      .sort((a: any, b: any) => a.fecha.localeCompare(b.fecha))
+      .map((c: any) => ({
+        fecha: String(c.fecha).slice(5),
+        Ventas: Number(c.total_ventas || 0),
+        Compras: Number(c.total_compras || 0),
+        Diferencia: Number(c.diferencia || 0),
+      }));
+    return {
+      dias: cerrados.length,
+      ventas,
+      compras,
+      neto: ventas - compras,
+      promedioDiario: cerrados.length ? ventas / cerrados.length : 0,
+      ticketPromedio: tickets ? ventas / tickets : 0,
+      difs,
+      conDif,
+      serie,
+    };
+  }, [historial]);
+
+  const money = (n: number) => `$${n.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+
 
   return (
     <div className="space-y-6">
@@ -144,6 +179,45 @@ const CorteCajaPage = () => {
           </Table>
         </CardContent>
       </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Análisis financiero de cortes ({analisis.dias} días cerrados)</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+            <div><p className="text-xs text-muted-foreground">Ventas acumuladas</p><p className="text-lg font-bold">{money(analisis.ventas)}</p></div>
+            <div><p className="text-xs text-muted-foreground">Compras acumuladas</p><p className="text-lg font-bold">{money(analisis.compras)}</p></div>
+            <div><p className="text-xs text-muted-foreground">Neto acumulado</p><p className={`text-lg font-bold ${analisis.neto >= 0 ? 'text-green-600' : 'text-destructive'}`}>{money(analisis.neto)}</p></div>
+            <div><p className="text-xs text-muted-foreground">Promedio diario</p><p className="text-lg font-bold">{money(analisis.promedioDiario)}</p></div>
+            <div><p className="text-xs text-muted-foreground">Ticket promedio</p><p className="text-lg font-bold">{money(analisis.ticketPromedio)}</p></div>
+            <div>
+              <p className="text-xs text-muted-foreground">Descuadres acumulados</p>
+              <p className={`text-lg font-bold ${Math.abs(analisis.difs) < 20 ? '' : 'text-destructive'}`}>{money(analisis.difs)}</p>
+              <p className="text-xs text-muted-foreground">{analisis.conDif} día(s) con diferencia &gt; $20</p>
+            </div>
+          </div>
+
+          {analisis.serie.length === 0 ? (
+            <p className="text-sm text-muted-foreground">Aún no hay cortes cerrados para analizar.</p>
+          ) : (
+            <div className="h-72">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={analisis.serie}>
+                  <CartesianGrid strokeDasharray="3 3" className="opacity-30" />
+                  <XAxis dataKey="fecha" fontSize={11} />
+                  <YAxis fontSize={11} tickFormatter={(v) => `$${(Number(v) / 1000).toFixed(0)}k`} />
+                  <Tooltip formatter={(v: any) => money(Number(v))} />
+                  <Legend />
+                  <Bar dataKey="Ventas" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="Compras" fill="hsl(var(--muted-foreground))" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
 
       <Card>
         <CardHeader><CardTitle className="text-base">Historial de cortes</CardTitle></CardHeader>
