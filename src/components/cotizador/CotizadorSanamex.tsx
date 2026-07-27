@@ -393,7 +393,7 @@ export default function CotizadorSanamex() {
                 const tend = f.tendencia_pct;
                 return (
                   <TableRow key={f.producto_id} className={seleccion.has(f.producto_id) ? 'bg-primary/5' : ''}>
-                    <TableCell className={`sticky left-0 z-20 px-1 ${seleccion.has(f.producto_id) ? 'bg-[hsl(var(--background))]' : 'bg-background'}`} style={{ width: 36, minWidth: 36, maxWidth: 36 }}><Checkbox checked={seleccion.has(f.producto_id)} onCheckedChange={() => toggleSeleccion(f.producto_id)} /></TableCell>
+                    <TableCell className={"sticky left-0 z-20 px-1 bg-background"} style={{ width: 36, minWidth: 36, maxWidth: 36 }}><Checkbox checked={seleccion.has(f.producto_id)} onCheckedChange={() => toggleSeleccion(f.producto_id)} /></TableCell>
                     <TableCell className="sticky z-20 bg-background font-mono text-xs overflow-hidden px-2" style={{ left: 36, width: 110, minWidth: 110, maxWidth: 110 }}>{f.sku}</TableCell>
                     <TableCell className="sticky z-20 bg-background text-xs border-r shadow-[2px_0_4px_-2px_rgba(0,0,0,0.25)] overflow-hidden px-2" style={{ left: 146, width: 220, minWidth: 220, maxWidth: 220 }}>
                       <button className="text-left hover:underline line-clamp-2 leading-tight" onClick={() => verDetalle(f)} title={f.nombre}>{f.nombre}</button>
