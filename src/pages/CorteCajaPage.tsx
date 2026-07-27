@@ -51,13 +51,13 @@ const CorteCajaPage = () => {
     setLoading(true);
 
     const [{ data: ventasDia }, { data: comprasDia }, { data: hist }] = await Promise.all([
-      supabase.from('ventas').select('id, folio, total, fecha, sucursal_id').in('sucursal_id', sucursalIds).eq('estado', 'completada').gte('fecha', `${fecha}T00:00:00`).lte('fecha', `${fecha}T23:59:59`).order('fecha', { ascending: false }).limit(500),
+      supabase.from('ventas').select('id, numero_venta, total, fecha, sucursal_id').in('sucursal_id', sucursalIds).eq('estado', 'completada').gte('fecha', `${fecha}T00:00:00`).lte('fecha', `${fecha}T23:59:59`).order('fecha', { ascending: false }).limit(500),
       supabase.from('compras').select('id, numero_compra, total, created_at, sucursal_id').in('sucursal_id', sucursalIds).neq('estado', 'cancelada').gte('created_at', `${fecha}T00:00:00`).lte('created_at', `${fecha}T23:59:59`).order('created_at', { ascending: false }).limit(500),
       supabase.from('cortes_caja').select('*').in('sucursal_id', sucursalIds).order('fecha', { ascending: false }).limit(esGeneral ? 120 : 30),
     ]);
 
     const movs: Movimiento[] = [
-      ...(ventasDia || []).map((v: any) => ({ tipo: 'venta' as const, id: v.id, folio: v.folio || v.id.slice(0, 8), monto: Number(v.total), hora: v.fecha, sucursal_id: v.sucursal_id })),
+      ...(ventasDia || []).map((v: any) => ({ tipo: 'venta' as const, id: v.id, folio: v.numero_venta || v.id.slice(0, 8), monto: Number(v.total), hora: v.fecha, sucursal_id: v.sucursal_id })),
       ...(comprasDia || []).map((c: any) => ({ tipo: 'compra' as const, id: c.id, folio: c.numero_compra || c.id.slice(0, 8), monto: Number(c.total), hora: c.created_at, sucursal_id: c.sucursal_id })),
     ].sort((a, b) => new Date(b.hora).getTime() - new Date(a.hora).getTime());
     setMovimientos(movs);
@@ -108,7 +108,7 @@ const CorteCajaPage = () => {
     setDetalle({ corte, ventas: [], compras: [] });
     setDetalleLoading(true);
     const [{ data: ventas }, { data: compras }] = await Promise.all([
-      supabase.from('ventas').select('id, folio, total, subtotal, impuestos, fecha, estado').eq('sucursal_id', corte.sucursal_id).eq('estado', 'completada').gte('fecha', `${corte.fecha}T00:00:00`).lte('fecha', `${corte.fecha}T23:59:59`).order('fecha', { ascending: false }).limit(500),
+      supabase.from('ventas').select('id, numero_venta, total, subtotal, impuestos, fecha, estado').eq('sucursal_id', corte.sucursal_id).eq('estado', 'completada').gte('fecha', `${corte.fecha}T00:00:00`).lte('fecha', `${corte.fecha}T23:59:59`).order('fecha', { ascending: false }).limit(500),
       supabase.from('compras').select('id, numero_compra, total, subtotal, estado, created_at, proveedor_id').eq('sucursal_id', corte.sucursal_id).neq('estado', 'cancelada').gte('created_at', `${corte.fecha}T00:00:00`).lte('created_at', `${corte.fecha}T23:59:59`).order('created_at', { ascending: false }).limit(500),
     ]);
     setDetalle({ corte, ventas: ventas || [], compras: compras || [] });
@@ -370,7 +370,7 @@ const CorteCajaPage = () => {
                   ) : detalle!.ventas.map((v: any) => (
                     <TableRow key={v.id}>
                       <TableCell className="text-xs">{new Date(v.fecha).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })}</TableCell>
-                      <TableCell className="font-mono text-xs">{v.folio || v.id.slice(0, 8)}</TableCell>
+                      <TableCell className="font-mono text-xs">{v.numero_venta || v.id.slice(0, 8)}</TableCell>
                       <TableCell className="text-right">{money(v.subtotal)}</TableCell>
                       <TableCell className="text-right">{money(v.impuestos)}</TableCell>
                       <TableCell className="text-right font-medium">{money(v.total)}</TableCell>
