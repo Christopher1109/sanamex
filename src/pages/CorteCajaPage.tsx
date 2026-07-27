@@ -104,6 +104,20 @@ const CorteCajaPage = () => {
     load();
   }
 
+  async function toggleLineas(ventaId: string) {
+    setExpandidas(prev => {
+      const n = new Set(prev);
+      n.has(ventaId) ? n.delete(ventaId) : n.add(ventaId);
+      return n;
+    });
+    if (lineas[ventaId]) return;
+    const { data } = await supabase
+      .from('venta_lineas')
+      .select('id, cantidad, precio_unitario, subtotal, productos:producto_id ( sku, nombre, descripcion, unidad )')
+      .eq('venta_id', ventaId);
+    setLineas(prev => ({ ...prev, [ventaId]: data || [] }));
+  }
+
   async function abrirDetalle(corte: any) {
     setDetalle({ corte, ventas: [], compras: [] });
     setDetalleLoading(true);
@@ -114,6 +128,47 @@ const CorteCajaPage = () => {
     setDetalle({ corte, ventas: ventas || [], compras: compras || [] });
     setDetalleLoading(false);
   }
+
+  const renderLineas = (ventaId: string, colSpan: number) => {
+    const rows = lineas[ventaId];
+    return (
+      <TableRow className="bg-muted/40 hover:bg-muted/40">
+        <TableCell colSpan={colSpan} className="p-0">
+          <div className="px-6 py-3">
+            {!rows ? (
+              <p className="text-xs text-muted-foreground">Cargando artículos...</p>
+            ) : rows.length === 0 ? (
+              <p className="text-xs text-muted-foreground">Esta venta no tiene artículos capturados.</p>
+            ) : (
+              <table className="w-full text-xs">
+                <thead className="text-muted-foreground">
+                  <tr className="text-left">
+                    <th className="py-1 pr-4">SKU</th>
+                    <th className="py-1 pr-4">Descripción</th>
+                    <th className="py-1 pr-4 text-right">Cantidad</th>
+                    <th className="py-1 pr-4 text-right">P. unitario</th>
+                    <th className="py-1 text-right">Importe</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.map((l: any) => (
+                    <tr key={l.id} className="border-t border-border/60">
+                      <td className="py-1 pr-4 font-mono">{l.productos?.sku || '—'}</td>
+                      <td className="py-1 pr-4">{l.productos?.nombre || l.productos?.descripcion || '—'}</td>
+                      <td className="py-1 pr-4 text-right">{l.cantidad} {l.productos?.unidad || ''}</td>
+                      <td className="py-1 pr-4 text-right">{money(l.precio_unitario)}</td>
+                      <td className="py-1 text-right font-medium">{money(l.subtotal)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+        </TableCell>
+      </TableRow>
+    );
+  };
+
 
   const cerrado = corteHoy?.estado === 'cerrado';
   const neto = totales.total_ventas - totales.total_compras;
