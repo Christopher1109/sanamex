@@ -106,7 +106,7 @@ export default function CotizadorSanamex() {
     } catch (e: any) { toast.error('Error al cargar cotizador: ' + e.message); }
     finally { setLoading(false); }
   }
-  useEffect(() => { cargar(); /* eslint-disable-next-line */ }, []);
+  useEffect(() => { cargar(); /* eslint-disable-next-line */ }, [opciones]);
 
   const sucursales = snap?.sucursales?.filter(s => !s.es_cedis) || [];
 
