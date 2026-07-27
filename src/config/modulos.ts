@@ -47,6 +47,7 @@ export const MODULOS: ModuloDef[] = [
   { key: 'ventas', label: 'Ventas', categoria: 'Operaciones', path: '/pedidos', niveles: OP },
   { key: 'pos', label: 'Punto de Venta', categoria: 'Operaciones', path: '/pos', niveles: OP },
   { key: 'traspasos', label: 'Traspasos', categoria: 'Operaciones', path: '/traspasos', niveles: OP },
+  { key: 'corte_caja', label: 'Corte de Caja', categoria: 'Operaciones', path: '/corte-caja', niveles: OP },
   // Inventario
   { key: 'inventario', label: 'Inventario', categoria: 'Inventario', path: '/inventario', niveles: OP },
   { key: 'caducidades', label: 'Caducidades', categoria: 'Inventario', path: '/caducidades', niveles: OP },
@@ -85,6 +86,7 @@ export const DEFAULTS_POR_ROL: Record<string, Partial<Record<string, NivelAcceso
     articulos: 'administrar', proveedores: 'administrar', listas_precios: 'administrar',
     clientes: 'administrar', compras: 'administrar', ventas: 'administrar', pos: 'administrar',
     traspasos: 'administrar', devoluciones_proveedor: 'administrar', inventario: 'administrar',
+    corte_caja: 'administrar',
     caducidades: 'administrar', rotacion: 'consultar', rentabilidad_lotes: 'consultar',
     reportes: 'consultar', cuentas_por_pagar: 'capturar', bancos: 'consultar',
     conciliacion: 'capturar', contabilidad: 'sin_acceso', reportes_admin: 'consultar',
@@ -98,18 +100,19 @@ export const DEFAULTS_POR_ROL: Record<string, Partial<Record<string, NivelAcceso
     articulos: 'capturar', proveedores: 'consultar', listas_precios: 'consultar',
     clientes: 'capturar', compras: 'capturar', ventas: 'capturar', pos: 'capturar',
     traspasos: 'capturar', devoluciones_proveedor: 'capturar', inventario: 'capturar',
+    corte_caja: 'capturar',
     caducidades: 'consultar', rotacion: 'consultar', reportes: 'consultar',
     cuentas_por_pagar: 'consultar', ventas_offline: 'consultar', incidencias_nomina: 'capturar',
   },
 
   ventas: {
     articulos: 'consultar', clientes: 'capturar', ventas: 'capturar', pos: 'capturar',
-    inventario: 'consultar', caducidades: 'consultar', ventas_offline: 'capturar',
+    inventario: 'consultar', caducidades: 'consultar', ventas_offline: 'capturar', corte_caja: 'capturar',
   },
 
   almacen_ventas: {
     articulos: 'consultar', clientes: 'capturar', ventas: 'capturar', pos: 'capturar',
-    inventario: 'consultar', caducidades: 'consultar', ventas_offline: 'capturar',
+    inventario: 'consultar', caducidades: 'consultar', ventas_offline: 'capturar', corte_caja: 'capturar',
   },
 
   almacen: {
@@ -140,7 +143,7 @@ export const DEFAULTS_POR_ROL: Record<string, Partial<Record<string, NivelAcceso
     bancos: 'autorizar', conciliacion: 'autorizar',
     reportes_admin: 'consultar', actividad: 'consultar',
     articulos: 'consultar', proveedores: 'consultar', clientes: 'consultar',
-    inventario: 'consultar',
+    inventario: 'consultar', corte_caja: 'consultar',
   },
 
   contraloria: {
@@ -148,7 +151,7 @@ export const DEFAULTS_POR_ROL: Record<string, Partial<Record<string, NivelAcceso
     contabilidad: 'capturar', cfdi: 'capturar', impuestos: 'capturar',
     nomina: 'consultar', reportes_admin: 'consultar', actividad: 'consultar',
     articulos: 'consultar', proveedores: 'consultar', clientes: 'consultar',
-    compras: 'consultar', ventas: 'consultar', inventario: 'consultar',
+    compras: 'consultar', ventas: 'consultar', inventario: 'consultar', corte_caja: 'consultar',
   },
 
   tesoreria: {

@@ -16,6 +16,7 @@ import Kardex from './pages/Kardex';
 import ProveedoresPage from './pages/ProveedoresPage';
 import ClientesPage from './pages/ClientesPage';
 import TraspasosPage from './pages/TraspasosPage';
+import CorteCajaPage from './pages/CorteCajaPage';
 import AjustesMermasPage from './pages/AjustesMermasPage';
 import MermasPage from './pages/MermasPage';
 import PedidosPage from './pages/PedidosPage';
@@ -154,6 +155,7 @@ const AppContent = () => {
               <Route path="/inventario" element={<Fase2Guard><InventarioHubPage /></Fase2Guard>} />
               <Route path="/kardex" element={<Fase2Guard><Kardex /></Fase2Guard>} />
               <Route path="/traspasos" element={<Fase2Guard><TraspasosHubPage /></Fase2Guard>} />
+              <Route path="/corte-caja" element={<Fase2Guard><CorteCajaPage /></Fase2Guard>} />
               <Route path="/ajustes" element={<Fase2Guard><AjustesMermasPage /></Fase2Guard>} />
               <Route path="/mermas" element={<Fase2Guard><MermasPage /></Fase2Guard>} />
               <Route path="/caducidades" element={<Fase2Guard><CaducidadesPage /></Fase2Guard>} />

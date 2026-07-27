@@ -12,7 +12,7 @@ import {
   Store, ShoppingCart,
   PackageCheck, AlertCircle, History, FileSpreadsheet,
   Monitor, CloudOff, Shield, Receipt, Wallet, TrendingUp, DollarSign,
-  Undo2, Upload, UserCog, ClipboardEdit
+  Undo2, Upload, UserCog, ClipboardEdit, Lock
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -29,7 +29,7 @@ const ICONS: Record<string, any> = {
   articulos: Package, proveedores: Store, listas_precios: DollarSign, clientes: Users,
   compras: ShoppingCart, ventas: PackageCheck, pos: Monitor, traspasos: ArrowLeftRight,
   devoluciones_proveedor: Undo2, inventario: Warehouse, caducidades: AlertCircle,
-  ajustes_inventario: ClipboardEdit,
+  ajustes_inventario: ClipboardEdit, corte_caja: Lock,
   rotacion: TrendingUp, rentabilidad_lotes: DollarSign, reportes: FileSpreadsheet,
   cuentas_por_pagar: Wallet, bancos: DollarSign, conciliacion: ArrowLeftRight,
   contabilidad: FileSpreadsheet, reportes_admin: FileSpreadsheet, cfdi: Receipt,
