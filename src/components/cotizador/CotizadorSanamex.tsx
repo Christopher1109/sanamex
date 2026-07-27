@@ -353,7 +353,21 @@ export default function CotizadorSanamex() {
             </TableHeader>
             <TableBody>
               {loading && <TableRow><TableCell colSpan={100} className="text-center py-8"><Loader2 className="h-5 w-5 animate-spin inline" /></TableCell></TableRow>}
-              {!loading && filasFiltradas.length === 0 && <TableRow><TableCell colSpan={100} className="text-center py-8 text-muted-foreground">Sin resultados</TableCell></TableRow>}
+              {!loading && filasFiltradas.length === 0 && (
+                <TableRow><TableCell colSpan={100} className="text-center py-8 text-muted-foreground">
+                  <p className="font-medium">Sin resultados</p>
+                  <p className="text-xs mt-1">
+                    {soloFaltantes
+                      ? 'Ningún producto tiene faltante con los filtros actuales (sin ventas recientes, la necesidad calculada es 0).'
+                      : 'Ningún producto cumple los filtros actuales.'}
+                  </p>
+                  {soloFaltantes && (
+                    <Button variant="link" size="sm" className="mt-1" onClick={() => { setSoloFaltantes(false); setTimeout(cargar, 0); }}>
+                      Ver todos los productos
+                    </Button>
+                  )}
+                </TableCell></TableRow>
+              )}
               {filasFiltradas.map(f => {
                 const varPct = f.variacion_precio_pct;
                 const tend = f.tendencia_pct;
