@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useMemo } from 'react';
+import { useEffect, useState, useCallback, useMemo, Fragment } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useSucursal } from '@/contexts/SucursalContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
-import { Lock, ShoppingCart, PackageCheck, RefreshCw, Clock, CalendarDays } from 'lucide-react';
+import { Lock, ShoppingCart, PackageCheck, RefreshCw, Clock, CalendarDays, ChevronDown, ChevronRight } from 'lucide-react';
 import { toast } from 'sonner';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend } from 'recharts';
 
@@ -309,9 +309,9 @@ const CorteCajaPage = () => {
                       const cols = 3 + (key === 'todos' ? 1 : 0) + (esGeneral ? 1 : 0);
                       const abierta = expandidas.has(m.id);
                       return (
-                      <>
+                      <Fragment key={m.tipo + m.id}>
                       <TableRow
-                        key={m.tipo + m.id}
+                       
                         className={m.tipo === 'venta' ? 'cursor-pointer' : ''}
                         onClick={m.tipo === 'venta' ? () => toggleLineas(m.id) : undefined}
                       >
@@ -335,7 +335,7 @@ const CorteCajaPage = () => {
                         </TableCell>
                       </TableRow>
                       {m.tipo === 'venta' && abierta && renderLineas(m.id, cols)}
-                      </>
+                      </Fragment>
                       );
                     })}
 
