@@ -50,11 +50,18 @@ export default function CotizadorSanamex() {
   const [loading, setLoading] = useState(false);
   const [snap, setSnap] = useState<Snapshot | null>(null);
   const [search, setSearch] = useState('');
-  const [incluirSinLista, setIncluirSinLista] = useState(false);
-  const [excluirE, setExcluirE] = useState(true);
-  const [soloFaltantes, setSoloFaltantes] = useState(true);
-  const [filtroEstatus, setFiltroEstatus] = useState<Set<string>>(new Set());
-  const [soloConOferta, setSoloConOferta] = useState(false);
+  // Opciones de cálculo (afectan el RPC) — se manejan como multi-select.
+  const [opciones, setOpciones] = useState<string[]>(['faltantes', 'excluirE']);
+  const incluirSinLista = opciones.includes('sinLista');
+  const excluirE = opciones.includes('excluirE');
+  const soloFaltantes = opciones.includes('faltantes');
+  const soloConOferta = opciones.includes('oferta');
+  // Filtros locales multi-selección (vacío = todos)
+  const [filtroEstatus, setFiltroEstatus] = useState<string[]>([]);
+  const [filtroClasif, setFiltroClasif] = useState<string[]>([]);
+  const [filtroProveedor, setFiltroProveedor] = useState<string[]>([]);
+  const [filtroSucursal, setFiltroSucursal] = useState<string[]>([]);
+
   const [ocultas, setOcultas] = useState<Set<string>>(() => {
     try { return new Set(JSON.parse(localStorage.getItem(HIDDEN_KEY) || '[]')); } catch { return new Set(); }
   });
