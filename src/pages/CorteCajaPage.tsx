@@ -73,6 +73,39 @@ const CorteCajaPage = () => {
   const cerrado = corteHoy?.estado === 'cerrado';
   const neto = totales.total_ventas - totales.total_compras;
 
+  // Análisis financiero de los últimos cortes cerrados (los que ya están en historial).
+  const analisis = useMemo(() => {
+    const cerrados = historial.filter((c: any) => c.estado === 'cerrado');
+    const ventas = cerrados.reduce((s, c: any) => s + Number(c.total_ventas || 0), 0);
+    const compras = cerrados.reduce((s, c: any) => s + Number(c.total_compras || 0), 0);
+    const tickets = cerrados.reduce((s, c: any) => s + Number(c.num_ventas || 0), 0);
+    const difs = cerrados.reduce((s, c: any) => s + Number(c.diferencia || 0), 0);
+    const conDif = cerrados.filter((c: any) => Math.abs(Number(c.diferencia || 0)) >= 20).length;
+    const serie = [...cerrados]
+      .sort((a: any, b: any) => a.fecha.localeCompare(b.fecha))
+      .map((c: any) => ({
+        fecha: String(c.fecha).slice(5),
+        Ventas: Number(c.total_ventas || 0),
+        Compras: Number(c.total_compras || 0),
+        Diferencia: Number(c.diferencia || 0),
+      }));
+    return {
+      dias: cerrados.length,
+      ventas,
+      compras,
+      neto: ventas - compras,
+      promedioDiario: cerrados.length ? ventas / cerrados.length : 0,
+      ticketPromedio: tickets ? ventas / tickets : 0,
+      difs,
+      conDif,
+      serie,
+    };
+  }, [historial]);
+
+  const money = (n: number) => `$${n.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-3">
