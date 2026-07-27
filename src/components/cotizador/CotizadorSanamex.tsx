@@ -454,7 +454,7 @@ export default function CotizadorSanamex() {
                       : 'Ningún producto cumple los filtros actuales.'}
                   </p>
                   {soloFaltantes && (
-                    <Button variant="link" size="sm" className="mt-1" onClick={() => { setSoloFaltantes(false); setTimeout(cargar, 0); }}>
+                    <Button variant="link" size="sm" className="mt-1" onClick={() => setOpciones(prev => prev.filter(o => o !== 'faltantes'))}>
                       Ver todos los productos
                     </Button>
                   )}
