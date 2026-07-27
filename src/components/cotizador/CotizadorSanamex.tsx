@@ -294,51 +294,80 @@ export default function CotizadorSanamex() {
 
   return (
     <div className="space-y-3">
-      <Card className="p-3 flex flex-wrap items-end gap-2">
-        <div className="flex-1 min-w-[220px]">
-          <label className="text-xs text-muted-foreground">Buscar (clave / SKU / nombre)</label>
-          <div className="flex gap-1">
-            <Input value={search} onChange={e => setSearch(e.target.value)} onKeyDown={e => e.key === 'Enter' && cargar()} placeholder="Buscar…" />
-            <Button variant="outline" size="sm" onClick={cargar}><Search className="h-4 w-4" /></Button>
+      <Card className="p-4 space-y-3">
+        <div className="flex flex-wrap items-end gap-3">
+          <div className="flex flex-col gap-1 min-w-[240px] flex-1">
+            <span className="text-xs font-medium text-muted-foreground">Buscar medicamento (clave / SKU / nombre)</span>
+            <div className="flex gap-1">
+              <Input className="h-9" value={search} onChange={e => setSearch(e.target.value)} onKeyDown={e => e.key === 'Enter' && cargar()} placeholder="Buscar…" />
+              <Button variant="outline" size="sm" className="h-9" onClick={cargar}><Search className="h-4 w-4" /></Button>
+            </div>
           </div>
-        </div>
-        <Tooltip><TooltipTrigger asChild>
-          <label className="flex items-center gap-1 text-xs cursor-help"><Checkbox checked={soloFaltantes} onCheckedChange={v => setSoloFaltantes(!!v)} />Solo faltantes</label>
-        </TooltipTrigger><TooltipContent>Oculta productos que ya tienen suficiente inventario/tránsito para cubrir la necesidad — solo muestra lo que sí hay que pedir.</TooltipContent></Tooltip>
-        <Tooltip><TooltipTrigger asChild>
-          <label className="flex items-center gap-1 text-xs cursor-help"><Checkbox checked={excluirE} onCheckedChange={v => setExcluirE(!!v)} />Excluir estatus "E"</label>
-        </TooltipTrigger><TooltipContent>"E" = artículo de única ocasión / especial. No se resurte normalmente, por eso se excluye del cotizador por default.</TooltipContent></Tooltip>
-        <Tooltip><TooltipTrigger asChild>
-          <label className="flex items-center gap-1 text-xs cursor-help"><Checkbox checked={incluirSinLista} onCheckedChange={v => setIncluirSinLista(!!v)} />Incluir sin lista</label>
-        </TooltipTrigger><TooltipContent>Cuando está apagado, oculta productos que no tienen precio de ningún proveedor regular cargado (no se les puede calcular "mejor precio").</TooltipContent></Tooltip>
-        <Tooltip><TooltipTrigger asChild>
-          <label className="flex items-center gap-1 text-xs cursor-help"><Checkbox checked={soloConOferta} onCheckedChange={v => setSoloConOferta(!!v)} />Solo con oferta</label>
-        </TooltipTrigger><TooltipContent>Muestra solo productos donde el mejor precio disponible supera el de una oferta vigente — vale la pena revisar antes de comprar.</TooltipContent></Tooltip>
 
-        <div className="flex items-center gap-1">
-          <span className="text-xs text-muted-foreground">Estatus:</span>
-          {['A','I','C','S','N','K','G'].map(e => (
-            <label key={e} className="flex items-center gap-0.5 text-xs cursor-pointer">
-              <Checkbox
-                checked={filtroEstatus.size === 0 || filtroEstatus.has(e)}
-                onCheckedChange={v => setFiltroEstatus(prev => {
-                  // Si no hay filtro activo, "destildar" uno arranca la selección desde todos menos ese.
-                  const base = prev.size === 0 ? new Set(estatusPresentes.length ? estatusPresentes : ['A','I','C','S','N','K','G']) : new Set(prev);
-                  if (v) base.add(e); else base.delete(e);
-                  // Si quedaron todos marcados, volvemos a "sin filtro" (más simple internamente).
-                  return base.size >= (estatusPresentes.length || 7) ? new Set() : base;
-                })}
-              />
-              <span className={`px-1 rounded text-[10px] ${ESTATUS_COLORS[e] || 'bg-gray-100'}`}>{e}</span>
-            </label>
-          ))}
+          <MultiSelectFilter
+            label="Sucursal (con faltante)"
+            placeholder="Todas"
+            options={sucursales.map(s => ({ value: s.codigo, label: s.nombre, hint: s.codigo }))}
+            selected={filtroSucursal}
+            onChange={setFiltroSucursal}
+          />
+
+          <MultiSelectFilter
+            label="Estatus del producto"
+            placeholder="Todos"
+            options={(estatusPresentes.length ? estatusPresentes : ['A','I','C','S','N','K','G','E'])
+              .map(e => ({ value: e, label: e }))}
+            selected={filtroEstatus}
+            onChange={setFiltroEstatus}
+          />
+
+          <MultiSelectFilter
+            label="Clasificación"
+            placeholder="Todas"
+            options={clasifPresentes.map(c => ({ value: c, label: c }))}
+            selected={filtroClasif}
+            onChange={setFiltroClasif}
+          />
+
+          <MultiSelectFilter
+            label="Proveedor"
+            placeholder="Todos"
+            className="min-w-[220px]"
+            options={proveedoresPresentes}
+            selected={filtroProveedor}
+            onChange={setFiltroProveedor}
+          />
+
+          <MultiSelectFilter
+            label="Opciones de cálculo"
+            placeholder="Ninguna"
+            className="min-w-[200px]"
+            options={[
+              { value: 'faltantes', label: 'Solo faltantes' },
+              { value: 'excluirE', label: 'Excluir estatus "E"' },
+              { value: 'sinLista', label: 'Incluir sin lista' },
+              { value: 'oferta', label: 'Solo con oferta' },
+            ]}
+            selected={opciones}
+            onChange={setOpciones}
+          />
         </div>
-        <Button variant="outline" size="sm" onClick={cargar} disabled={loading}>{loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />} Recalcular</Button>
-        <Button variant="outline" size="sm" onClick={exportarCSV} disabled={!snap}><Download className="h-4 w-4 mr-1" /> CSV</Button>
-        <Button size="sm" onClick={() => setGenOpen(true)} disabled={seleccion.size === 0}>
-          <ShoppingCart className="h-4 w-4 mr-1" /> Generar OC ({seleccion.size})
-        </Button>
+
+        <div className="flex flex-wrap items-center gap-2">
+          {filtrosActivos > 0 && (
+            <Button variant="ghost" size="sm" onClick={limpiarFiltros}>
+              <RotateCcw className="h-4 w-4 mr-1" /> Limpiar filtros ({filtrosActivos})
+            </Button>
+          )}
+          <div className="flex-1" />
+          <Button variant="outline" size="sm" onClick={cargar} disabled={loading}>{loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />} Recalcular</Button>
+          <Button variant="outline" size="sm" onClick={exportarCSV} disabled={!snap}><Download className="h-4 w-4 mr-1" /> CSV</Button>
+          <Button size="sm" onClick={() => setGenOpen(true)} disabled={seleccion.size === 0}>
+            <ShoppingCart className="h-4 w-4 mr-1" /> Generar OC ({seleccion.size})
+          </Button>
+        </div>
       </Card>
+
 
       <div className="text-xs text-muted-foreground flex items-center gap-3">
         <span>Folio: <span className="font-mono">{folioRun}</span></span>
