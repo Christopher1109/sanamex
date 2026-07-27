@@ -211,6 +211,11 @@ export default function CotizadorSanamex() {
     return Array.from(m, ([value, label]) => ({ value, label })).sort((a, b) => a.label.localeCompare(b.label));
   }, [snap]);
 
+  const filtrosActivos = filtroEstatus.length + filtroClasif.length + filtroProveedor.length + filtroSucursal.length;
+  function limpiarFiltros() {
+    setFiltroEstatus([]); setFiltroClasif([]); setFiltroProveedor([]); setFiltroSucursal([]);
+  }
+
 
   const grupoPorProv = useMemo(() => {
     const g: Record<string, { proveedor_nombre: string; entrega_por_sucursal: boolean; lineas: any[]; total: number }> = {};
