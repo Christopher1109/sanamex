@@ -323,13 +323,13 @@ export default function CotizadorSanamex() {
       )}
 
       <TooltipProvider>
-        <Card className="overflow-auto max-h-[75vh]">
-          <Table>
-            <TableHeader>
-              <TableRow className="sticky top-0 z-30 bg-background">
-                <TableHead className="sticky left-0 z-40 bg-background px-1" style={{ width: 36, minWidth: 36, maxWidth: 36 }}></TableHead>
-                <TableHead className="sticky z-40 bg-background border-r overflow-hidden px-2" style={{ left: 36, width: 110, minWidth: 110, maxWidth: 110 }}>SKU</TableHead>
-                <TableHead className="sticky z-40 bg-background border-r overflow-hidden px-2" style={{ left: 146, width: 220, minWidth: 220, maxWidth: 220 }}>Descripción</TableHead>
+        <Card className="overflow-auto max-h-[75vh] relative">
+          <table className="w-full caption-bottom text-sm border-separate border-spacing-0">
+            <TableHeader className="[&_th]:border-b">
+              <TableRow className="bg-background">
+                <TableHead className="sticky top-0 left-0 z-40 bg-background px-1" style={{ width: 36, minWidth: 36, maxWidth: 36 }}></TableHead>
+                <TableHead className="sticky top-0 z-40 bg-background overflow-hidden px-2" style={{ left: 36, width: 110, minWidth: 110, maxWidth: 110 }}>SKU</TableHead>
+                <TableHead className="sticky top-0 z-40 bg-background border-r shadow-[2px_0_4px_-2px_rgba(0,0,0,0.25)] overflow-hidden px-2" style={{ left: 146, width: 220, minWidth: 220, maxWidth: 220 }}>Descripción</TableHead>
                 <TableHead className="text-center">Clasif</TableHead>
                 <TableHead className="text-center">Est.</TableHead>
                 <TableHead className="text-right">CEDIS</TableHead>
