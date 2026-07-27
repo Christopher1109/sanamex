@@ -38,6 +38,11 @@ const CorteCajaPage = () => {
   const [detalle, setDetalle] = useState<{ corte: any; ventas: any[]; compras: any[] } | null>(null);
   const [detalleLoading, setDetalleLoading] = useState(false);
 
+  // Desglose de artículos por venta
+  const [expandidas, setExpandidas] = useState<Set<string>>(new Set());
+  const [lineas, setLineas] = useState<Record<string, any[]>>({});
+
+
   const sucursalIds = useMemo(
     () => (alcance === 'todas' ? availableSucursales.map(s => s.id) : selectedSucursal ? [selectedSucursal.id] : []),
     [alcance, availableSucursales, selectedSucursal]
