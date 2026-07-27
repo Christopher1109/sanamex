@@ -181,6 +181,45 @@ const CorteCajaPage = () => {
       </Card>
 
       <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Análisis financiero de cortes ({analisis.dias} días cerrados)</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+            <div><p className="text-xs text-muted-foreground">Ventas acumuladas</p><p className="text-lg font-bold">{money(analisis.ventas)}</p></div>
+            <div><p className="text-xs text-muted-foreground">Compras acumuladas</p><p className="text-lg font-bold">{money(analisis.compras)}</p></div>
+            <div><p className="text-xs text-muted-foreground">Neto acumulado</p><p className={`text-lg font-bold ${analisis.neto >= 0 ? 'text-green-600' : 'text-destructive'}`}>{money(analisis.neto)}</p></div>
+            <div><p className="text-xs text-muted-foreground">Promedio diario</p><p className="text-lg font-bold">{money(analisis.promedioDiario)}</p></div>
+            <div><p className="text-xs text-muted-foreground">Ticket promedio</p><p className="text-lg font-bold">{money(analisis.ticketPromedio)}</p></div>
+            <div>
+              <p className="text-xs text-muted-foreground">Descuadres acumulados</p>
+              <p className={`text-lg font-bold ${Math.abs(analisis.difs) < 20 ? '' : 'text-destructive'}`}>{money(analisis.difs)}</p>
+              <p className="text-xs text-muted-foreground">{analisis.conDif} día(s) con diferencia &gt; $20</p>
+            </div>
+          </div>
+
+          {analisis.serie.length === 0 ? (
+            <p className="text-sm text-muted-foreground">Aún no hay cortes cerrados para analizar.</p>
+          ) : (
+            <div className="h-72">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={analisis.serie}>
+                  <CartesianGrid strokeDasharray="3 3" className="opacity-30" />
+                  <XAxis dataKey="fecha" fontSize={11} />
+                  <YAxis fontSize={11} tickFormatter={(v) => `$${(Number(v) / 1000).toFixed(0)}k`} />
+                  <Tooltip formatter={(v: any) => money(Number(v))} />
+                  <Legend />
+                  <Bar dataKey="Ventas" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="Compras" fill="hsl(var(--muted-foreground))" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+
+      <Card>
         <CardHeader><CardTitle className="text-base">Historial de cortes</CardTitle></CardHeader>
         <CardContent className="p-0">
           <Table>
