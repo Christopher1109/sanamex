@@ -11,7 +11,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
-import { Send, PackageCheck, X, ClipboardList, ArrowLeft, Check, ShieldCheck, Truck } from 'lucide-react';
+import { Send, PackageCheck, X, ClipboardList, ArrowLeft, Check, ShieldCheck, Truck, RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
 
 type OC = {
@@ -92,6 +92,15 @@ export default function OrdenesCompraPage() {
 
   useEffect(() => { load(); loadAlmacenes(); loadMisSucursales(); if (esAdmin || esCompras) loadGrupos(); }, []);
   useEffect(() => { if (esAdmin || esCompras) loadTrazabilidad(); }, [esAdmin, esCompras]);
+  useEffect(() => {
+    // Refresco periódico: si alguien más genera/aprueba una OC mientras esta pantalla
+    // ya estaba abierta, no había forma de enterarse sin recargar toda la página.
+    const intervalo = setInterval(() => {
+      load();
+      if (esAdmin || esCompras) loadGrupos();
+    }, 45000);
+    return () => clearInterval(intervalo);
+  }, [esAdmin, esCompras]);
   useEffect(() => {
     // Gerente/subgerente no tienen la pestaña "Por proveedor" (grupos) — que no se quede
     // seleccionada por defecto una pestaña que para ellos no existe.
@@ -417,9 +426,22 @@ export default function OrdenesCompraPage() {
             <p className="text-sm text-muted-foreground">Gestión de OCs generadas desde el Cotizador o manualmente.</p>
           </div>
         </div>
+        <Button
+          variant="outline" size="sm" className="gap-2"
+          onClick={() => { load(); if (esAdmin || esCompras) { loadGrupos(); loadTrazabilidad(); } }}
+        >
+          <RefreshCw className="h-4 w-4" /> Refrescar
+        </Button>
       </div>
 
-      <Tabs value={tab} onValueChange={(v) => setTab(v as any)}>
+      <Tabs value={tab} onValueChange={(v) => {
+        setTab(v as any);
+        // Antes solo se cargaba una vez al entrar a la pantalla — si una OC nueva llegaba
+        // mientras la pantalla ya estaba abierta, no aparecía hasta recargar la página entera.
+        load();
+        if (v === 'grupos' && (esAdmin || esCompras)) loadGrupos();
+        if (v === 'trazabilidad' && (esAdmin || esCompras)) loadTrazabilidad();
+      }}>
         <TabsList>
           {(esAdmin || esCompras) && (
             <TabsTrigger value="grupos" className="gap-2"><Truck className="h-4 w-4" /> Por proveedor</TabsTrigger>
