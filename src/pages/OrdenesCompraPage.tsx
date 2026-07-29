@@ -90,8 +90,13 @@ export default function OrdenesCompraPage() {
   const [razonRechazo, setRazonRechazo] = useState('');
   const [filtroGrupo, setFiltroGrupo] = useState<string | null>(null);
 
-  useEffect(() => { load(); loadAlmacenes(); loadMisSucursales(); loadGrupos(); }, []);
+  useEffect(() => { load(); loadAlmacenes(); loadMisSucursales(); if (esAdmin || esCompras) loadGrupos(); }, []);
   useEffect(() => { if (esAdmin || esCompras) loadTrazabilidad(); }, [esAdmin, esCompras]);
+  useEffect(() => {
+    // Gerente/subgerente no tienen la pestaña "Por proveedor" (grupos) — que no se quede
+    // seleccionada por defecto una pestaña que para ellos no existe.
+    if (esGerencia && !esAdmin && !esCompras) setTab('revision_gerente');
+  }, [esGerencia, esAdmin, esCompras]);
 
   async function loadGrupos() {
     const { data } = await (supabase as any).from('v_ordenes_compra_grupo_resumen').select('*').order('fecha_creacion', { ascending: false });
@@ -416,7 +421,9 @@ export default function OrdenesCompraPage() {
 
       <Tabs value={tab} onValueChange={(v) => setTab(v as any)}>
         <TabsList>
-          <TabsTrigger value="grupos" className="gap-2"><Truck className="h-4 w-4" /> Por proveedor</TabsTrigger>
+          {(esAdmin || esCompras) && (
+            <TabsTrigger value="grupos" className="gap-2"><Truck className="h-4 w-4" /> Por proveedor</TabsTrigger>
+          )}
           <TabsTrigger value="todas">Todas</TabsTrigger>
           {pendientesRevisionGerente.length > 0 || esGerencia || esAdmin ? (
             <TabsTrigger value="revision_gerente" className="gap-2">
@@ -437,6 +444,7 @@ export default function OrdenesCompraPage() {
           )}
         </TabsList>
 
+        {(esAdmin || esCompras) && (
         <TabsContent value="grupos">
           <Card className="p-0 overflow-hidden">
             <Table>
@@ -499,6 +507,7 @@ export default function OrdenesCompraPage() {
             </Table>
           </Card>
         </TabsContent>
+        )}
 
         <TabsContent value="todas" className="space-y-4">
           {filtroGrupo && (
