@@ -90,7 +90,19 @@ export default function OrdenesCompraPage() {
   const [razonRechazo, setRazonRechazo] = useState('');
   const [filtroGrupo, setFiltroGrupo] = useState<string | null>(null);
 
-  useEffect(() => { load(); loadAlmacenes(); loadMisSucursales(); if (esAdmin || esCompras) loadGrupos(); }, []);
+  useEffect(() => { load(); loadAlmacenes(); if (esAdmin || esCompras) loadGrupos(); }, []);
+  useEffect(() => {
+    // Antes esto vivía en el useEffect de montaje (deps: []) junto con loadMisSucursales().
+    // Bug real: loadMisSucursales() corta con "if (!user) return" — si la sesión de auth
+    // todavía no terminaba de cargar en el primer render (muy común justo después de un
+    // refresh de página), la función se salía sin hacer nada y, como el efecto nunca se
+    // repetía, "misSucursales" se quedaba vacío para siempre en esa carga de página. Eso
+    // hacía que "Por revisar (gerente)" pareciera vacío aunque la OC sí existiera y RLS
+    // sí se la dejara ver (por eso en "Todas" sí aparecía, ya que esa consulta no depende
+    // de misSucursales). Al depender explícitamente de user?.id, se vuelve a intentar en
+    // cuanto la sesión termine de cargar.
+    loadMisSucursales();
+  }, [user?.id]);
   useEffect(() => { if (esAdmin || esCompras) loadTrazabilidad(); }, [esAdmin, esCompras]);
   useEffect(() => {
     // Refresco periódico: si alguien más genera/aprueba una OC mientras esta pantalla
