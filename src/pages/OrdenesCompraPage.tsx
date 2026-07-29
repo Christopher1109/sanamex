@@ -19,10 +19,21 @@ type OC = {
   fecha_creacion: string; fecha_envio: string | null; fecha_recepcion_real: string | null;
   subtotal: number; iva: number; total: number; notas: string | null;
   creada_por: string | null;
+  cantidades_modificadas_gerente?: boolean;
   proveedor: { nombre: string; codigo: string | null } | null;
   sucursal_destino: { codigo: string; nombre: string } | null;
   sucursal_destino_id: string | null;
   comprador?: { nombre: string | null; username: string | null } | null;
+};
+type Trazabilidad = {
+  id: string; folio: string; estado: string; total: number;
+  proveedor_nombre: string | null;
+  sucursal_nombre: string | null; sucursal_codigo: string | null;
+  creada_por_nombre: string | null; fecha_creacion: string | null;
+  revisada_por_gerente_nombre: string | null; fecha_revision_gerente: string | null;
+  cantidades_modificadas_gerente: boolean; num_ajustes: number;
+  autorizada_por_nombre: string | null; fecha_autorizacion: string | null;
+  razon_aprobacion: string | null;
 };
 type Linea = {
   id: string; producto_id: string; cantidad_solicitada: number; cantidad_recibida: number;
@@ -46,6 +57,7 @@ const ESTADO_LABEL: Record<string, string> = {
 
 const ROLES_ADMIN = ['admin', 'super_admin'];
 const ROLES_GERENCIA = ['gerente', 'subgerente'];
+const ROLES_COMPRAS = ['compras'];
 
 type Grupo = {
   id: string; folio: string; estado: string; fecha_creacion: string; fecha_envio: string | null;
@@ -58,9 +70,11 @@ export default function OrdenesCompraPage() {
   const { user, userRole } = useAuth();
   const esAdmin = !!userRole && ROLES_ADMIN.includes(userRole);
   const esGerencia = !!userRole && ROLES_GERENCIA.includes(userRole);
+  const esCompras = !!userRole && ROLES_COMPRAS.includes(userRole);
   const [misSucursales, setMisSucursales] = useState<string[]>([]);
   const [ocs, setOcs] = useState<OC[]>([]);
   const [grupos, setGrupos] = useState<Grupo[]>([]);
+  const [trazabilidad, setTrazabilidad] = useState<Trazabilidad[]>([]);
   const [loading, setLoading] = useState(false);
   const [filtroEstado, setFiltroEstado] = useState<string>('all');
   const [busqueda, setBusqueda] = useState('');
@@ -71,16 +85,26 @@ export default function OrdenesCompraPage() {
   const [recepciones, setRecepciones] = useState<Record<string, number>>({});
   const [almacenes, setAlmacenes] = useState<{ id: string; nombre: string; sucursal: string }[]>([]);
   const [almacenSel, setAlmacenSel] = useState<string>('');
-  const [tab, setTab] = useState<'grupos' | 'todas' | 'revision_gerente' | 'autorizacion_admin'>('grupos');
+  const [tab, setTab] = useState<'grupos' | 'todas' | 'revision_gerente' | 'autorizacion_admin' | 'trazabilidad'>('grupos');
   const [rechazoOpen, setRechazoOpen] = useState<{ oc: OC; tipo: 'gerente' | 'admin' } | null>(null);
   const [razonRechazo, setRazonRechazo] = useState('');
   const [filtroGrupo, setFiltroGrupo] = useState<string | null>(null);
 
   useEffect(() => { load(); loadAlmacenes(); loadMisSucursales(); loadGrupos(); }, []);
+  useEffect(() => { if (esAdmin || esCompras) loadTrazabilidad(); }, [esAdmin, esCompras]);
 
   async function loadGrupos() {
     const { data } = await (supabase as any).from('v_ordenes_compra_grupo_resumen').select('*').order('fecha_creacion', { ascending: false });
     setGrupos((data || []) as Grupo[]);
+  }
+
+  async function loadTrazabilidad() {
+    const { data } = await (supabase as any)
+      .from('v_ordenes_compra_trazabilidad')
+      .select('*')
+      .order('fecha_creacion', { ascending: false })
+      .limit(200);
+    setTrazabilidad((data || []) as Trazabilidad[]);
   }
 
   async function enviarGrupoAProveedor(g: Grupo) {
@@ -118,6 +142,7 @@ export default function OrdenesCompraPage() {
     setSeleccionada(null);
     await load();
     await loadGrupos();
+    if (esAdmin || esCompras) await loadTrazabilidad();
   }
 
   async function autorizarComoAdmin(oc: OC, accion: 'autorizar' | 'rechazar', razon?: string) {
@@ -129,6 +154,7 @@ export default function OrdenesCompraPage() {
     setSeleccionada(null);
     await load();
     await loadGrupos();
+    if (esAdmin || esCompras) await loadTrazabilidad();
   }
 
   async function load() {
@@ -136,7 +162,7 @@ export default function OrdenesCompraPage() {
     const { data } = await supabase
       .from('ordenes_compra')
       .select(`id, folio, estado, fecha_creacion, fecha_envio, fecha_recepcion_real, subtotal, iva, total, notas,
-               sucursal_destino_id, grupo_id,
+               sucursal_destino_id, grupo_id, cantidades_modificadas_gerente,
                proveedor:proveedores(nombre, codigo),
                sucursal_destino:sucursales!sucursal_destino_id(codigo, nombre)`)
       .order('created_at', { ascending: false });
@@ -404,6 +430,11 @@ export default function OrdenesCompraPage() {
               {pendientesAutorizacionAdmin.length > 0 && <Badge variant="destructive" className="ml-1">{pendientesAutorizacionAdmin.length}</Badge>}
             </TabsTrigger>
           )}
+          {(esAdmin || esCompras) && (
+            <TabsTrigger value="trazabilidad" className="gap-2">
+              <ClipboardList className="h-4 w-4" /> Trazabilidad
+            </TabsTrigger>
+          )}
         </TabsList>
 
         <TabsContent value="grupos">
@@ -512,7 +543,14 @@ export default function OrdenesCompraPage() {
                     <TableCell className="font-mono font-medium">{oc.folio}</TableCell>
                     <TableCell>{oc.proveedor?.nombre}</TableCell>
                     <TableCell>{oc.sucursal_destino?.codigo || '—'}</TableCell>
-                    <TableCell><Badge className={ESTADO_COLOR[oc.estado]}>{ESTADO_LABEL[oc.estado] || oc.estado}</Badge></TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-1.5">
+                        <Badge className={ESTADO_COLOR[oc.estado]}>{ESTADO_LABEL[oc.estado] || oc.estado}</Badge>
+                        {oc.cantidades_modificadas_gerente && (
+                          <Badge variant="outline" className="text-[10px] border-amber-500 text-amber-600">Modificada</Badge>
+                        )}
+                      </div>
+                    </TableCell>
                     <TableCell className="text-xs">{oc.fecha_creacion}</TableCell>
                     <TableCell className="text-right tabular-nums">${Number(oc.total).toLocaleString('es-MX', { minimumFractionDigits: 2 })}</TableCell>
                   </TableRow>
@@ -578,7 +616,12 @@ export default function OrdenesCompraPage() {
                       <TableCell className="font-mono font-medium">{oc.folio}</TableCell>
                       <TableCell>{oc.proveedor?.nombre}</TableCell>
                       <TableCell>{oc.sucursal_destino?.codigo || '—'}</TableCell>
-                      <TableCell className="text-xs text-muted-foreground">Gerente de sucursal</TableCell>
+                      <TableCell className="text-xs text-muted-foreground">
+                        Gerente de sucursal
+                        {oc.cantidades_modificadas_gerente && (
+                          <Badge variant="outline" className="ml-1.5 text-[10px] border-amber-500 text-amber-600">Modificó cantidades</Badge>
+                        )}
+                      </TableCell>
                       <TableCell className="text-right tabular-nums font-semibold">
                         ${Number(oc.total).toLocaleString('es-MX', { minimumFractionDigits: 2 })}
                       </TableCell>
@@ -592,6 +635,52 @@ export default function OrdenesCompraPage() {
                             <X className="h-3.5 w-3.5" /> Rechazar
                           </Button>
                         </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </Card>
+          </TabsContent>
+        )}
+
+        {(esAdmin || esCompras) && (
+          <TabsContent value="trazabilidad">
+            <Card className="p-0 overflow-hidden">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Folio</TableHead><TableHead>Proveedor</TableHead><TableHead>Destino</TableHead>
+                    <TableHead>Estado</TableHead>
+                    <TableHead>Creada por</TableHead>
+                    <TableHead>Revisada por (gerente)</TableHead>
+                    <TableHead>Autorizada por</TableHead>
+                    <TableHead className="text-right">Monto</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {!trazabilidad.length && <TableRow><TableCell colSpan={8} className="text-center p-6 text-muted-foreground">Sin datos de trazabilidad todavía.</TableCell></TableRow>}
+                  {trazabilidad.map(t => (
+                    <TableRow key={t.id}>
+                      <TableCell className="font-mono font-medium">{t.folio}</TableCell>
+                      <TableCell>{t.proveedor_nombre || '—'}</TableCell>
+                      <TableCell>{t.sucursal_codigo || '—'}</TableCell>
+                      <TableCell><Badge className={ESTADO_COLOR[t.estado]}>{ESTADO_LABEL[t.estado] || t.estado}</Badge></TableCell>
+                      <TableCell className="text-xs">{t.creada_por_nombre || '—'}</TableCell>
+                      <TableCell className="text-xs">
+                        {t.revisada_por_gerente_nombre || '—'}
+                        {t.cantidades_modificadas_gerente && (
+                          <div className="mt-0.5">
+                            <Badge variant="outline" className="text-[10px] border-amber-500 text-amber-600">
+                              Modificó {t.num_ajustes} línea{t.num_ajustes === 1 ? '' : 's'}
+                            </Badge>
+                          </div>
+                        )}
+                        {t.razon_aprobacion && <div className="text-muted-foreground mt-0.5 max-w-[220px] truncate" title={t.razon_aprobacion}>{t.razon_aprobacion}</div>}
+                      </TableCell>
+                      <TableCell className="text-xs">{t.autorizada_por_nombre || '—'}</TableCell>
+                      <TableCell className="text-right tabular-nums font-semibold">
+                        ${Number(t.total).toLocaleString('es-MX', { minimumFractionDigits: 2 })}
                       </TableCell>
                     </TableRow>
                   ))}
