@@ -6,8 +6,9 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
-import { Trash2, Plus, Upload, Wand2, FileCheck } from 'lucide-react';
+import { Trash2, Plus, Upload, Wand2, FileCheck, Download } from 'lucide-react';
 import { toast } from 'sonner';
 import { AsientoGenerator } from '@/services/AsientoGenerator';
 
@@ -44,12 +45,64 @@ export default function ContabilidadPage() {
 function CatalogoTab() {
   const [cuentas, setCuentas] = useState<Cuenta[]>([]);
   const [loading, setLoading] = useState(false);
+  const [busqueda, setBusqueda] = useState('');
+  const [filtroNivel, setFiltroNivel] = useState<string>('todos');
+  const [editando, setEditando] = useState<Cuenta | null>(null);
+  const [dialogAbierto, setDialogAbierto] = useState(false);
+  const [form, setForm] = useState({ codigo: '', nombre: '', nivel: 1, naturaleza: 'deudora', codigo_agrupador_sat: '', afectable: true, activo: true });
 
   const load = async () => {
     const { data } = await supabase.from('catalogo_cuentas').select('*').order('codigo');
     setCuentas((data as any) || []);
   };
   useEffect(() => { load(); }, []);
+
+  const niveles = Array.from(new Set(cuentas.map(c => c.nivel))).sort((a, b) => a - b);
+  const cuentasFiltradas = cuentas.filter(c => {
+    if (filtroNivel !== 'todos' && String(c.nivel) !== filtroNivel) return false;
+    if (!busqueda.trim()) return true;
+    const q = busqueda.toLowerCase();
+    return c.codigo.toLowerCase().includes(q) || c.nombre.toLowerCase().includes(q);
+  });
+
+  function abrirNueva() {
+    setEditando(null);
+    setForm({ codigo: '', nombre: '', nivel: 1, naturaleza: 'deudora', codigo_agrupador_sat: '', afectable: true, activo: true });
+    setDialogAbierto(true);
+  }
+  function abrirEditar(c: Cuenta) {
+    setEditando(c);
+    setForm({ codigo: c.codigo, nombre: c.nombre, nivel: c.nivel, naturaleza: c.naturaleza, codigo_agrupador_sat: c.codigo_agrupador_sat || '', afectable: c.afectable, activo: c.activo });
+    setDialogAbierto(true);
+  }
+
+  async function guardarCuenta() {
+    if (!form.codigo.trim() || !form.nombre.trim()) { toast.error('Código y nombre son obligatorios'); return; }
+    const payload = {
+      codigo: form.codigo.trim(), nombre: form.nombre.trim(), nivel: form.nivel,
+      naturaleza: form.naturaleza, codigo_agrupador_sat: form.codigo_agrupador_sat.trim() || null,
+      afectable: form.afectable, activo: form.activo,
+    };
+    const { error } = editando
+      ? await supabase.from('catalogo_cuentas').update(payload).eq('id', editando.id)
+      : await supabase.from('catalogo_cuentas').insert(payload);
+    if (error) { toast.error(error.message); return; }
+    toast.success(editando ? 'Cuenta actualizada' : 'Cuenta creada');
+    setDialogAbierto(false);
+    load();
+  }
+
+  async function exportarExcel() {
+    const XLSX = await import('xlsx');
+    const filas = cuentas.map(c => ({
+      Codigo: c.codigo, Nombre: c.nombre, Nivel: c.nivel, Naturaleza: c.naturaleza,
+      Agrupador_SAT: c.codigo_agrupador_sat || '', Afectable: c.afectable ? 'SI' : 'NO', Activo: c.activo ? 'SI' : 'NO',
+    }));
+    const ws = XLSX.utils.json_to_sheet(filas);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Catalogo de cuentas');
+    XLSX.writeFile(wb, `catalogo_cuentas_${new Date().toISOString().slice(0, 10)}.xlsx`);
+  }
 
   const importarExcel = async (file: File) => {
     setLoading(true);
@@ -102,36 +155,89 @@ function CatalogoTab() {
 
   return (
     <Card>
-      <CardHeader className="flex flex-row items-center justify-between">
-        <CardTitle>Catálogo de cuentas ({cuentas.length})</CardTitle>
-        <div>
+      <CardHeader className="flex flex-row items-center justify-between flex-wrap gap-2">
+        <CardTitle>Catálogo de cuentas ({cuentasFiltradas.length}/{cuentas.length})</CardTitle>
+        <div className="flex gap-2 flex-wrap">
+          <Button variant="outline" onClick={exportarExcel}><Download className="h-4 w-4 mr-2" />Exportar</Button>
           <input id="cat-file" type="file" accept=".xlsx,.xls,.csv" className="hidden"
             onChange={e => e.target.files?.[0] && importarExcel(e.target.files[0])} />
           <Button variant="outline" disabled={loading} onClick={() => document.getElementById('cat-file')?.click()}>
             <Upload className="h-4 w-4 mr-2" />Importar catálogo
           </Button>
+          <Button onClick={abrirNueva}><Plus className="h-4 w-4 mr-2" />Nueva cuenta</Button>
         </div>
       </CardHeader>
-      <CardContent>
+      <CardContent className="space-y-3">
+        <div className="flex gap-3 flex-wrap">
+          <Input placeholder="Buscar por código o nombre..." value={busqueda} onChange={e => setBusqueda(e.target.value)} className="max-w-xs" />
+          <Select value={filtroNivel} onValueChange={setFiltroNivel}>
+            <SelectTrigger className="w-40"><SelectValue placeholder="Nivel" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="todos">Todos los niveles</SelectItem>
+              {niveles.map(n => <SelectItem key={n} value={String(n)}>Nivel {n}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        </div>
         <div className="overflow-x-auto max-h-[500px]">
           <table className="w-full text-sm">
             <thead className="sticky top-0 bg-background border-b">
-              <tr><th className="text-left p-2">Código</th><th className="text-left p-2">Nombre</th><th className="text-left p-2">Nivel</th><th className="text-left p-2">Naturaleza</th><th className="text-left p-2">SAT</th></tr>
+              <tr>
+                <th className="text-left p-2">Código</th><th className="text-left p-2">Nombre</th>
+                <th className="text-left p-2">Nivel</th><th className="text-left p-2">Naturaleza</th>
+                <th className="text-left p-2">SAT</th><th className="text-left p-2">Afectable</th>
+                <th className="text-left p-2">Activo</th><th className="text-left p-2"></th>
+              </tr>
             </thead>
             <tbody>
-              {cuentas.map(c => (
+              {cuentasFiltradas.map(c => (
                 <tr key={c.id} className="border-b hover:bg-accent/30">
                   <td className="p-2 font-mono">{c.codigo}</td>
                   <td className="p-2">{c.nombre}</td>
                   <td className="p-2">{c.nivel}</td>
                   <td className="p-2"><Badge variant={c.naturaleza === 'deudora' ? 'default' : 'secondary'}>{c.naturaleza}</Badge></td>
                   <td className="p-2 font-mono text-xs">{c.codigo_agrupador_sat}</td>
+                  <td className="p-2">{c.afectable ? <Badge variant="outline">Sí</Badge> : <Badge variant="outline" className="opacity-50">No</Badge>}</td>
+                  <td className="p-2">{c.activo ? <Badge variant="outline">Sí</Badge> : <Badge variant="destructive">No</Badge>}</td>
+                  <td className="p-2"><Button size="sm" variant="ghost" onClick={() => abrirEditar(c)}>Editar</Button></td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
       </CardContent>
+
+      <Dialog open={dialogAbierto} onOpenChange={setDialogAbierto}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>{editando ? 'Editar cuenta' : 'Nueva cuenta contable'}</DialogTitle></DialogHeader>
+          <div className="space-y-3">
+            <div className="grid grid-cols-2 gap-3">
+              <div><Label>Código</Label><Input value={form.codigo} onChange={e => setForm({ ...form, codigo: e.target.value })} placeholder="102-01-001" /></div>
+              <div><Label>Nivel</Label><Input type="number" min={1} value={form.nivel} onChange={e => setForm({ ...form, nivel: Number(e.target.value) })} /></div>
+            </div>
+            <div><Label>Nombre</Label><Input value={form.nombre} onChange={e => setForm({ ...form, nombre: e.target.value })} /></div>
+            <div className="grid grid-cols-2 gap-3">
+              <div><Label>Naturaleza</Label>
+                <Select value={form.naturaleza} onValueChange={v => setForm({ ...form, naturaleza: v })}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="deudora">Deudora</SelectItem>
+                    <SelectItem value="acreedora">Acreedora</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div><Label>Código agrupador SAT</Label><Input value={form.codigo_agrupador_sat} onChange={e => setForm({ ...form, codigo_agrupador_sat: e.target.value })} /></div>
+            </div>
+            <div className="flex gap-6">
+              <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={form.afectable} onChange={e => setForm({ ...form, afectable: e.target.checked })} />Afectable (se puede usar en pólizas)</label>
+              <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={form.activo} onChange={e => setForm({ ...form, activo: e.target.checked })} />Activa</label>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDialogAbierto(false)}>Cancelar</Button>
+            <Button onClick={guardarCuenta}>{editando ? 'Guardar cambios' : 'Crear cuenta'}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 }
@@ -161,18 +267,23 @@ function PolizasTab() {
 
   const guardar = async (autorizar: boolean) => {
     if (autorizar && !balanceada) { toast.error('Cargo ≠ Abono'); return; }
+    // Importante: el trigger check_poliza_balanceada exige que YA existan
+    // poliza_movimientos antes de poder poner estatus='autorizada'. Por eso
+    // siempre se crea en 'borrador' primero, y solo hasta el final (con los
+    // movimientos y los totales ya guardados) se autoriza. Antes, si se
+    // marcaba "autorizar" desde el inicio, esta pantalla tronaba siempre.
     const { data: pol, error } = await supabase.from('polizas').insert({
-      tipo, fecha, concepto, estatus: autorizar ? 'autorizada' : 'borrador', origen: 'manual',
+      tipo, fecha, concepto, estatus: 'borrador', origen: 'manual',
     }).select('id').single();
     if (error) { toast.error(error.message); return; }
     const lineas = movs.filter(m => m.cuenta_id && (Number(m.cargo) > 0 || Number(m.abono) > 0))
       .map(m => ({ poliza_id: pol!.id, cuenta_id: m.cuenta_id, cargo: Number(m.cargo || 0), abono: Number(m.abono || 0), concepto: m.concepto }));
     if (!lineas.length) { toast.error('Sin movimientos'); return; }
     await supabase.from('poliza_movimientos').insert(lineas);
-    if (autorizar) {
-      const { error: e2 } = await supabase.from('polizas').update({ estatus: 'autorizada' }).eq('id', pol!.id);
-      if (e2) { toast.error('No se pudo autorizar: ' + e2.message); }
-    }
+    const { error: e2 } = await supabase.from('polizas')
+      .update({ total_cargo: sumC, total_abono: sumA, estatus: autorizar ? 'autorizada' : 'borrador' })
+      .eq('id', pol!.id);
+    if (e2) { toast.error('No se pudo guardar: ' + e2.message); }
     toast.success('Póliza guardada');
     setShow(false); setConcepto(''); setMovs([{ cuenta_id: '', cargo: 0, abono: 0 }, { cuenta_id: '', cargo: 0, abono: 0 }]);
     load();

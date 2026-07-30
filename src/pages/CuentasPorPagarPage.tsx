@@ -12,7 +12,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Upload, AlertTriangle, Clock, Wallet, CheckCircle2, FileUp, History } from 'lucide-react';
+import { Upload, AlertTriangle, Clock, Wallet, CheckCircle2, FileUp, History, FileMinus } from 'lucide-react';
 import { toast } from 'sonner';
 import { registrarPagoCompra } from '@/lib/cxp';
 
@@ -55,6 +55,15 @@ const CuentasPorPagarPage = () => {
   const [showPago, setShowPago] = useState<Compra | null>(null);
   const [showDetalle, setShowDetalle] = useState<Compra | null>(null);
   const [showImport, setShowImport] = useState(false);
+  const [showNota, setShowNota] = useState<Compra | null>(null);
+  const [almacenes, setAlmacenes] = useState<any[]>([]);
+  const [lineasCompra, setLineasCompra] = useState<any[]>([]);
+  const [notasByCompra, setNotasByCompra] = useState<Record<string, any[]>>({});
+  const [notaForm, setNotaForm] = useState({
+    tipo: 'incidencia' as 'incidencia' | 'negociada' | 'objetivo_trimestral',
+    monto: '', motivo: '', productoId: '', cantidad: '', almacenId: '',
+  });
+  const [guardandoNota, setGuardandoNota] = useState(false);
   const [pagoForm, setPagoForm] = useState({ fecha: new Date().toISOString().slice(0, 10), monto: '', forma_pago: 'transferencia', referencia: '', banco_cuenta_id: '', notas: '' });
   const fileImportRef = useRef<HTMLInputElement>(null);
 
@@ -79,12 +88,22 @@ const CuentasPorPagarPage = () => {
       setPagosByCompra(grp);
     } else setPagosByCompra({});
 
-    const [{ data: provs }, { data: ctas }] = await Promise.all([
+    const [{ data: provs }, { data: ctas }, { data: alms }] = await Promise.all([
       supabase.from('proveedores').select('id, nombre').eq('activo', true).order('nombre'),
       supabase.from('cuentas_bancarias').select('id, alias').eq('activo', true).order('alias'),
+      supabase.from('almacenes').select('id, nombre').eq('sucursal_id', selectedSucursal.id).eq('activo', true).order('nombre'),
     ]);
     setProveedores(provs || []);
     setCuentasBan(ctas || []);
+    setAlmacenes(alms || []);
+
+    if (ids.length) {
+      const { data: notas } = await (supabase as any).from('notas_credito_proveedor').select('*').in('compra_id', ids).order('created_at', { ascending: false });
+      const grpN: Record<string, any[]> = {};
+      (notas || []).forEach((n: any) => { (grpN[n.compra_id] ||= []).push(n); });
+      setNotasByCompra(grpN);
+    } else setNotasByCompra({});
+
     setLoading(false);
   };
 
@@ -94,6 +113,42 @@ const CuentasPorPagarPage = () => {
   const openPago = (c: Compra) => {
     setShowPago(c);
     setPagoForm({ fecha: new Date().toISOString().slice(0, 10), monto: saldo(c).toFixed(2), forma_pago: 'transferencia', referencia: '', banco_cuenta_id: '', notas: '' });
+  };
+
+  const openNota = async (c: Compra) => {
+    setShowNota(c);
+    setNotaForm({ tipo: 'incidencia', monto: '', motivo: '', productoId: '', cantidad: '', almacenId: almacenes[0]?.id || '' });
+    const { data } = await supabase.from('compra_lineas')
+      .select('id, producto_id, cantidad_recibida, precio_unitario_real, precio_unitario_estimado, productos(sku, nombre)')
+      .eq('compra_id', c.id);
+    setLineasCompra(data || []);
+  };
+
+  const guardarNota = async () => {
+    if (!showNota) return;
+    const monto = Number(notaForm.monto);
+    if (!monto || monto <= 0) { toast.error('Captura un monto válido'); return; }
+    const requiereProducto = notaForm.tipo === 'incidencia' || notaForm.tipo === 'negociada';
+    if (requiereProducto && (!notaForm.productoId || !notaForm.cantidad)) {
+      toast.error('Selecciona el producto y la cantidad afectada'); return;
+    }
+    if (notaForm.tipo === 'incidencia' && !notaForm.almacenId) { toast.error('Selecciona el almacén a ajustar'); return; }
+    setGuardandoNota(true);
+    const { data, error } = await (supabase as any).rpc('crear_nota_credito_proveedor', {
+      p_proveedor_id: showNota.proveedor_id,
+      p_tipo: notaForm.tipo,
+      p_monto: monto,
+      p_motivo: notaForm.motivo || null,
+      p_compra_id: showNota.id,
+      p_producto_id: requiereProducto ? notaForm.productoId : null,
+      p_cantidad_incidencia: requiereProducto ? Number(notaForm.cantidad) : null,
+      p_almacen_id: notaForm.tipo === 'incidencia' ? notaForm.almacenId : null,
+    });
+    setGuardandoNota(false);
+    if (error) { toast.error(error.message); return; }
+    toast.success(`Nota de crédito ${data?.folio} aplicada por $${monto.toFixed(2)}`);
+    setShowNota(null);
+    load();
   };
 
   const registrarPago = async () => {
@@ -360,9 +415,17 @@ const CuentasPorPagarPage = () => {
                         </TableCell>
                         <TableCell className="text-center">{badge}</TableCell>
                         <TableCell className="text-right">${Number(c.total).toFixed(2)}</TableCell>
-                        <TableCell className="text-right font-bold">${sal.toFixed(2)}</TableCell>
+                        <TableCell className="text-right font-bold">
+                          ${sal.toFixed(2)}
+                          {(notasByCompra[c.id]?.length || 0) > 0 && (
+                            <div className="text-[10px] font-normal text-muted-foreground">
+                              {notasByCompra[c.id].length} nota{notasByCompra[c.id].length === 1 ? '' : 's'} de crédito
+                            </div>
+                          )}
+                        </TableCell>
                         <TableCell className="space-x-1 whitespace-nowrap">
                           {!c.pagada && <Button size="sm" onClick={() => openPago(c)}><Wallet className="h-3 w-3 mr-1" />Pago</Button>}
+                          {!c.pagada && <Button size="sm" variant="outline" onClick={() => openNota(c)}><FileMinus className="h-3 w-3 mr-1" />Nota</Button>}
                           <Button size="sm" variant="outline" onClick={() => setShowDetalle(c)}><History className="h-3 w-3" /></Button>
                         </TableCell>
                       </TableRow>
@@ -372,6 +435,87 @@ const CuentasPorPagarPage = () => {
           </Table>
         </CardContent>
       </Card>
+
+      {/* Nota de crédito de proveedor */}
+      <Dialog open={!!showNota} onOpenChange={o => !o && setShowNota(null)}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Nota de crédito — {showNota?.numero_compra}</DialogTitle></DialogHeader>
+          {showNota && (
+            <div className="space-y-3">
+              <div className="flex justify-between text-sm">
+                <span>Proveedor:</span><strong>{showNota.proveedores?.nombre}</strong>
+              </div>
+              <div>
+                <Label>Tipo de nota</Label>
+                <Select value={notaForm.tipo} onValueChange={(v: any) => setNotaForm({ ...notaForm, tipo: v })}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="incidencia">Incidencia (faltante de piezas) — ajusta inventario</SelectItem>
+                    <SelectItem value="negociada">Negociada / descuento — impacta el costo</SelectItem>
+                    <SelectItem value="objetivo_trimestral">Objetivo trimestral — beneficio financiero</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              {(notaForm.tipo === 'incidencia' || notaForm.tipo === 'negociada') && (
+                <div>
+                  <Label>Producto de esta compra</Label>
+                  <Select value={notaForm.productoId} onValueChange={v => setNotaForm({ ...notaForm, productoId: v })}>
+                    <SelectTrigger><SelectValue placeholder="Selecciona el producto..." /></SelectTrigger>
+                    <SelectContent>
+                      {lineasCompra.map((l: any) => (
+                        <SelectItem key={l.producto_id} value={l.producto_id}>
+                          {l.productos?.sku} — {l.productos?.nombre} (recibidas: {l.cantidad_recibida})
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+              {(notaForm.tipo === 'incidencia' || notaForm.tipo === 'negociada') && (
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <Label>{notaForm.tipo === 'incidencia' ? 'Piezas faltantes' : 'Piezas sobre las que aplica el descuento'}</Label>
+                    <Input type="number" value={notaForm.cantidad} onChange={e => setNotaForm({ ...notaForm, cantidad: e.target.value })} />
+                  </div>
+                  {notaForm.tipo === 'incidencia' && (
+                    <div>
+                      <Label>Almacén a ajustar</Label>
+                      <Select value={notaForm.almacenId} onValueChange={v => setNotaForm({ ...notaForm, almacenId: v })}>
+                        <SelectTrigger><SelectValue placeholder="Selecciona..." /></SelectTrigger>
+                        <SelectContent>
+                          {almacenes.map((a: any) => <SelectItem key={a.id} value={a.id}>{a.nombre}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
+                </div>
+              )}
+              <div>
+                <Label>Monto total de la nota</Label>
+                <Input type="number" step="0.01" value={notaForm.monto} onChange={e => setNotaForm({ ...notaForm, monto: e.target.value })} />
+                {notaForm.tipo === 'negociada' && Number(notaForm.cantidad) > 0 && Number(notaForm.monto) > 0 && (
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Ajuste de costo unitario: -${(Number(notaForm.monto) / Number(notaForm.cantidad)).toFixed(4)} por pieza
+                  </p>
+                )}
+              </div>
+              <div>
+                <Label>Motivo (opcional)</Label>
+                <Textarea value={notaForm.motivo} onChange={e => setNotaForm({ ...notaForm, motivo: e.target.value })} rows={2} />
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Esta nota se aplica de inmediato contra el saldo pendiente de esta compra
+                {notaForm.tipo === 'incidencia' && ' y descuenta el inventario correspondiente'}
+                {notaForm.tipo === 'negociada' && ' y reduce el costo unitario del lote'}.
+              </p>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowNota(null)}>Cancelar</Button>
+            <Button onClick={guardarNota} disabled={guardandoNota}>{guardandoNota ? 'Aplicando...' : 'Aplicar nota de crédito'}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Registrar pago */}
       <Dialog open={!!showPago} onOpenChange={o => !o && setShowPago(null)}>

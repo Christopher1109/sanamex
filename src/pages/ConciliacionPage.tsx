@@ -7,12 +7,14 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { CheckCircle2, RotateCcw, Link2 } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { CheckCircle2, RotateCcw, Link2, Send } from 'lucide-react';
 import { toast } from 'sonner';
 
 type Mov = {
   id: string; cuenta_id: string; fecha: string; concepto: string | null;
   cargo: number; abono: number; conciliado: boolean; referencia: string | null;
+  proveedor_sugerido_id?: string | null; cliente_sugerido_id?: string | null;
 };
 type Documento = {
   id: string; tipo: 'pago_cxp' | 'cfdi'; fecha: string; monto: number; descripcion: string;
@@ -27,10 +29,25 @@ const ConciliacionPage = () => {
   const [docs, setDocs] = useState<Documento[]>([]);
   const [selMov, setSelMov] = useState<Mov | null>(null);
   const [tolDias, setTolDias] = useState(3);
+  const [conciliaciones, setConciliaciones] = useState<Record<string, any>>({});
+  const [cuentasContables, setCuentasContables] = useState<any[]>([]);
+  const [proveedores, setProveedores] = useState<any[]>([]);
+  const [clientes, setClientes] = useState<any[]>([]);
+  const [dialogEnviar, setDialogEnviar] = useState<Mov | null>(null);
+  const [enviarForm, setEnviarForm] = useState({ entidadTipo: 'proveedor' as 'proveedor' | 'cliente', entidadId: '', cuentaContableId: '' });
+  const [comprasPendientes, setComprasPendientes] = useState<any[]>([]);
+  const [comprasSel, setComprasSel] = useState<Set<string>>(new Set());
+  const [enviando, setEnviando] = useState(false);
 
   useEffect(() => {
     supabase.from('cuentas_bancarias').select('id, alias, bancos(nombre)').eq('activo', true).order('alias')
       .then(({ data }) => { setCuentas(data || []); if (data?.length && !cuentaId) setCuentaId(data[0].id); });
+    supabase.from('catalogo_cuentas').select('id, codigo, nombre, naturaleza').eq('activo', true).eq('afectable', true).order('codigo')
+      .then(({ data }) => setCuentasContables(data || []));
+    supabase.from('proveedores').select('id, nombre').eq('activo', true).order('nombre')
+      .then(({ data }) => setProveedores(data || []));
+    supabase.from('clientes').select('id, nombre').eq('activo', true).order('nombre').limit(500)
+      .then(({ data }) => setClientes(data || []));
   }, []);
 
   useEffect(() => { if (cuentaId) load(); }, [cuentaId, desde, hasta]);
@@ -39,6 +56,14 @@ const ConciliacionPage = () => {
     const { data: m } = await supabase.from('movimientos_bancarios').select('*')
       .eq('cuenta_id', cuentaId).gte('fecha', desde).lte('fecha', hasta).order('fecha', { ascending: false });
     setMovs((m as any) || []);
+
+    const idsMov = (m || []).map((x: any) => x.id);
+    if (idsMov.length) {
+      const { data: concs } = await (supabase as any).from('conciliacion_bancaria').select('*').in('movimiento_id', idsMov);
+      const byMov: Record<string, any> = {};
+      (concs || []).forEach((c: any) => { byMov[c.movimiento_id] = c; });
+      setConciliaciones(byMov);
+    } else setConciliaciones({});
 
     // Documentos: pagos_cxp (egresos) + cfdi_emitidos no demo (ingresos)
     const [{ data: pagos }, { data: cfdis }] = await Promise.all([
@@ -97,6 +122,55 @@ const ConciliacionPage = () => {
     toast.success('Desconciliado'); load();
   };
 
+  async function abrirEnviar(mov: Mov) {
+    const entidadTipo: 'proveedor' | 'cliente' = mov.cargo > 0 ? 'proveedor' : 'cliente';
+    setEnviarForm({
+      entidadTipo,
+      entidadId: (entidadTipo === 'proveedor' ? mov.proveedor_sugerido_id : mov.cliente_sugerido_id) || '',
+      cuentaContableId: '',
+    });
+    setComprasSel(new Set());
+    setComprasPendientes([]);
+    setDialogEnviar(mov);
+    if (entidadTipo === 'proveedor' && mov.proveedor_sugerido_id) {
+      await cargarComprasPendientes(mov.proveedor_sugerido_id);
+    }
+  }
+
+  async function cargarComprasPendientes(proveedorId: string) {
+    if (!proveedorId) { setComprasPendientes([]); return; }
+    const { data } = await supabase.from('compras')
+      .select('id, numero_compra, total, pagada, pagos_cxp(monto)')
+      .eq('proveedor_id', proveedorId).eq('pagada', false)
+      .order('created_at', { ascending: true });
+    const conSaldo = (data || []).map((c: any) => {
+      const pagado = (c.pagos_cxp || []).reduce((s: number, p: any) => s + Number(p.monto), 0);
+      return { ...c, pagado, saldo: Number(c.total) - pagado };
+    }).filter((c: any) => c.saldo > 0.5);
+    setComprasPendientes(conSaldo);
+  }
+
+  async function confirmarEnviar() {
+    if (!dialogEnviar) return;
+    if (!enviarForm.entidadId) { toast.error('Selecciona el cliente o proveedor'); return; }
+    if (!enviarForm.cuentaContableId) { toast.error('Selecciona la cuenta contable destino'); return; }
+    setEnviando(true);
+    const conc = conciliaciones[dialogEnviar.id];
+    if (!conc) { toast.error('Este movimiento todavía no está conciliado'); setEnviando(false); return; }
+    const { data, error } = await (supabase as any).rpc('conciliacion_enviar_a_cuenta', {
+      p_conciliacion_id: conc.id,
+      p_entidad_tipo: enviarForm.entidadTipo,
+      p_entidad_id: enviarForm.entidadId,
+      p_cuenta_contable_id: enviarForm.cuentaContableId,
+      p_compra_ids: enviarForm.entidadTipo === 'proveedor' && comprasSel.size ? Array.from(comprasSel) : null,
+    });
+    setEnviando(false);
+    if (error) { toast.error(error.message); return; }
+    toast.success(`Póliza generada por $${Number(data?.monto || 0).toFixed(2)}`);
+    setDialogEnviar(null);
+    load();
+  }
+
   const movsFiltrados = movs;
 
   return (
@@ -141,8 +215,15 @@ const ConciliacionPage = () => {
                       </TableCell>
                       <TableCell>
                         {m.conciliado ? (
-                          <div className="flex gap-1 items-center">
+                          <div className="flex gap-1 items-center flex-wrap">
                             <Badge className="bg-green-100 text-green-700"><CheckCircle2 className="h-3 w-3 mr-1" />OK</Badge>
+                            {conciliaciones[m.id]?.enviado_a_cuenta ? (
+                              <Badge variant="outline" className="text-xs">Enviado a cuenta</Badge>
+                            ) : (
+                              <Button size="sm" variant="outline" className="gap-1" onClick={() => abrirEnviar(m)}>
+                                <Send className="h-3 w-3" />Enviar a cuenta
+                              </Button>
+                            )}
                             <Button size="sm" variant="ghost" onClick={() => desconciliar(m)}><RotateCcw className="h-3 w-3" /></Button>
                           </div>
                         ) : (
@@ -192,6 +273,81 @@ const ConciliacionPage = () => {
           </CardContent>
         </Card>
       </div>
+
+      <Dialog open={!!dialogEnviar} onOpenChange={(o) => !o && setDialogEnviar(null)}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Enviar a cuenta {enviarForm.entidadTipo === 'proveedor' ? 'acreedora (proveedor)' : 'deudora (cliente)'}</DialogTitle></DialogHeader>
+          {dialogEnviar && (
+            <div className="space-y-3">
+              <p className="text-sm text-muted-foreground">
+                Movimiento: {dialogEnviar.concepto || '—'} · ${(dialogEnviar.cargo > 0 ? dialogEnviar.cargo : dialogEnviar.abono).toFixed(2)} ·{' '}
+                {dialogEnviar.cargo > 0 ? 'salida (pago)' : 'entrada (cobro)'}
+              </p>
+              <div>
+                <Label>Tipo</Label>
+                <Select value={enviarForm.entidadTipo} onValueChange={(v: 'proveedor' | 'cliente') => {
+                  setEnviarForm({ ...enviarForm, entidadTipo: v, entidadId: '' });
+                  setComprasPendientes([]); setComprasSel(new Set());
+                }}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="proveedor">Proveedor (acreedora)</SelectItem>
+                    <SelectItem value="cliente">Cliente (deudora)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label>{enviarForm.entidadTipo === 'proveedor' ? 'Proveedor' : 'Cliente'}</Label>
+                <Select value={enviarForm.entidadId} onValueChange={(v) => {
+                  setEnviarForm({ ...enviarForm, entidadId: v });
+                  if (enviarForm.entidadTipo === 'proveedor') cargarComprasPendientes(v);
+                }}>
+                  <SelectTrigger><SelectValue placeholder="Selecciona..." /></SelectTrigger>
+                  <SelectContent>
+                    {(enviarForm.entidadTipo === 'proveedor' ? proveedores : clientes).map((e: any) => (
+                      <SelectItem key={e.id} value={e.id}>{e.nombre}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label>Cuenta contable destino</Label>
+                <Select value={enviarForm.cuentaContableId} onValueChange={(v) => setEnviarForm({ ...enviarForm, cuentaContableId: v })}>
+                  <SelectTrigger><SelectValue placeholder="Selecciona la cuenta..." /></SelectTrigger>
+                  <SelectContent>
+                    {cuentasContables.map((c: any) => (
+                      <SelectItem key={c.id} value={c.id}>{c.codigo} — {c.nombre}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              {enviarForm.entidadTipo === 'proveedor' && comprasPendientes.length > 0 && (
+                <div>
+                  <Label>Aplicar contra estas compras (opcional)</Label>
+                  <div className="border rounded max-h-40 overflow-y-auto">
+                    {comprasPendientes.map((c: any) => (
+                      <label key={c.id} className="flex items-center gap-2 p-2 text-sm border-b last:border-0">
+                        <input type="checkbox" checked={comprasSel.has(c.id)} onChange={() => {
+                          const n = new Set(comprasSel);
+                          n.has(c.id) ? n.delete(c.id) : n.add(c.id);
+                          setComprasSel(n);
+                        }} />
+                        <span className="font-mono">{c.numero_compra}</span>
+                        <span className="text-muted-foreground ml-auto">Saldo: ${c.saldo.toFixed(2)}</span>
+                      </label>
+                    ))}
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-1">Si no seleccionas ninguna, solo se registra la póliza contable, sin aplicar contra una compra específica.</p>
+                </div>
+              )}
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDialogEnviar(null)}>Cancelar</Button>
+            <Button onClick={confirmarEnviar} disabled={enviando}>{enviando ? 'Enviando...' : 'Confirmar y crear póliza'}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
