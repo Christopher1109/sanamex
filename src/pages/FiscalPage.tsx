@@ -63,7 +63,7 @@ export default function FiscalPage() {
     // Ventas POS completadas
     const { data: ventasData } = await supabase
       .from('ventas')
-      .select('id, numero_venta, total, fecha, estado, sucursal_id, cliente_id, clientes(nombre, rfc)')
+      .select('id, numero_venta, total, fecha, estado, sucursal_id, cliente_id, requiere_factura, clientes(nombre, rfc)')
       .in('sucursal_id', sucursalIds)
       .eq('estado', 'completada')
       .order('fecha', { ascending: false })
@@ -72,7 +72,7 @@ export default function FiscalPage() {
     // Pedidos entregados (mayoreo)
     const { data: pedidosData } = await supabase
       .from('pedidos')
-      .select('id, numero_pedido, created_at, estado, sucursal_id, cliente_id, clientes(nombre, rfc), pedido_lineas(subtotal)')
+      .select('id, numero_pedido, created_at, estado, sucursal_id, cliente_id, requiere_factura, clientes(nombre, rfc), pedido_lineas(subtotal)')
       .in('sucursal_id', sucursalIds)
       .eq('estado', 'entregado')
       .order('created_at', { ascending: false })
@@ -114,10 +114,31 @@ export default function FiscalPage() {
         total: (p.pedido_lineas || []).reduce((s: number, l: any) => s + Number(l.subtotal || 0), 0),
       }));
 
-    const merged = [...ventasNorm, ...pedidosNorm].sort((a, b) =>
-      new Date(b.fecha_ord).getTime() - new Date(a.fecha_ord).getTime()
-    );
+    const merged = [...ventasNorm, ...pedidosNorm].sort((a, b) => {
+      // Urgentes (requiere factura, mismo día) primero, y entre ellas las más
+      // viejas arriba (más riesgo de que se pase el mismo-día). Las de
+      // público en general (acumulables) van después, más recientes primero.
+      const aUrg = a.requiere_factura ? 1 : 0;
+      const bUrg = b.requiere_factura ? 1 : 0;
+      if (aUrg !== bUrg) return bUrg - aUrg;
+      const ta = new Date(a.fecha_ord).getTime();
+      const tb = new Date(b.fecha_ord).getTime();
+      return aUrg ? ta - tb : tb - ta;
+    });
     setVentas(merged);
+  }
+
+  function diasSinFacturar(fecha: string) {
+    const hoy = new Date(); hoy.setHours(0, 0, 0, 0);
+    const f = new Date(fecha); f.setHours(0, 0, 0, 0);
+    return Math.max(0, Math.floor((hoy.getTime() - f.getTime()) / 86400000));
+  }
+
+  async function toggleRequiereFactura(v: any) {
+    const tabla = v.origen === 'pedido' ? 'pedidos' : 'ventas';
+    const { error } = await supabase.from(tabla).update({ requiere_factura: !v.requiere_factura }).eq('id', v.id);
+    if (error) { toast.error(error.message); return; }
+    loadVentas();
   }
 
   async function save() {
@@ -332,13 +353,16 @@ export default function FiscalPage() {
                   <TableHead>Fecha</TableHead>
                   <TableHead>Cliente</TableHead>
                   <TableHead>RFC</TableHead>
+                  <TableHead>Facturación</TableHead>
                   <TableHead className="text-right">Total</TableHead>
                   <TableHead></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {ventas.length === 0 && <TableRow><TableCell colSpan={9} className="text-center py-6 text-muted-foreground">No hay ventas ni pedidos pendientes de timbrar.</TableCell></TableRow>}
-                {ventas.map(v => (
+                {ventas.length === 0 && <TableRow><TableCell colSpan={10} className="text-center py-6 text-muted-foreground">No hay ventas ni pedidos pendientes de timbrar.</TableCell></TableRow>}
+                {ventas.map(v => {
+                  const dias = diasSinFacturar(v.fecha);
+                  return (
                   <TableRow key={`${v.origen}-${v.id}`}>
                     <TableCell>
                       {v.origen === 'venta' && (
@@ -351,12 +375,24 @@ export default function FiscalPage() {
                     <TableCell>{new Date(v.fecha).toLocaleDateString()}</TableCell>
                     <TableCell>{v.clientes?.nombre || 'Público general'}</TableCell>
                     <TableCell className="font-mono text-xs">{v.clientes?.rfc || '—'}</TableCell>
+                    <TableCell>
+                      <button onClick={() => toggleRequiereFactura(v)} className="text-left">
+                        {v.requiere_factura ? (
+                          <Badge className={dias > 0 ? 'bg-destructive' : 'bg-amber-500'}>
+                            Urgente{dias > 0 ? ` · ${dias}d` : ' · hoy'}
+                          </Badge>
+                        ) : (
+                          <Badge variant="outline" className="text-muted-foreground">Acumulable</Badge>
+                        )}
+                      </button>
+                    </TableCell>
                     <TableCell className="text-right">${Number(v.total).toFixed(2)}</TableCell>
                     <TableCell>
                       <Button size="sm" onClick={() => openTimbrar(v)} disabled={!config}>Timbrar</Button>
                     </TableCell>
                   </TableRow>
-                ))}
+                  );
+                })}
               </TableBody>
             </Table>
             {!config && <p className="p-4 text-sm text-amber-600">Captura primero la configuración fiscal de la sucursal.</p>}
