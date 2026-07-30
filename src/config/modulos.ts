@@ -113,6 +113,7 @@ export const DEFAULTS_POR_ROL: Record<string, Partial<Record<string, NivelAcceso
   almacen_ventas: {
     articulos: 'consultar', clientes: 'capturar', ventas: 'capturar', pos: 'capturar',
     inventario: 'consultar', caducidades: 'consultar', ventas_offline: 'capturar', corte_caja: 'capturar',
+    compras: 'consultar',
   },
 
   almacen: {

@@ -11,8 +11,9 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
-import { Send, PackageCheck, X, ClipboardList, ArrowLeft, Check, ShieldCheck, Truck, RefreshCw } from 'lucide-react';
+import { Send, PackageCheck, X, ClipboardList, ArrowLeft, Check, ShieldCheck, Truck, RefreshCw, FileDown } from 'lucide-react';
 import { toast } from 'sonner';
+import { generarOcProveedorExcel, descargarBlob } from '@/lib/generarOcProveedor';
 
 type OC = {
   id: string; folio: string; estado: string;
@@ -20,6 +21,7 @@ type OC = {
   subtotal: number; iva: number; total: number; notas: string | null;
   creada_por: string | null;
   cantidades_modificadas_gerente?: boolean;
+  grupo_id?: string | null;
   proveedor: { nombre: string; codigo: string | null } | null;
   sucursal_destino: { codigo: string; nombre: string } | null;
   sucursal_destino_id: string | null;
@@ -44,6 +46,7 @@ type Linea = {
 const ESTADO_COLOR: Record<string, string> = {
   borrador: 'bg-slate-500', pendiente_aprobacion: 'bg-amber-600',
   confirmada_gerente: 'bg-purple-600',
+  pendiente_confirmar: 'bg-cyan-700', en_ruta: 'bg-blue-600',
   enviada: 'bg-blue-600', confirmada: 'bg-indigo-600',
   parcial: 'bg-amber-600', recibida: 'bg-emerald-600', cancelada: 'bg-rose-600',
 };
@@ -51,6 +54,7 @@ const ESTADO_COLOR: Record<string, string> = {
 const ESTADO_LABEL: Record<string, string> = {
   borrador: 'Borrador', pendiente_aprobacion: 'Por revisar (gerente)',
   confirmada_gerente: 'Por autorizar (admin)',
+  pendiente_confirmar: 'Pendiente de confirmar con proveedor', en_ruta: 'En ruta',
   enviada: 'Enviada', confirmada: 'Confirmada por proveedor',
   parcial: 'Recepción parcial', recibida: 'Recibida', cancelada: 'Cancelada',
 };
@@ -58,6 +62,7 @@ const ESTADO_LABEL: Record<string, string> = {
 const ROLES_ADMIN = ['admin', 'super_admin'];
 const ROLES_GERENCIA = ['gerente', 'subgerente'];
 const ROLES_COMPRAS = ['compras'];
+const ROLES_ALMACEN = ['almacen_ventas', 'almacen'];
 
 type Grupo = {
   id: string; folio: string; estado: string; fecha_creacion: string; fecha_envio: string | null;
@@ -71,6 +76,7 @@ export default function OrdenesCompraPage() {
   const esAdmin = !!userRole && ROLES_ADMIN.includes(userRole);
   const esGerencia = !!userRole && ROLES_GERENCIA.includes(userRole);
   const esCompras = !!userRole && ROLES_COMPRAS.includes(userRole);
+  const esAlmacen = !!userRole && ROLES_ALMACEN.includes(userRole);
   const [misSucursales, setMisSucursales] = useState<string[]>([]);
   const [ocs, setOcs] = useState<OC[]>([]);
   const [grupos, setGrupos] = useState<Grupo[]>([]);
@@ -82,9 +88,12 @@ export default function OrdenesCompraPage() {
   const [lineas, setLineas] = useState<Linea[]>([]);
   const [lineasEditadas, setLineasEditadas] = useState<Record<string, number>>({});
   const [recibirOpen, setRecibirOpen] = useState(false);
-  const [recepciones, setRecepciones] = useState<Record<string, number>>({});
+  const [recepciones, setRecepciones] = useState<Record<string, { cantidad: number; numero_lote: string; fecha_caducidad: string }>>({});
   const [almacenes, setAlmacenes] = useState<{ id: string; nombre: string; sucursal: string }[]>([]);
   const [almacenSel, setAlmacenSel] = useState<string>('');
+  const [confirmarProveedorOpen, setConfirmarProveedorOpen] = useState<OC | null>(null);
+  const [pagoProveedorForm, setPagoProveedorForm] = useState({ metodo_pago: 'credito' as 'credito' | 'contado', dias_credito: '30', fecha_pago_limite: '', notas: '' });
+  const [confirmandoProveedor, setConfirmandoProveedor] = useState(false);
   const [tab, setTab] = useState<'grupos' | 'todas' | 'revision_gerente' | 'autorizacion_admin' | 'trazabilidad'>('grupos');
   const [rechazoOpen, setRechazoOpen] = useState<{ oc: OC; tipo: 'gerente' | 'admin' } | null>(null);
   const [razonRechazo, setRazonRechazo] = useState('');
@@ -116,8 +125,9 @@ export default function OrdenesCompraPage() {
   useEffect(() => {
     // Gerente/subgerente no tienen la pestaña "Por proveedor" (grupos) — que no se quede
     // seleccionada por defecto una pestaña que para ellos no existe.
-    if (esGerencia && !esAdmin && !esCompras) setTab('revision_gerente');
-  }, [esGerencia, esAdmin, esCompras]);
+    if (esAlmacen && !esAdmin && !esCompras && !esGerencia) setTab('todas');
+    else if (esGerencia && !esAdmin && !esCompras) setTab('revision_gerente');
+  }, [esGerencia, esAdmin, esCompras, esAlmacen]);
 
   async function loadGrupos() {
     const { data } = await (supabase as any).from('v_ordenes_compra_grupo_resumen').select('*').order('fecha_creacion', { ascending: false });
@@ -240,12 +250,93 @@ export default function OrdenesCompraPage() {
     load();
   }
 
+  async function generarExcelProveedor(oc: OC) {
+    try {
+      let filasFuente: { producto_id: string; sku: string; nombre: string; cantidad: number; precio_con_iva: number; sucursal_codigo: string }[] = [];
+
+      if (oc.grupo_id) {
+        const { data: hijas } = await supabase.from('ordenes_compra')
+          .select('id, sucursal_destino:sucursales!sucursal_destino_id(codigo)')
+          .eq('grupo_id', oc.grupo_id);
+        const ids = (hijas || []).map((h: any) => h.id);
+        const sucPorOc: Record<string, string> = {};
+        (hijas || []).forEach((h: any) => { sucPorOc[h.id] = h.sucursal_destino?.codigo || ''; });
+        const { data: lns } = await supabase.from('orden_compra_lineas')
+          .select('orden_id, producto_id, cantidad_solicitada, precio_con_iva, producto:productos(sku, nombre)')
+          .in('orden_id', ids);
+        filasFuente = (lns || []).map((l: any) => ({
+          producto_id: l.producto_id, sku: l.producto?.sku || '', nombre: l.producto?.nombre || '',
+          cantidad: l.cantidad_solicitada, precio_con_iva: l.precio_con_iva,
+          sucursal_codigo: sucPorOc[l.orden_id] || '',
+        }));
+      } else {
+        filasFuente = lineas.map(l => ({
+          producto_id: l.producto_id, sku: l.producto?.sku || '', nombre: l.producto?.nombre || '',
+          cantidad: l.cantidad_solicitada, precio_con_iva: l.precio_unitario,
+          sucursal_codigo: oc.sucursal_destino?.codigo || '',
+        }));
+      }
+
+      const porProducto = new Map<string, { sku: string; nombre: string; piezas: number; precioConIva: number; reparto: Record<string, number> }>();
+      for (const f of filasFuente) {
+        const acc = porProducto.get(f.producto_id) || { sku: f.sku, nombre: f.nombre, piezas: 0, precioConIva: f.precio_con_iva, reparto: {} };
+        acc.piezas += f.cantidad;
+        if (f.sucursal_codigo) acc.reparto[f.sucursal_codigo] = (acc.reparto[f.sucursal_codigo] || 0) + f.cantidad;
+        porProducto.set(f.producto_id, acc);
+      }
+
+      const sucursales = Array.from(new Set(filasFuente.map(f => f.sucursal_codigo).filter(Boolean)));
+      const blob = await generarOcProveedorExcel({
+        proveedorNombre: oc.proveedor?.nombre || '',
+        numeroOC: oc.folio,
+        condicionesPago: 'Por confirmar con proveedor',
+        sucursalDestinoTexto: sucursales.length > 1 ? sucursales.join(' / ') : (sucursales[0] || oc.sucursal_destino?.codigo || ''),
+        folioCotizacion: '',
+        lineas: Array.from(porProducto.values()).map(p => ({ sku: p.sku, nombre: p.nombre, piezas: p.piezas, precioConIva: p.precioConIva, reparto: p.reparto })),
+      });
+      descargarBlob(blob, `${oc.folio}_orden_compra.xlsx`);
+    } catch (e: any) {
+      toast.error('No se pudo generar el archivo: ' + e.message);
+    }
+  }
+
+  function abrirConfirmarProveedor(oc: OC) {
+    setConfirmarProveedorOpen(oc);
+    setPagoProveedorForm({ metodo_pago: 'credito', dias_credito: '30', fecha_pago_limite: '', notas: '' });
+  }
+
+  async function confirmarProveedor() {
+    if (!confirmarProveedorOpen) return;
+    setConfirmandoProveedor(true);
+    const oc = confirmarProveedorOpen;
+    const { data, error } = await (supabase as any).rpc('confirmar_envio_proveedor', {
+      p_grupo_id: oc.grupo_id || null,
+      p_orden_id: oc.grupo_id ? null : oc.id,
+      p_metodo_pago: pagoProveedorForm.metodo_pago,
+      p_dias_credito: pagoProveedorForm.metodo_pago === 'credito' ? Number(pagoProveedorForm.dias_credito) : null,
+      p_fecha_pago_limite: pagoProveedorForm.fecha_pago_limite || null,
+      p_notas: pagoProveedorForm.notas || null,
+    });
+    setConfirmandoProveedor(false);
+    if (error) { toast.error(error.message); return; }
+    toast.success(`Marcada en ruta — compra ${data?.numero_compra} creada en Cuentas por Pagar`);
+    setConfirmarProveedorOpen(null);
+    await load();
+    if (seleccionada) abrirDetalle(seleccionada);
+  }
+
   async function ejecutarRecepcion() {
     if (!seleccionada || !almacenSel) { toast.error('Selecciona almacén'); return; }
     const items = Object.entries(recepciones)
-      .filter(([, c]) => c > 0)
-      .map(([linea_id, cantidad]) => ({ linea_id, cantidad }));
+      .filter(([, r]) => r.cantidad > 0)
+      .map(([linea_id, r]) => ({
+        linea_id, cantidad: r.cantidad,
+        numero_lote: r.numero_lote || undefined,
+        fecha_caducidad: r.fecha_caducidad || undefined,
+      }));
     if (!items.length) { toast.error('Captura al menos una cantidad'); return; }
+    const sinCaducidad = items.filter(i => !i.fecha_caducidad);
+    if (sinCaducidad.length) { toast.error('Captura la fecha de caducidad de cada producto recibido'); return; }
     const { data, error } = await (supabase as any).rpc('recibir_oc', {
       p_orden_id: seleccionada.id, p_recepciones: items, p_almacen_id: almacenSel,
     });
@@ -304,16 +395,26 @@ export default function OrdenesCompraPage() {
                   </Button>
                 </>
               )}
-              {seleccionada.estado === 'borrador' && (
+              {seleccionada.estado === 'pendiente_confirmar' && (esAdmin || esCompras) && (
+                <>
+                  <Button variant="outline" className="gap-2" onClick={() => generarExcelProveedor(seleccionada)}>
+                    <FileDown className="h-4 w-4" />Generar OC (Excel)
+                  </Button>
+                  <Button className="gap-2 bg-emerald-600 hover:bg-emerald-700" onClick={() => abrirConfirmarProveedor(seleccionada)}>
+                    <Truck className="h-4 w-4" />Confirmar con proveedor y marcar en ruta
+                  </Button>
+                </>
+              )}
+              {!esAlmacen && seleccionada.estado === 'borrador' && (
                 <>
                   <Button onClick={() => cambiarEstado(seleccionada, 'enviada')} className="gap-2"><Send className="h-4 w-4" />Enviar</Button>
                   <Button variant="destructive" onClick={() => cambiarEstado(seleccionada, 'cancelada')} className="gap-2"><X className="h-4 w-4" />Cancelar</Button>
                 </>
               )}
-              {seleccionada.estado === 'enviada' && (
+              {!esAlmacen && seleccionada.estado === 'enviada' && (
                 <Button onClick={() => cambiarEstado(seleccionada, 'confirmada')}>Marcar confirmada</Button>
               )}
-              {['enviada', 'confirmada', 'parcial'].includes(seleccionada.estado) && (
+              {['en_ruta', 'enviada', 'confirmada', 'parcial'].includes(seleccionada.estado) && (
                 <Button onClick={() => setRecibirOpen(true)} className="gap-2"><PackageCheck className="h-4 w-4" />Recibir mercancía</Button>
               )}
             </div>
@@ -394,20 +495,33 @@ export default function OrdenesCompraPage() {
                     <TableHead className="text-right">Solicitado</TableHead>
                     <TableHead className="text-right">Ya recibido</TableHead>
                     <TableHead className="text-right">Recibir ahora</TableHead>
+                    <TableHead>No. de lote</TableHead>
+                    <TableHead>Caducidad</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {lineas.map(l => {
                     const pend = l.cantidad_solicitada - l.cantidad_recibida;
+                    const r = recepciones[l.id] || { cantidad: 0, numero_lote: '', fecha_caducidad: '' };
                     return (
                       <TableRow key={l.id}>
                         <TableCell className="text-xs">{l.producto?.sku} · {l.producto?.nombre}</TableCell>
                         <TableCell className="text-right">{l.cantidad_solicitada}</TableCell>
                         <TableCell className="text-right">{l.cantidad_recibida}</TableCell>
                         <TableCell className="text-right">
-                          <Input type="number" min={0} max={pend} className="h-8 w-24 text-right ml-auto"
-                            value={recepciones[l.id] ?? ''}
-                            onChange={e => setRecepciones(p => ({ ...p, [l.id]: parseInt(e.target.value || '0') }))} />
+                          <Input type="number" min={0} max={pend} className="h-8 w-20 text-right ml-auto"
+                            value={r.cantidad || ''}
+                            onChange={e => setRecepciones(p => ({ ...p, [l.id]: { ...r, cantidad: parseInt(e.target.value || '0') } }))} />
+                        </TableCell>
+                        <TableCell>
+                          <Input className="h-8 w-32" placeholder="Lote"
+                            value={r.numero_lote}
+                            onChange={e => setRecepciones(p => ({ ...p, [l.id]: { ...r, numero_lote: e.target.value } }))} />
+                        </TableCell>
+                        <TableCell>
+                          <Input type="date" className="h-8 w-36"
+                            value={r.fecha_caducidad}
+                            onChange={e => setRecepciones(p => ({ ...p, [l.id]: { ...r, fecha_caducidad: e.target.value } }))} />
                         </TableCell>
                       </TableRow>
                     );
@@ -418,6 +532,53 @@ export default function OrdenesCompraPage() {
             <DialogFooter>
               <Button variant="outline" onClick={() => setRecibirOpen(false)}>Cancelar</Button>
               <Button onClick={ejecutarRecepcion}>Confirmar recepción</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        <Dialog open={!!confirmarProveedorOpen} onOpenChange={o => !o && setConfirmarProveedorOpen(null)}>
+          <DialogContent>
+            <DialogHeader><DialogTitle>Confirmar con proveedor — {confirmarProveedorOpen?.folio}</DialogTitle></DialogHeader>
+            <div className="space-y-3">
+              <p className="text-sm text-muted-foreground">
+                Esto se hace cuando ya quedaron de acuerdo con el proveedor en cómo y cuándo se paga, y el pedido
+                ya va en camino. Se crea el registro en Cuentas por Pagar y la orden pasa a "En ruta".
+              </p>
+              <div>
+                <Label className="text-xs">Forma de pago</Label>
+                <Select value={pagoProveedorForm.metodo_pago} onValueChange={(v: 'credito' | 'contado') => setPagoProveedorForm({ ...pagoProveedorForm, metodo_pago: v })}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="credito">Crédito</SelectItem>
+                    <SelectItem value="contado">Contado</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              {pagoProveedorForm.metodo_pago === 'credito' && (
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <Label className="text-xs">Días de crédito</Label>
+                    <Input type="number" value={pagoProveedorForm.dias_credito}
+                      onChange={e => setPagoProveedorForm({ ...pagoProveedorForm, dias_credito: e.target.value })} />
+                  </div>
+                  <div>
+                    <Label className="text-xs">Fecha límite de pago (opcional)</Label>
+                    <Input type="date" value={pagoProveedorForm.fecha_pago_limite}
+                      onChange={e => setPagoProveedorForm({ ...pagoProveedorForm, fecha_pago_limite: e.target.value })} />
+                  </div>
+                </div>
+              )}
+              <div>
+                <Label className="text-xs">Notas (opcional)</Label>
+                <Textarea rows={2} value={pagoProveedorForm.notas}
+                  onChange={e => setPagoProveedorForm({ ...pagoProveedorForm, notas: e.target.value })} />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setConfirmarProveedorOpen(null)}>Cancelar</Button>
+              <Button onClick={confirmarProveedor} disabled={confirmandoProveedor} className="bg-emerald-600 hover:bg-emerald-700">
+                {confirmandoProveedor ? 'Confirmando...' : 'Confirmar y marcar en ruta'}
+              </Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>

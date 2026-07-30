@@ -16,7 +16,7 @@ import OrdenesCompraPage from './OrdenesCompraPage';
 // no de su sucursal). Solo entran a Órdenes de Compra, donde además
 // ahora la base de datos los limita a las OC de su(s) propia(s)
 // sucursal(es) (RLS por sucursal_destino_id vía user_sucursal_asignacion).
-const ROLES_SOLO_ORDENES = ['gerente', 'subgerente'];
+const ROLES_SOLO_ORDENES = ['gerente', 'subgerente', 'almacen_ventas', 'almacen'];
 
 export default function ComprasHubPage() {
   const { userRole } = useAuth();
