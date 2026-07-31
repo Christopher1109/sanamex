@@ -153,13 +153,23 @@ export default function OrdenesCompraPage() {
     setTrazabilidad((data || []) as Trazabilidad[]);
   }
 
-  async function enviarGrupoAProveedor(g: Grupo) {
-    const { error } = await (supabase as any).rpc('enviar_grupo_a_proveedor', { p_grupo_id: g.id });
+  // PASO 1 del flujo con proveedor. Sustituye a la antigua RPC
+  // `enviar_grupo_a_proveedor`, que fue eliminada de la base de datos porque
+  // validaba estados viejos y siempre fallaba. Ahora solo pasa las órdenes de
+  // `pendiente_confirmar` → `confirmada_proveedor` (sin pedir método de pago).
+  async function confirmarConProveedor(args: { grupo_id?: string | null; orden_id?: string | null; folio: string }) {
+    const { error } = await (supabase as any).rpc('confirmar_con_proveedor', {
+      p_grupo_id: args.grupo_id || null,
+      p_orden_id: args.grupo_id ? null : (args.orden_id || null),
+      p_notas: null,
+    });
     if (error) return toast.error(error.message);
-    toast.success(`${g.folio} enviada al proveedor ${g.proveedor_nombre}`);
+    toast.success(`${args.folio} confirmada con el proveedor — ya se puede marcar en ruta`);
     await loadGrupos();
     await load();
+    if (seleccionada) await abrirDetalle(seleccionada);
   }
+
 
   async function loadMisSucursales() {
     if (!user) return;
