@@ -133,11 +133,20 @@ export default function OrdenesCompraPage() {
     return () => clearInterval(intervalo);
   }, [esAdmin, esCompras]);
   useEffect(() => {
+    // Punto 3: en cuanto se conocen las OC pendientes de revisión/autorización,
+    // se precargan sus insumos para mostrarlos en la propia lista.
+    const ids = ocs
+      .filter(o => o.estado === 'pendiente_aprobacion' || o.estado === 'confirmada_gerente')
+      .map(o => o.id);
+    if (ids.length) loadLineasPreview(ids);
+  }, [ocs]);
+  useEffect(() => {
     // Gerente/subgerente no tienen la pestaña "Por proveedor" (grupos) — que no se quede
     // seleccionada por defecto una pestaña que para ellos no existe.
-    if (esAlmacen && !esAdmin && !esCompras && !esGerencia) setTab('todas');
+    if (esAlmacen && !esAdmin && !esCompras && !esGerencia) setTab('seguimiento');
     else if (esGerencia && !esAdmin && !esCompras) setTab('revision_gerente');
   }, [esGerencia, esAdmin, esCompras, esAlmacen]);
+
 
   async function loadGrupos() {
     const { data } = await (supabase as any).from('v_ordenes_compra_grupo_resumen').select('*').order('fecha_creacion', { ascending: false });
