@@ -46,7 +46,9 @@ type Linea = {
 const ESTADO_COLOR: Record<string, string> = {
   borrador: 'bg-slate-500', pendiente_aprobacion: 'bg-amber-600',
   confirmada_gerente: 'bg-purple-600',
-  pendiente_confirmar: 'bg-cyan-700', en_ruta: 'bg-blue-600',
+  pendiente_confirmar: 'bg-cyan-700',
+  confirmada_proveedor: 'bg-teal-600',
+  en_ruta: 'bg-blue-600',
   enviada: 'bg-blue-600', confirmada: 'bg-indigo-600',
   parcial: 'bg-amber-600', recibida: 'bg-emerald-600', cancelada: 'bg-rose-600',
 };
@@ -54,10 +56,13 @@ const ESTADO_COLOR: Record<string, string> = {
 const ESTADO_LABEL: Record<string, string> = {
   borrador: 'Borrador', pendiente_aprobacion: 'Por revisar (gerente)',
   confirmada_gerente: 'Por autorizar (admin)',
-  pendiente_confirmar: 'Pendiente de confirmar con proveedor', en_ruta: 'En ruta',
+  pendiente_confirmar: 'Pendiente de confirmar con proveedor',
+  confirmada_proveedor: 'Confirmada con proveedor',
+  en_ruta: 'En ruta',
   enviada: 'Enviada', confirmada: 'Confirmada por proveedor',
   parcial: 'Recepción parcial', recibida: 'Recibida', cancelada: 'Cancelada',
 };
+
 
 const ROLES_ADMIN = ['admin', 'super_admin'];
 const ROLES_GERENCIA = ['gerente', 'subgerente'];
