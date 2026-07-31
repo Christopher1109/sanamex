@@ -609,9 +609,10 @@ export default function OrdenesCompraPage() {
               </div>
             </div>
             <DialogFooter>
-              <Button variant="outline" onClick={() => setConfirmarProveedorOpen(null)}>Cancelar</Button>
+              <Button variant="outline" onClick={() => setEnRutaOpen(null)}>Cancelar</Button>
               <Button onClick={confirmarProveedor} disabled={confirmandoProveedor} className="bg-emerald-600 hover:bg-emerald-700">
-                {confirmandoProveedor ? 'Confirmando...' : 'Confirmar y marcar en ruta'}
+                {confirmandoProveedor ? 'Procesando...' : 'Marcar en ruta'}
+
               </Button>
             </DialogFooter>
           </DialogContent>
