@@ -840,7 +840,7 @@ export default function OrdenesCompraPage() {
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Todos</SelectItem>
-                  {['borrador','pendiente_aprobacion','confirmada_gerente','enviada','confirmada','parcial','recibida','cancelada'].map(e =>
+                  {['borrador','pendiente_aprobacion','confirmada_gerente','pendiente_confirmar','confirmada_proveedor','en_ruta','enviada','confirmada','parcial','recibida','cancelada'].map(e =>
                     <SelectItem key={e} value={e}>{ESTADO_LABEL[e] || e}</SelectItem>)}
                 </SelectContent>
               </Select>
