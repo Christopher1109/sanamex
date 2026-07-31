@@ -892,8 +892,9 @@ export default function OrdenesCompraPage() {
               <TableBody>
                 {!pendientesRevisionGerente.length && <TableRow><TableCell colSpan={6} className="text-center p-6 text-muted-foreground">No hay OCs pendientes de tu revisión.</TableCell></TableRow>}
                 {pendientesRevisionGerente.map(oc => (
-                  <>
-                  <TableRow key={oc.id}>
+                  <Fragment key={oc.id}>
+                  <TableRow>
+
                     <TableCell className="font-mono font-medium">{oc.folio}</TableCell>
                     <TableCell>{oc.proveedor?.nombre}</TableCell>
                     <TableCell>{oc.sucursal_destino?.codigo || '—'}</TableCell>
