@@ -53,6 +53,12 @@ export default function GestionUsuariosPage() {
   const [editAccess, setEditAccess] = useState<Record<string, NivelAcceso>>({});
   const [originalAccess, setOriginalAccess] = useState<Record<string, NivelAcceso>>({});
   const [originalRole, setOriginalRole] = useState<Rol | ''>('');
+  // Antes solo se podía elegir sucursal al CREAR un usuario — para un usuario ya
+  // existente no había ningún control para asignarla o cambiarla, por lo que
+  // "Mi sucursal" (en Órdenes de Compra) y el selector de sucursal del header
+  // se quedaban vacíos para cualquier cuenta creada sin sucursal desde el inicio.
+  const [editSucursalId, setEditSucursalId] = useState<string>('');
+  const [originalSucursalId, setOriginalSucursalId] = useState<string>('');
 
   // Modales
   const [saveModal, setSaveModal] = useState(false);
@@ -159,6 +165,8 @@ export default function GestionUsuariosPage() {
     setSelectedId(u.id);
     setEditRole(u.role || '');
     setOriginalRole(u.role || '');
+    setEditSucursalId(u.sucursal_id || '');
+    setOriginalSucursalId(u.sucursal_id || '');
     const { data } = await supabase.from('user_module_access').select('modulo, nivel_acceso').eq('user_id', u.id);
     const map: Record<string, NivelAcceso> = {};
     MODULOS.forEach(m => { map[m.key] = 'sin_acceso'; });
@@ -175,6 +183,11 @@ export default function GestionUsuariosPage() {
     if (editRole !== originalRole) {
       list.push({ tipo:'rol', label:'Rol base', anterior: originalRole || '—', nuevo: editRole || '—' });
     }
+    if (editSucursalId !== originalSucursalId) {
+      const nombrePrev = sucursales.find(s => s.id === originalSucursalId)?.codigo || 'Sin asignar';
+      const nombreNext = sucursales.find(s => s.id === editSucursalId)?.codigo || 'Sin asignar';
+      list.push({ tipo:'sucursal', label:'Sucursal asignada', anterior: nombrePrev, nuevo: nombreNext });
+    }
     for (const m of MODULOS) {
       const prev = originalAccess[m.key] || 'sin_acceso';
       const next = editAccess[m.key] || 'sin_acceso';
@@ -183,7 +196,7 @@ export default function GestionUsuariosPage() {
       }
     }
     return list;
-  }, [editRole, originalRole, editAccess, originalAccess]);
+  }, [editRole, originalRole, editAccess, originalAccess, editSucursalId, originalSucursalId, sucursales]);
 
   async function applyChanges() {
     if (!selectedUser) return;
@@ -191,6 +204,17 @@ export default function GestionUsuariosPage() {
     if (editRole !== originalRole) {
       await supabase.from('user_roles').delete().eq('user_id', selectedUser.id);
       if (editRole) await supabase.from('user_roles').insert({ user_id: selectedUser.id, role: editRole });
+    }
+    // Sucursal asignada — modelo de una sola sucursal por usuario (igual que al
+    // crear la cuenta): se borra cualquier asignación previa y se inserta la nueva.
+    if (editSucursalId !== originalSucursalId) {
+      const { error: delErr } = await supabase.from('user_sucursal_asignacion').delete().eq('user_id', selectedUser.id);
+      if (delErr) { toast.error('Error al actualizar sucursal: ' + delErr.message); return; }
+      if (editSucursalId) {
+        const { error: insErr } = await supabase.from('user_sucursal_asignacion')
+          .insert({ user_id: selectedUser.id, sucursal_id: editSucursalId, es_principal: true });
+        if (insErr) { toast.error('Error al asignar sucursal: ' + insErr.message); return; }
+      }
     }
     // Módulos: upsert por (user_id, modulo)
     const rows = MODULOS.map(m => ({
@@ -375,6 +399,22 @@ export default function GestionUsuariosPage() {
                 </Select>
                 <p className="text-xs text-muted-foreground mt-1">
                   Cambiar el rol NO reescribe los permisos por módulo automáticamente. Usa los selectores debajo.
+                </p>
+              </div>
+
+              <div>
+                <Label>Sucursal asignada</Label>
+                <Select value={editSucursalId || 'none'} onValueChange={v => setEditSucursalId(v === 'none' ? '' : v)}>
+                  <SelectTrigger className="mt-1"><SelectValue placeholder="Sin sucursal asignada" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Sin asignar</SelectItem>
+                    {sucursales.map(s => <SelectItem key={s.id} value={s.id}>{s.codigo} — {s.nombre}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Define qué sucursal ve este usuario en "Mi sucursal" (Órdenes de Compra) y en el selector de
+                  sucursal del encabezado. Antes solo se podía definir al crear la cuenta — ahora también se
+                  puede cambiar aquí para cuentas ya existentes.
                 </p>
               </div>
 
