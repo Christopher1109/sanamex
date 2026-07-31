@@ -911,12 +911,13 @@ export default function OrdenesCompraPage() {
                       </div>
                     </TableCell>
                   </TableRow>
-                  <TableRow key={oc.id + '-preview'} className="hover:bg-transparent">
+                  <TableRow className="hover:bg-transparent">
                     <TableCell colSpan={6} className="pt-0">
                       <PreviewInsumos lineas={lineasPorOc[oc.id]} />
                     </TableCell>
                   </TableRow>
-                  </>
+                  </Fragment>
+
                 ))}
 
               </TableBody>
