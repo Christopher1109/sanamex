@@ -153,6 +153,24 @@ export default function OrdenesCompraPage() {
     setTrazabilidad((data || []) as Trazabilidad[]);
   }
 
+  // Punto 3: precarga de insumos para que el gerente vea QUÉ y CUÁNTO se le
+  // está pidiendo sin tener que abrir "Ver y confirmar".
+  async function loadLineasPreview(ids: string[]) {
+    const faltantes = ids.filter(id => !lineasPorOc[id]);
+    if (!faltantes.length) return;
+    const { data } = await supabase
+      .from('ordenes_compra_lineas')
+      .select('id, orden_compra_id, producto_id, cantidad_solicitada, cantidad_recibida, precio_unitario, subtotal, producto:productos(nombre, sku)')
+      .in('orden_compra_id', faltantes);
+    const map: Record<string, Linea[]> = {};
+    (data || []).forEach((l: any) => {
+      (map[l.orden_compra_id] ||= []).push(l as Linea);
+    });
+    setLineasPorOc(prev => ({ ...prev, ...map }));
+  }
+
+
+
   // PASO 1 del flujo con proveedor. Sustituye a la antigua RPC
   // `enviar_grupo_a_proveedor`, que fue eliminada de la base de datos porque
   // validaba estados viejos y siempre fallaba. Ahora solo pasa las órdenes de
