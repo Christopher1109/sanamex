@@ -1,15 +1,18 @@
 // Genera el archivo de Orden de Compra para el proveedor usando EXACTAMENTE
-// el machote proporcionado (public/plantillas/machote_oc_proveedor.xlsx),
-// sin tocar fórmulas, estilos ni las demás hojas (Hoja1 / lay out / MACHOTE).
-// Solo se escriben valores en las celdas de captura de la hoja "OC".
+// el machote proporcionado (public/plantillas/machote_oc_proveedor.xlsx).
+//
+// IMPORTANTE (fix jul-2026): antes se usaba SheetJS (xlsx), que al reescribir
+// el libro PIERDE todo el formato del machote (fuente Arial 11, negritas,
+// relleno verde 92D050 del encabezado, alturas de fila, anchos de columna,
+// orientación horizontal y área de impresión). Ahora se usa ExcelJS, que
+// carga el archivo original conservando estilos y solo se sobrescriben los
+// VALORES de las celdas de captura — el estilo de cada celda se respeta.
 //
 // OJO — pendiente de confirmar con el cliente: las columnas de REPARTO del
 // machote son F37 / F35 / GH / SV / ECA, pero en el sistema la única
-// sucursal "F" que existe es F36 — no hay una correspondencia 1 a 1 clara
-// entre F36 y F37/F35. Por ahora F36 se manda a la columna F37; hay que
-// confirmar cuál es la correcta o si el machote necesita actualizarse.
+// sucursal "F" que existe es F36. Por ahora F36 se manda a la columna F37.
 
-import * as XLSX from 'xlsx';
+import ExcelJS from 'exceljs';
 
 export type LineaOcProveedor = {
   sku: string;
@@ -33,55 +36,66 @@ export type DatosOcProveedor = {
   lineas: LineaOcProveedor[];
 };
 
+const PRIMERA_FILA_DATOS = 10;
+
 export async function generarOcProveedorExcel(params: DatosOcProveedor): Promise<Blob> {
   const resp = await fetch('/plantillas/machote_oc_proveedor.xlsx');
   if (!resp.ok) throw new Error('No se pudo cargar la plantilla de OC (public/plantillas/machote_oc_proveedor.xlsx)');
   const buf = await resp.arrayBuffer();
-  const wb = XLSX.read(buf, { type: 'array' });
-  const ws = wb.Sheets['OC'];
+
+  const wb = new ExcelJS.Workbook();
+  await wb.xlsx.load(buf);
+
+  const ws = wb.getWorksheet('OC');
   if (!ws) throw new Error('La plantilla no tiene una hoja llamada "OC"');
 
-  const setCell = (addr: string, value: string | number) => {
-    const existing = ws[addr];
-    const t: XLSX.ExcelDataType = typeof value === 'number' ? 'n' : 's';
-    if (existing) {
-      existing.v = value;
-      existing.t = t;
-      delete existing.f; // por si la celda destino tenía fórmula, la volvemos valor fijo
-    } else {
-      ws[addr] = { t, v: value };
-    }
+  // Solo se escribe el valor: ExcelJS conserva el estilo previo de la celda
+  // (fuente, negrita, relleno, bordes, formato numérico).
+  const setValor = (addr: string, value: string | number) => {
+    const cell = ws.getCell(addr);
+    cell.value = value;
   };
 
-  setCell('B2', params.proveedorNombre);
-  setCell('B3', new Date().toLocaleDateString('es-MX'));
-  setCell('B4', params.condicionesPago);
-  setCell('B5', params.numeroOC);
-  setCell('B6', params.sucursalDestinoTexto);
-  setCell('B7', 'COMPRA');
-  setCell('B8', params.folioCotizacion || '');
+  setValor('B2', params.proveedorNombre);
+  setValor('B3', new Date().toLocaleDateString('es-MX'));
+  setValor('B4', params.condicionesPago);
+  setValor('B5', params.numeroOC);
+  setValor('B6', params.sucursalDestinoTexto);
+  setValor('B7', 'COMPRA');
+  setValor('B8', params.folioCotizacion || '');
 
-  let row = 10;
+  // Estilo y alto de la primera fila de captura, para clonarlos en las filas
+  // extra que haya que agregar cuando la OC trae más renglones que el machote.
+  const filaModelo = ws.getRow(PRIMERA_FILA_DATOS);
+  const altoModelo = filaModelo.height;
+
+  let row = PRIMERA_FILA_DATOS;
   for (const linea of params.lineas) {
-    setCell(`A${row}`, linea.sku);
-    setCell(`B${row}`, linea.nombre);
-    setCell(`C${row}`, linea.piezas);
-    setCell(`E${row}`, linea.precioConIva);
+    const fila = ws.getRow(row);
+    if (row > PRIMERA_FILA_DATOS && !fila.height && altoModelo) fila.height = altoModelo;
+
+    const escribir = (col: string, value: string | number) => {
+      const cell = ws.getCell(`${col}${row}`);
+      // Si es una fila nueva (fuera del machote), heredamos el estilo del modelo.
+      if (!cell.style || !cell.style.font) {
+        cell.style = { ...ws.getCell(`${col}${PRIMERA_FILA_DATOS}`).style };
+      }
+      cell.value = value;
+    };
+
+    escribir('A', linea.sku);
+    escribir('B', linea.nombre);
+    escribir('C', linea.piezas);
+    escribir('E', linea.precioConIva);
     for (const [suc, cant] of Object.entries(linea.reparto)) {
       const col = SUCURSAL_A_COLUMNA_REPARTO[suc];
-      if (col && cant > 0) setCell(`${col}${row}`, cant);
+      if (col && cant > 0) escribir(col, cant);
     }
+    fila.commit?.();
     row++;
   }
 
-  const rangeRef = ws['!ref'] || 'A1:U77';
-  const range = XLSX.utils.decode_range(rangeRef);
-  if (row - 1 > range.e.r) {
-    range.e.r = row - 1;
-    ws['!ref'] = XLSX.utils.encode_range(range);
-  }
-
-  const out = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+  const out = await wb.xlsx.writeBuffer();
   return new Blob([out], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
 }
 
