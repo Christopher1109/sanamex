@@ -11,7 +11,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
-import { Send, PackageCheck, X, ClipboardList, ArrowLeft, Check, ShieldCheck, Truck, RefreshCw, FileDown } from 'lucide-react';
+import { Send, PackageCheck, X, ClipboardList, ArrowLeft, Check, ShieldCheck, Truck, RefreshCw, FileDown, ChevronDown, ChevronRight } from 'lucide-react';
 import { toast } from 'sonner';
 import { generarOcProveedorExcel, descargarBlob } from '@/lib/generarOcProveedor';
 
@@ -26,16 +26,6 @@ type OC = {
   sucursal_destino: { codigo: string; nombre: string } | null;
   sucursal_destino_id: string | null;
   comprador?: { nombre: string | null; username: string | null } | null;
-};
-type Trazabilidad = {
-  id: string; folio: string; estado: string; total: number;
-  proveedor_nombre: string | null;
-  sucursal_nombre: string | null; sucursal_codigo: string | null;
-  creada_por_nombre: string | null; fecha_creacion: string | null;
-  revisada_por_gerente_nombre: string | null; fecha_revision_gerente: string | null;
-  cantidades_modificadas_gerente: boolean; num_ajustes: number;
-  autorizada_por_nombre: string | null; fecha_autorizacion: string | null;
-  razon_aprobacion: string | null;
 };
 type Linea = {
   id: string; producto_id: string; cantidad_solicitada: number; cantidad_recibida: number;
@@ -178,7 +168,6 @@ export default function OrdenesCompraPage() {
   const [misSucursales, setMisSucursales] = useState<string[]>([]);
   const [ocs, setOcs] = useState<OC[]>([]);
   const [grupos, setGrupos] = useState<Grupo[]>([]);
-  const [trazabilidad, setTrazabilidad] = useState<Trazabilidad[]>([]);
   const [loading, setLoading] = useState(false);
   const [filtroEstado, setFiltroEstado] = useState<string>('all');
   const [busqueda, setBusqueda] = useState('');
@@ -193,10 +182,13 @@ export default function OrdenesCompraPage() {
   const [enRutaOpen, setEnRutaOpen] = useState<{ grupo_id?: string | null; orden_id?: string | null; folio: string } | null>(null);
   const [pagoProveedorForm, setPagoProveedorForm] = useState({ metodo_pago: 'credito' as 'credito' | 'contado', dias_credito: '30', fecha_pago_limite: '', notas: '' });
   const [confirmandoProveedor, setConfirmandoProveedor] = useState(false);
-  const [tab, setTab] = useState<'grupos' | 'todas' | 'seguimiento' | 'revision_gerente' | 'autorizacion_admin' | 'trazabilidad'>('grupos');
+  const [tab, setTab] = useState<'grupos' | 'todas' | 'seguimiento' | 'revision_gerente' | 'autorizacion_admin'>('grupos');
   const [rechazoOpen, setRechazoOpen] = useState<{ oc: OC; tipo: 'gerente' | 'admin' } | null>(null);
   const [razonRechazo, setRazonRechazo] = useState('');
   const [filtroGrupo, setFiltroGrupo] = useState<string | null>(null);
+  // Qué grupos (proveedor) están expandidos en "Por revisar" / "Por autorizar" —
+  // colapsados por default para no saturar la vista con todas las sucursales.
+  const [gruposAbiertos, setGruposAbiertos] = useState<Record<string, boolean>>({});
   // Vista previa de insumos (punto 3): líneas precargadas por OC para mostrarlas
   // directamente en la lista del gerente, sin tener que entrar al detalle.
   const [lineasPorOc, setLineasPorOc] = useState<Record<string, Linea[]>>({});
@@ -215,7 +207,6 @@ export default function OrdenesCompraPage() {
     // cuanto la sesión termine de cargar.
     loadMisSucursales();
   }, [user?.id]);
-  useEffect(() => { if (esAdmin || esCompras) loadTrazabilidad(); }, [esAdmin, esCompras]);
   useEffect(() => {
     // Refresco periódico: si alguien más genera/aprueba una OC mientras esta pantalla
     // ya estaba abierta, no había forma de enterarse sin recargar toda la página.
@@ -244,15 +235,6 @@ export default function OrdenesCompraPage() {
   async function loadGrupos() {
     const { data } = await (supabase as any).from('v_ordenes_compra_grupo_resumen').select('*').order('fecha_creacion', { ascending: false });
     setGrupos((data || []) as Grupo[]);
-  }
-
-  async function loadTrazabilidad() {
-    const { data } = await (supabase as any)
-      .from('v_ordenes_compra_trazabilidad')
-      .select('*')
-      .order('fecha_creacion', { ascending: false })
-      .limit(200);
-    setTrazabilidad((data || []) as Trazabilidad[]);
   }
 
   // Punto 3: precarga de insumos para que el gerente vea QUÉ y CUÁNTO se le
@@ -362,7 +344,6 @@ export default function OrdenesCompraPage() {
     setSeleccionada(null);
     await load();
     await loadGrupos();
-    if (esAdmin || esCompras) await loadTrazabilidad();
   }
 
   async function autorizarComoAdmin(oc: OC, accion: 'autorizar' | 'rechazar', razon?: string) {
@@ -374,7 +355,6 @@ export default function OrdenesCompraPage() {
     setSeleccionada(null);
     await load();
     await loadGrupos();
-    if (esAdmin || esCompras) await loadTrazabilidad();
   }
 
   async function load() {
@@ -789,6 +769,24 @@ export default function OrdenesCompraPage() {
   const pendientesRevisionGerente = ocs.filter(o => o.estado === 'pendiente_aprobacion' && puedeRevisarComoGerente(o));
   const pendientesAutorizacionAdmin = esAdmin ? ocs.filter(o => o.estado === 'confirmada_gerente') : [];
 
+  // Rediseño: "Por revisar (gerente)" y "Por autorizar (admin)" mostraban una
+  // fila plana por cada OC individual — con varias sucursales del mismo
+  // proveedor, eso se veía como una lista larga y repetitiva. Se agrupan por
+  // grupo_id (o por sí misma si es una OC suelta, sin grupo) para que primero
+  // se vea "Proveedor X — 4 sucursales" y solo al expandir aparezcan las OC
+  // individuales de cada sucursal (que sí son órdenes distintas entre sí).
+  function agruparPorProveedor(lista: OC[]) {
+    const mapa = new Map<string, { key: string; proveedor: string; ocs: OC[] }>();
+    for (const oc of lista) {
+      const key = oc.grupo_id || oc.id;
+      if (!mapa.has(key)) mapa.set(key, { key, proveedor: oc.proveedor?.nombre || 'Sin proveedor', ocs: [] });
+      mapa.get(key)!.ocs.push(oc);
+    }
+    return Array.from(mapa.values());
+  }
+  const gruposRevisionGerente = useMemo(() => agruparPorProveedor(pendientesRevisionGerente), [pendientesRevisionGerente]);
+  const gruposAutorizacionAdmin = useMemo(() => agruparPorProveedor(pendientesAutorizacionAdmin), [pendientesAutorizacionAdmin]);
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
@@ -801,7 +799,7 @@ export default function OrdenesCompraPage() {
         </div>
         <Button
           variant="outline" size="sm" className="gap-2"
-          onClick={() => { load(); if (esAdmin || esCompras) { loadGrupos(); loadTrazabilidad(); } }}
+          onClick={() => { load(); if (esAdmin || esCompras) { loadGrupos(); } }}
         >
           <RefreshCw className="h-4 w-4" /> Refrescar
         </Button>
@@ -813,7 +811,6 @@ export default function OrdenesCompraPage() {
         // mientras la pantalla ya estaba abierta, no aparecía hasta recargar la página entera.
         load();
         if (v === 'grupos' && (esAdmin || esCompras)) loadGrupos();
-        if (v === 'trazabilidad' && (esAdmin || esCompras)) loadTrazabilidad();
       }}>
         <TabsList>
           {(esAdmin || esCompras) && (
@@ -834,11 +831,6 @@ export default function OrdenesCompraPage() {
             <TabsTrigger value="autorizacion_admin" className="gap-2">
               <ShieldCheck className="h-4 w-4" /> Por autorizar (admin)
               {pendientesAutorizacionAdmin.length > 0 && <Badge variant="destructive" className="ml-1">{pendientesAutorizacionAdmin.length}</Badge>}
-            </TabsTrigger>
-          )}
-          {(esAdmin || esCompras) && (
-            <TabsTrigger value="trazabilidad" className="gap-2">
-              <ClipboardList className="h-4 w-4" /> Trazabilidad
             </TabsTrigger>
           )}
         </TabsList>
@@ -1062,157 +1054,158 @@ export default function OrdenesCompraPage() {
 
 
 
-        <TabsContent value="revision_gerente">
-          <Card className="p-0 overflow-hidden">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Folio</TableHead><TableHead>Proveedor</TableHead>
-                  <TableHead>Destino</TableHead><TableHead>Fecha</TableHead>
-                  <TableHead className="text-right">Monto</TableHead>
-                  <TableHead className="text-right">Acciones</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {!pendientesRevisionGerente.length && <TableRow><TableCell colSpan={6} className="text-center p-6 text-muted-foreground">No hay OCs pendientes de tu revisión.</TableCell></TableRow>}
-                {pendientesRevisionGerente.map(oc => (
-                  <Fragment key={oc.id}>
-                  <TableRow>
-
-                    <TableCell className="font-mono font-medium">
-                      {oc.folio}
-                      <div className="mt-1"><PipelineOC estado={oc.estado} /></div>
-                    </TableCell>
-                    <TableCell>{oc.proveedor?.nombre}</TableCell>
-                    <TableCell>{oc.sucursal_destino?.codigo || '—'}</TableCell>
-                    <TableCell className="text-xs">{oc.fecha_creacion}</TableCell>
-                    <TableCell className="text-right tabular-nums font-semibold">
-                      ${Number(oc.total).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex gap-2 justify-end">
-                        <Button size="sm" variant="outline" onClick={() => abrirDetalle(oc)}>Ver y confirmar</Button>
-                        <Button size="sm" variant="destructive" className="gap-1" onClick={() => setRechazoOpen({ oc, tipo: 'gerente' })}>
-                          <X className="h-3.5 w-3.5" /> Rechazar
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                  <TableRow className="hover:bg-transparent">
-                    <TableCell colSpan={6} className="pt-0">
-                      <PreviewInsumos lineas={lineasPorOc[oc.id]} />
-                    </TableCell>
-                  </TableRow>
-                  </Fragment>
-
-                ))}
-
-              </TableBody>
-            </Table>
-          </Card>
+        <TabsContent value="revision_gerente" className="space-y-3">
+          {!gruposRevisionGerente.length && (
+            <Card className="p-6 text-center text-muted-foreground">No hay OCs pendientes de tu revisión.</Card>
+          )}
+          {gruposRevisionGerente.map(grupo => {
+            const abierto = !!gruposAbiertos[grupo.key];
+            const totalGrupo = grupo.ocs.reduce((s, o) => s + Number(o.total || 0), 0);
+            return (
+              <Card key={grupo.key} className="p-0 overflow-hidden">
+                <button
+                  className="w-full flex items-center justify-between px-4 py-3 hover:bg-accent text-left"
+                  onClick={() => setGruposAbiertos(prev => ({ ...prev, [grupo.key]: !abierto }))}
+                >
+                  <div className="flex items-center gap-2">
+                    {abierto ? <ChevronDown className="h-4 w-4 shrink-0" /> : <ChevronRight className="h-4 w-4 shrink-0" />}
+                    <span className="font-semibold">{grupo.proveedor}</span>
+                    <Badge variant="outline">{grupo.ocs.length} sucursal{grupo.ocs.length === 1 ? '' : 'es'} por revisar</Badge>
+                  </div>
+                  <span className="font-semibold tabular-nums">
+                    ${totalGrupo.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </span>
+                </button>
+                {abierto && (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Folio</TableHead>
+                        <TableHead>Destino</TableHead><TableHead>Fecha</TableHead>
+                        <TableHead className="text-right">Monto</TableHead>
+                        <TableHead className="text-right">Acciones</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {grupo.ocs.map(oc => (
+                        <Fragment key={oc.id}>
+                        <TableRow>
+                          <TableCell className="font-mono font-medium">
+                            {oc.folio}
+                            <div className="mt-1"><PipelineOC estado={oc.estado} /></div>
+                          </TableCell>
+                          <TableCell>{oc.sucursal_destino?.codigo || '—'}</TableCell>
+                          <TableCell className="text-xs">{oc.fecha_creacion}</TableCell>
+                          <TableCell className="text-right tabular-nums font-semibold">
+                            ${Number(oc.total).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <div className="flex gap-2 justify-end">
+                              <Button size="sm" variant="outline" onClick={() => abrirDetalle(oc)}>Ver y confirmar</Button>
+                              <Button size="sm" variant="destructive" className="gap-1" onClick={() => setRechazoOpen({ oc, tipo: 'gerente' })}>
+                                <X className="h-3.5 w-3.5" /> Rechazar
+                              </Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                        <TableRow className="hover:bg-transparent">
+                          <TableCell colSpan={5} className="pt-0">
+                            <PreviewInsumos lineas={lineasPorOc[oc.id]} />
+                          </TableCell>
+                        </TableRow>
+                        </Fragment>
+                      ))}
+                    </TableBody>
+                  </Table>
+                )}
+              </Card>
+            );
+          })}
         </TabsContent>
 
         {esAdmin && (
-          <TabsContent value="autorizacion_admin">
-            <Card className="p-0 overflow-hidden">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Folio</TableHead><TableHead>Proveedor</TableHead>
-                    <TableHead>Destino</TableHead><TableHead>Confirmada por</TableHead>
-                    <TableHead className="text-right">Monto</TableHead>
-                    <TableHead className="text-right">Acciones</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {!pendientesAutorizacionAdmin.length && <TableRow><TableCell colSpan={6} className="text-center p-6 text-muted-foreground">No hay OCs pendientes de autorización final.</TableCell></TableRow>}
-                  {pendientesAutorizacionAdmin.map(oc => (
-                    <Fragment key={oc.id}>
-                    <TableRow>
-                      <TableCell className="font-mono font-medium">
-                        {oc.folio}
-                        <div className="mt-1"><PipelineOC estado={oc.estado} /></div>
-                      </TableCell>
-                      <TableCell>{oc.proveedor?.nombre}</TableCell>
-                      <TableCell>{oc.sucursal_destino?.codigo || '—'}</TableCell>
-                      <TableCell className="text-xs text-muted-foreground">
-                        Gerente de sucursal
-                        {oc.cantidades_modificadas_gerente && (
-                          <Badge variant="outline" className="ml-1.5 text-[10px] border-amber-500 text-amber-600">Modificó cantidades</Badge>
-                        )}
-                      </TableCell>
-                      <TableCell className="text-right tabular-nums font-semibold">
-                        ${Number(oc.total).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex gap-2 justify-end">
-                          <Button size="sm" variant="outline" onClick={() => abrirDetalle(oc)}>Ver detalle</Button>
-                          <Button size="sm" className="gap-1 bg-emerald-600 hover:bg-emerald-700" onClick={() => autorizarComoAdmin(oc, 'autorizar')}>
-                            <Check className="h-3.5 w-3.5" /> Autorizar
-                          </Button>
-                          <Button size="sm" variant="destructive" className="gap-1" onClick={() => setRechazoOpen({ oc, tipo: 'admin' })}>
-                            <X className="h-3.5 w-3.5" /> Rechazar
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                    <TableRow className="hover:bg-transparent">
-                      <TableCell colSpan={6} className="pt-0">
-                        <PreviewInsumos lineas={lineasPorOc[oc.id]} />
-                      </TableCell>
-                    </TableRow>
-                    </Fragment>
-                  ))}
-
-                </TableBody>
-              </Table>
-            </Card>
-          </TabsContent>
-        )}
-
-        {(esAdmin || esCompras) && (
-          <TabsContent value="trazabilidad">
-            <Card className="p-0 overflow-hidden">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Folio</TableHead><TableHead>Proveedor</TableHead><TableHead>Destino</TableHead>
-                    <TableHead>Estado</TableHead>
-                    <TableHead>Creada por</TableHead>
-                    <TableHead>Revisada por (gerente)</TableHead>
-                    <TableHead>Autorizada por</TableHead>
-                    <TableHead className="text-right">Monto</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {!trazabilidad.length && <TableRow><TableCell colSpan={8} className="text-center p-6 text-muted-foreground">Sin datos de trazabilidad todavía.</TableCell></TableRow>}
-                  {trazabilidad.map(t => (
-                    <TableRow key={t.id}>
-                      <TableCell className="font-mono font-medium">{t.folio}</TableCell>
-                      <TableCell>{t.proveedor_nombre || '—'}</TableCell>
-                      <TableCell>{t.sucursal_codigo || '—'}</TableCell>
-                      <TableCell><Badge className={ESTADO_COLOR[t.estado]}>{ESTADO_LABEL[t.estado] || t.estado}</Badge></TableCell>
-                      <TableCell className="text-xs">{t.creada_por_nombre || '—'}</TableCell>
-                      <TableCell className="text-xs">
-                        {t.revisada_por_gerente_nombre || '—'}
-                        {t.cantidades_modificadas_gerente && (
-                          <div className="mt-0.5">
-                            <Badge variant="outline" className="text-[10px] border-amber-500 text-amber-600">
-                              Modificó {t.num_ajustes} línea{t.num_ajustes === 1 ? '' : 's'}
-                            </Badge>
-                          </div>
-                        )}
-                        {t.razon_aprobacion && <div className="text-muted-foreground mt-0.5 max-w-[220px] truncate" title={t.razon_aprobacion}>{t.razon_aprobacion}</div>}
-                      </TableCell>
-                      <TableCell className="text-xs">{t.autorizada_por_nombre || '—'}</TableCell>
-                      <TableCell className="text-right tabular-nums font-semibold">
-                        ${Number(t.total).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </Card>
+          <TabsContent value="autorizacion_admin" className="space-y-3">
+            {!gruposAutorizacionAdmin.length && (
+              <Card className="p-6 text-center text-muted-foreground">No hay OCs pendientes de autorización final.</Card>
+            )}
+            {gruposAutorizacionAdmin.map(grupo => {
+              const llave = 'admin:' + grupo.key;
+              const abierto = !!gruposAbiertos[llave];
+              const totalGrupo = grupo.ocs.reduce((s, o) => s + Number(o.total || 0), 0);
+              const modificadas = grupo.ocs.filter(o => o.cantidades_modificadas_gerente).length;
+              return (
+                <Card key={grupo.key} className="p-0 overflow-hidden">
+                  <button
+                    className="w-full flex items-center justify-between px-4 py-3 hover:bg-accent text-left"
+                    onClick={() => setGruposAbiertos(prev => ({ ...prev, [llave]: !abierto }))}
+                  >
+                    <div className="flex items-center gap-2">
+                      {abierto ? <ChevronDown className="h-4 w-4 shrink-0" /> : <ChevronRight className="h-4 w-4 shrink-0" />}
+                      <span className="font-semibold">{grupo.proveedor}</span>
+                      <Badge variant="outline">{grupo.ocs.length} sucursal{grupo.ocs.length === 1 ? '' : 'es'} por autorizar</Badge>
+                      {modificadas > 0 && (
+                        <Badge variant="outline" className="text-[10px] border-amber-500 text-amber-600">
+                          {modificadas} modificada{modificadas === 1 ? '' : 's'} por gerente
+                        </Badge>
+                      )}
+                    </div>
+                    <span className="font-semibold tabular-nums">
+                      ${totalGrupo.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </span>
+                  </button>
+                  {abierto && (
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Folio</TableHead>
+                          <TableHead>Destino</TableHead><TableHead>Confirmada por</TableHead>
+                          <TableHead className="text-right">Monto</TableHead>
+                          <TableHead className="text-right">Acciones</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {grupo.ocs.map(oc => (
+                          <Fragment key={oc.id}>
+                          <TableRow>
+                            <TableCell className="font-mono font-medium">
+                              {oc.folio}
+                              <div className="mt-1"><PipelineOC estado={oc.estado} /></div>
+                            </TableCell>
+                            <TableCell>{oc.sucursal_destino?.codigo || '—'}</TableCell>
+                            <TableCell className="text-xs text-muted-foreground">
+                              Gerente de sucursal
+                              {oc.cantidades_modificadas_gerente && (
+                                <Badge variant="outline" className="ml-1.5 text-[10px] border-amber-500 text-amber-600">Modificó cantidades</Badge>
+                              )}
+                            </TableCell>
+                            <TableCell className="text-right tabular-nums font-semibold">
+                              ${Number(oc.total).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            </TableCell>
+                            <TableCell className="text-right">
+                              <div className="flex gap-2 justify-end">
+                                <Button size="sm" variant="outline" onClick={() => abrirDetalle(oc)}>Ver detalle</Button>
+                                <Button size="sm" className="gap-1 bg-emerald-600 hover:bg-emerald-700" onClick={() => autorizarComoAdmin(oc, 'autorizar')}>
+                                  <Check className="h-3.5 w-3.5" /> Autorizar
+                                </Button>
+                                <Button size="sm" variant="destructive" className="gap-1" onClick={() => setRechazoOpen({ oc, tipo: 'admin' })}>
+                                  <X className="h-3.5 w-3.5" /> Rechazar
+                                </Button>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                          <TableRow className="hover:bg-transparent">
+                            <TableCell colSpan={5} className="pt-0">
+                              <PreviewInsumos lineas={lineasPorOc[oc.id]} />
+                            </TableCell>
+                          </TableRow>
+                          </Fragment>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  )}
+                </Card>
+              );
+            })}
           </TabsContent>
         )}
       </Tabs>
