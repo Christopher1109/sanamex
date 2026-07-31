@@ -207,7 +207,9 @@ export default function GestionUsuariosPage() {
     }
     // Sucursal asignada — modelo de una sola sucursal por usuario (igual que al
     // crear la cuenta): se borra cualquier asignación previa y se inserta la nueva.
-    if (editSucursalId !== originalSucursalId) {
+    // admin/super_admin ya tienen acceso a todas las sucursales por rol, no se
+    // les escribe ninguna asignación individual.
+    if (editSucursalId !== originalSucursalId && editRole !== 'super_admin' && editRole !== 'admin') {
       const { error: delErr } = await supabase.from('user_sucursal_asignacion').delete().eq('user_id', selectedUser.id);
       if (delErr) { toast.error('Error al actualizar sucursal: ' + delErr.message); return; }
       if (editSucursalId) {
@@ -404,18 +406,27 @@ export default function GestionUsuariosPage() {
 
               <div>
                 <Label>Sucursal asignada</Label>
-                <Select value={editSucursalId || 'none'} onValueChange={v => setEditSucursalId(v === 'none' ? '' : v)}>
-                  <SelectTrigger className="mt-1"><SelectValue placeholder="Sin sucursal asignada" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">Sin asignar</SelectItem>
-                    {sucursales.map(s => <SelectItem key={s.id} value={s.id}>{s.codigo} — {s.nombre}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Define qué sucursal ve este usuario en "Mi sucursal" (Órdenes de Compra) y en el selector de
-                  sucursal del encabezado. Antes solo se podía definir al crear la cuenta — ahora también se
-                  puede cambiar aquí para cuentas ya existentes.
-                </p>
+                {editRole === 'super_admin' || editRole === 'admin' ? (
+                  <p className="text-sm rounded-md border border-emerald-300 bg-emerald-50 text-emerald-800 px-3 py-2 mt-1">
+                    Este rol ya tiene acceso a <strong>todas las sucursales</strong> automáticamente — no requiere
+                    asignación individual. Puede cambiar entre sucursales libremente desde el selector del encabezado.
+                  </p>
+                ) : (
+                  <>
+                    <Select value={editSucursalId || 'none'} onValueChange={v => setEditSucursalId(v === 'none' ? '' : v)}>
+                      <SelectTrigger className="mt-1"><SelectValue placeholder="Sin sucursal asignada" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">Sin asignar</SelectItem>
+                        {sucursales.map(s => <SelectItem key={s.id} value={s.id}>{s.codigo} — {s.nombre}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Define qué sucursal ve este usuario en "Mi sucursal" (Órdenes de Compra) y en el selector de
+                      sucursal del encabezado. Antes solo se podía definir al crear la cuenta — ahora también se
+                      puede cambiar aquí para cuentas ya existentes.
+                    </p>
+                  </>
+                )}
               </div>
 
               <div className="space-y-4">
