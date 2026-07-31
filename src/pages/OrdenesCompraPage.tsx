@@ -708,30 +708,42 @@ export default function OrdenesCompraPage() {
                     <TableCell>
                       <Badge className={
                         g.estado === 'enviada' ? 'bg-emerald-600' :
+                        g.estado === 'confirmada_proveedor' ? 'bg-teal-600' :
                         g.estado === 'lista_para_enviar' ? 'bg-blue-600' :
                         g.estado === 'cancelada' ? 'bg-rose-600' : 'bg-amber-600'
                       }>
                         {g.estado === 'en_revision' ? 'En revisión de sucursales' :
-                         g.estado === 'lista_para_enviar' ? 'Lista para enviar' :
-                         g.estado === 'enviada' ? 'Enviada al proveedor' : 'Cancelada'}
+                         g.estado === 'lista_para_enviar' ? 'Lista para confirmar' :
+                         g.estado === 'confirmada_proveedor' ? 'Confirmada con proveedor' :
+                         g.estado === 'enviada' ? 'En ruta / enviada al proveedor' : 'Cancelada'}
                       </Badge>
                     </TableCell>
                     <TableCell className="text-right tabular-nums font-semibold">
                       ${Number(g.total_consolidado).toLocaleString('es-MX', { minimumFractionDigits: 2 })}
                     </TableCell>
                     <TableCell className="text-right">
-                      {esAdmin && g.estado === 'lista_para_enviar' && (
-                        <Button size="sm" className="gap-1 bg-emerald-600 hover:bg-emerald-700" onClick={() => enviarGrupoAProveedor(g)}>
-                          <Send className="h-3.5 w-3.5" /> Enviar al proveedor
-                        </Button>
+                      {(esAdmin || esCompras) && (g.estado === 'lista_para_enviar' || g.estado === 'confirmada_proveedor') && (
+                        <div className="flex gap-2 justify-end">
+                          <Button size="sm" className="gap-1 bg-teal-600 hover:bg-teal-700"
+                            disabled={g.estado !== 'lista_para_enviar'}
+                            onClick={() => confirmarConProveedor({ grupo_id: g.id, folio: g.folio })}>
+                            <Check className="h-3.5 w-3.5" /> 1. Confirmar con proveedor
+                          </Button>
+                          <Button size="sm" className="gap-1 bg-emerald-600 hover:bg-emerald-700"
+                            disabled={g.estado !== 'confirmada_proveedor'}
+                            onClick={() => abrirEnRuta({ grupo_id: g.id, folio: g.folio })}>
+                            <Truck className="h-3.5 w-3.5" /> 2. Marcar en ruta
+                          </Button>
+                        </div>
                       )}
-                      {g.estado !== 'lista_para_enviar' && (
+                      {g.estado !== 'lista_para_enviar' && g.estado !== 'confirmada_proveedor' && (
                         <Button size="sm" variant="outline" onClick={() => { setFiltroGrupo(g.id); setTab('todas'); }}>
                           Ver sucursales
                         </Button>
                       )}
                     </TableCell>
                   </TableRow>
+
                 ))}
               </TableBody>
             </Table>
