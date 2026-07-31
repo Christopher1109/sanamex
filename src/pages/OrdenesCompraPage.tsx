@@ -940,7 +940,8 @@ export default function OrdenesCompraPage() {
                 <TableBody>
                   {!pendientesAutorizacionAdmin.length && <TableRow><TableCell colSpan={6} className="text-center p-6 text-muted-foreground">No hay OCs pendientes de autorización final.</TableCell></TableRow>}
                   {pendientesAutorizacionAdmin.map(oc => (
-                    <TableRow key={oc.id}>
+                    <Fragment key={oc.id}>
+                    <TableRow>
                       <TableCell className="font-mono font-medium">{oc.folio}</TableCell>
                       <TableCell>{oc.proveedor?.nombre}</TableCell>
                       <TableCell>{oc.sucursal_destino?.codigo || '—'}</TableCell>
@@ -965,7 +966,14 @@ export default function OrdenesCompraPage() {
                         </div>
                       </TableCell>
                     </TableRow>
+                    <TableRow className="hover:bg-transparent">
+                      <TableCell colSpan={6} className="pt-0">
+                        <PreviewInsumos lineas={lineasPorOc[oc.id]} />
+                      </TableCell>
+                    </TableRow>
+                    </Fragment>
                   ))}
+
                 </TableBody>
               </Table>
             </Card>
