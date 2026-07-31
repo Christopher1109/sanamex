@@ -96,13 +96,18 @@ export default function OrdenesCompraPage() {
   const [recepciones, setRecepciones] = useState<Record<string, { cantidad: number; numero_lote: string; fecha_caducidad: string }>>({});
   const [almacenes, setAlmacenes] = useState<{ id: string; nombre: string; sucursal: string }[]>([]);
   const [almacenSel, setAlmacenSel] = useState<string>('');
-  const [confirmarProveedorOpen, setConfirmarProveedorOpen] = useState<OC | null>(null);
+  // Paso 2 (marcar en ruta): puede ser sobre un grupo completo o una OC individual.
+  const [enRutaOpen, setEnRutaOpen] = useState<{ grupo_id?: string | null; orden_id?: string | null; folio: string } | null>(null);
   const [pagoProveedorForm, setPagoProveedorForm] = useState({ metodo_pago: 'credito' as 'credito' | 'contado', dias_credito: '30', fecha_pago_limite: '', notas: '' });
   const [confirmandoProveedor, setConfirmandoProveedor] = useState(false);
-  const [tab, setTab] = useState<'grupos' | 'todas' | 'revision_gerente' | 'autorizacion_admin' | 'trazabilidad'>('grupos');
+  const [tab, setTab] = useState<'grupos' | 'todas' | 'seguimiento' | 'revision_gerente' | 'autorizacion_admin' | 'trazabilidad'>('grupos');
   const [rechazoOpen, setRechazoOpen] = useState<{ oc: OC; tipo: 'gerente' | 'admin' } | null>(null);
   const [razonRechazo, setRazonRechazo] = useState('');
   const [filtroGrupo, setFiltroGrupo] = useState<string | null>(null);
+  // Vista previa de insumos (punto 3): líneas precargadas por OC para mostrarlas
+  // directamente en la lista del gerente, sin tener que entrar al detalle.
+  const [lineasPorOc, setLineasPorOc] = useState<Record<string, Linea[]>>({});
+
 
   useEffect(() => { load(); loadAlmacenes(); if (esAdmin || esCompras) loadGrupos(); }, []);
   useEffect(() => {
