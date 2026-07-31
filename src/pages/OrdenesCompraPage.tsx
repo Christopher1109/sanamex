@@ -320,18 +320,19 @@ export default function OrdenesCompraPage() {
     }
   }
 
-  function abrirConfirmarProveedor(oc: OC) {
-    setConfirmarProveedorOpen(oc);
+  // PASO 2: abre el formulario de método de pago para marcar en ruta.
+  function abrirEnRuta(args: { grupo_id?: string | null; orden_id?: string | null; folio: string }) {
+    setEnRutaOpen(args);
     setPagoProveedorForm({ metodo_pago: 'credito', dias_credito: '30', fecha_pago_limite: '', notas: '' });
   }
 
   async function confirmarProveedor() {
-    if (!confirmarProveedorOpen) return;
+    if (!enRutaOpen) return;
     setConfirmandoProveedor(true);
-    const oc = confirmarProveedorOpen;
+    const target = enRutaOpen;
     const { data, error } = await (supabase as any).rpc('confirmar_envio_proveedor', {
-      p_grupo_id: oc.grupo_id || null,
-      p_orden_id: oc.grupo_id ? null : oc.id,
+      p_grupo_id: target.grupo_id || null,
+      p_orden_id: target.grupo_id ? null : (target.orden_id || null),
       p_metodo_pago: pagoProveedorForm.metodo_pago,
       p_dias_credito: pagoProveedorForm.metodo_pago === 'credito' ? Number(pagoProveedorForm.dias_credito) : null,
       p_fecha_pago_limite: pagoProveedorForm.fecha_pago_limite || null,
@@ -340,10 +341,12 @@ export default function OrdenesCompraPage() {
     setConfirmandoProveedor(false);
     if (error) { toast.error(error.message); return; }
     toast.success(`Marcada en ruta — compra ${data?.numero_compra} creada en Cuentas por Pagar`);
-    setConfirmarProveedorOpen(null);
+    setEnRutaOpen(null);
+    await loadGrupos();
     await load();
     if (seleccionada) abrirDetalle(seleccionada);
   }
+
 
   async function ejecutarRecepcion() {
     if (!seleccionada || !almacenSel) { toast.error('Selecciona almacén'); return; }
