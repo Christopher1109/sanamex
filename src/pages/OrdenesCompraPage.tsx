@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { Fragment, useEffect, useMemo, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { Card } from '@/components/ui/card';
@@ -46,7 +46,9 @@ type Linea = {
 const ESTADO_COLOR: Record<string, string> = {
   borrador: 'bg-slate-500', pendiente_aprobacion: 'bg-amber-600',
   confirmada_gerente: 'bg-purple-600',
-  pendiente_confirmar: 'bg-cyan-700', en_ruta: 'bg-blue-600',
+  pendiente_confirmar: 'bg-cyan-700',
+  confirmada_proveedor: 'bg-teal-600',
+  en_ruta: 'bg-blue-600',
   enviada: 'bg-blue-600', confirmada: 'bg-indigo-600',
   parcial: 'bg-amber-600', recibida: 'bg-emerald-600', cancelada: 'bg-rose-600',
 };
@@ -54,10 +56,13 @@ const ESTADO_COLOR: Record<string, string> = {
 const ESTADO_LABEL: Record<string, string> = {
   borrador: 'Borrador', pendiente_aprobacion: 'Por revisar (gerente)',
   confirmada_gerente: 'Por autorizar (admin)',
-  pendiente_confirmar: 'Pendiente de confirmar con proveedor', en_ruta: 'En ruta',
+  pendiente_confirmar: 'Pendiente de confirmar con proveedor',
+  confirmada_proveedor: 'Confirmada con proveedor',
+  en_ruta: 'En ruta',
   enviada: 'Enviada', confirmada: 'Confirmada por proveedor',
   parcial: 'Recepción parcial', recibida: 'Recibida', cancelada: 'Cancelada',
 };
+
 
 const ROLES_ADMIN = ['admin', 'super_admin'];
 const ROLES_GERENCIA = ['gerente', 'subgerente'];
@@ -70,6 +75,45 @@ type Grupo = {
   total_sucursales: number; pendientes_gerente: number; pendientes_admin: number;
   autorizadas: number; canceladas: number; total_consolidado: number;
 };
+
+// Vista previa de insumos dentro de la propia lista (sin entrar al detalle).
+function PreviewInsumos({ lineas }: { lineas?: Linea[] }) {
+  if (!lineas) return <div className="text-xs text-muted-foreground px-2 py-1">Cargando insumos…</div>;
+  if (!lineas.length) return <div className="text-xs text-muted-foreground px-2 py-1">Esta orden no tiene renglones.</div>;
+  const totalPiezas = lineas.reduce((s, l) => s + Number(l.cantidad_solicitada || 0), 0);
+  return (
+    <div className="rounded-md border bg-muted/30 p-2">
+      <div className="text-xs font-medium mb-1">
+        {lineas.length} producto{lineas.length === 1 ? '' : 's'} · {totalPiezas.toLocaleString('es-MX')} pieza{totalPiezas === 1 ? '' : 's'} solicitadas
+      </div>
+      <div className="max-h-56 overflow-auto">
+        <table className="w-full text-xs">
+          <thead className="text-muted-foreground">
+            <tr>
+              <th className="text-left font-medium py-1 px-1">SKU</th>
+              <th className="text-left font-medium py-1 px-1">Descripción</th>
+              <th className="text-right font-medium py-1 px-1">Cantidad</th>
+              <th className="text-right font-medium py-1 px-1">P. unitario</th>
+              <th className="text-right font-medium py-1 px-1">Importe</th>
+            </tr>
+          </thead>
+          <tbody>
+            {lineas.map(l => (
+              <tr key={l.id} className="border-t">
+                <td className="font-mono py-1 px-1">{l.producto?.sku || '—'}</td>
+                <td className="py-1 px-1">{l.producto?.nombre || '—'}</td>
+                <td className="text-right tabular-nums py-1 px-1">{Number(l.cantidad_solicitada).toLocaleString('es-MX')}</td>
+                <td className="text-right tabular-nums py-1 px-1">${Number(l.precio_unitario).toLocaleString('es-MX', { minimumFractionDigits: 2 })}</td>
+                <td className="text-right tabular-nums py-1 px-1">${Number(l.subtotal).toLocaleString('es-MX', { minimumFractionDigits: 2 })}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
 
 export default function OrdenesCompraPage() {
   const { user, userRole } = useAuth();
@@ -91,13 +135,18 @@ export default function OrdenesCompraPage() {
   const [recepciones, setRecepciones] = useState<Record<string, { cantidad: number; numero_lote: string; fecha_caducidad: string }>>({});
   const [almacenes, setAlmacenes] = useState<{ id: string; nombre: string; sucursal: string }[]>([]);
   const [almacenSel, setAlmacenSel] = useState<string>('');
-  const [confirmarProveedorOpen, setConfirmarProveedorOpen] = useState<OC | null>(null);
+  // Paso 2 (marcar en ruta): puede ser sobre un grupo completo o una OC individual.
+  const [enRutaOpen, setEnRutaOpen] = useState<{ grupo_id?: string | null; orden_id?: string | null; folio: string } | null>(null);
   const [pagoProveedorForm, setPagoProveedorForm] = useState({ metodo_pago: 'credito' as 'credito' | 'contado', dias_credito: '30', fecha_pago_limite: '', notas: '' });
   const [confirmandoProveedor, setConfirmandoProveedor] = useState(false);
-  const [tab, setTab] = useState<'grupos' | 'todas' | 'revision_gerente' | 'autorizacion_admin' | 'trazabilidad'>('grupos');
+  const [tab, setTab] = useState<'grupos' | 'todas' | 'seguimiento' | 'revision_gerente' | 'autorizacion_admin' | 'trazabilidad'>('grupos');
   const [rechazoOpen, setRechazoOpen] = useState<{ oc: OC; tipo: 'gerente' | 'admin' } | null>(null);
   const [razonRechazo, setRazonRechazo] = useState('');
   const [filtroGrupo, setFiltroGrupo] = useState<string | null>(null);
+  // Vista previa de insumos (punto 3): líneas precargadas por OC para mostrarlas
+  // directamente en la lista del gerente, sin tener que entrar al detalle.
+  const [lineasPorOc, setLineasPorOc] = useState<Record<string, Linea[]>>({});
+
 
   useEffect(() => { load(); loadAlmacenes(); if (esAdmin || esCompras) loadGrupos(); }, []);
   useEffect(() => {
@@ -123,11 +172,20 @@ export default function OrdenesCompraPage() {
     return () => clearInterval(intervalo);
   }, [esAdmin, esCompras]);
   useEffect(() => {
+    // Punto 3: en cuanto se conocen las OC pendientes de revisión/autorización,
+    // se precargan sus insumos para mostrarlos en la propia lista.
+    const ids = ocs
+      .filter(o => o.estado === 'pendiente_aprobacion' || o.estado === 'confirmada_gerente')
+      .map(o => o.id);
+    if (ids.length) loadLineasPreview(ids);
+  }, [ocs]);
+  useEffect(() => {
     // Gerente/subgerente no tienen la pestaña "Por proveedor" (grupos) — que no se quede
     // seleccionada por defecto una pestaña que para ellos no existe.
-    if (esAlmacen && !esAdmin && !esCompras && !esGerencia) setTab('todas');
+    if (esAlmacen && !esAdmin && !esCompras && !esGerencia) setTab('seguimiento');
     else if (esGerencia && !esAdmin && !esCompras) setTab('revision_gerente');
   }, [esGerencia, esAdmin, esCompras, esAlmacen]);
+
 
   async function loadGrupos() {
     const { data } = await (supabase as any).from('v_ordenes_compra_grupo_resumen').select('*').order('fecha_creacion', { ascending: false });
@@ -143,13 +201,42 @@ export default function OrdenesCompraPage() {
     setTrazabilidad((data || []) as Trazabilidad[]);
   }
 
-  async function enviarGrupoAProveedor(g: Grupo) {
-    const { error } = await (supabase as any).rpc('enviar_grupo_a_proveedor', { p_grupo_id: g.id });
+  // Punto 3: precarga de insumos para que el gerente vea QUÉ y CUÁNTO se le
+  // está pidiendo sin tener que abrir "Ver y confirmar".
+  async function loadLineasPreview(ids: string[]) {
+    const faltantes = ids.filter(id => !lineasPorOc[id]);
+    if (!faltantes.length) return;
+    const { data } = await (supabase as any)
+      .from('orden_compra_lineas')
+      .select('id, orden_id, producto_id, cantidad_solicitada, cantidad_recibida, precio_unitario, subtotal, producto:productos(nombre, sku)')
+      .in('orden_id', faltantes);
+    const map: Record<string, Linea[]> = {};
+    (data || []).forEach((l: any) => {
+      (map[l.orden_id] ||= []).push(l as Linea);
+    });
+
+    setLineasPorOc(prev => ({ ...prev, ...map }));
+  }
+
+
+
+  // PASO 1 del flujo con proveedor. Sustituye a la antigua RPC
+  // `enviar_grupo_a_proveedor`, que fue eliminada de la base de datos porque
+  // validaba estados viejos y siempre fallaba. Ahora solo pasa las órdenes de
+  // `pendiente_confirmar` → `confirmada_proveedor` (sin pedir método de pago).
+  async function confirmarConProveedor(args: { grupo_id?: string | null; orden_id?: string | null; folio: string }) {
+    const { error } = await (supabase as any).rpc('confirmar_con_proveedor', {
+      p_grupo_id: args.grupo_id || null,
+      p_orden_id: args.grupo_id ? null : (args.orden_id || null),
+      p_notas: null,
+    });
     if (error) return toast.error(error.message);
-    toast.success(`${g.folio} enviada al proveedor ${g.proveedor_nombre}`);
+    toast.success(`${args.folio} confirmada con el proveedor — ya se puede marcar en ruta`);
     await loadGrupos();
     await load();
+    if (seleccionada) await abrirDetalle(seleccionada);
   }
+
 
   async function loadMisSucursales() {
     if (!user) return;
@@ -300,18 +387,19 @@ export default function OrdenesCompraPage() {
     }
   }
 
-  function abrirConfirmarProveedor(oc: OC) {
-    setConfirmarProveedorOpen(oc);
+  // PASO 2: abre el formulario de método de pago para marcar en ruta.
+  function abrirEnRuta(args: { grupo_id?: string | null; orden_id?: string | null; folio: string }) {
+    setEnRutaOpen(args);
     setPagoProveedorForm({ metodo_pago: 'credito', dias_credito: '30', fecha_pago_limite: '', notas: '' });
   }
 
   async function confirmarProveedor() {
-    if (!confirmarProveedorOpen) return;
+    if (!enRutaOpen) return;
     setConfirmandoProveedor(true);
-    const oc = confirmarProveedorOpen;
+    const target = enRutaOpen;
     const { data, error } = await (supabase as any).rpc('confirmar_envio_proveedor', {
-      p_grupo_id: oc.grupo_id || null,
-      p_orden_id: oc.grupo_id ? null : oc.id,
+      p_grupo_id: target.grupo_id || null,
+      p_orden_id: target.grupo_id ? null : (target.orden_id || null),
       p_metodo_pago: pagoProveedorForm.metodo_pago,
       p_dias_credito: pagoProveedorForm.metodo_pago === 'credito' ? Number(pagoProveedorForm.dias_credito) : null,
       p_fecha_pago_limite: pagoProveedorForm.fecha_pago_limite || null,
@@ -320,10 +408,12 @@ export default function OrdenesCompraPage() {
     setConfirmandoProveedor(false);
     if (error) { toast.error(error.message); return; }
     toast.success(`Marcada en ruta — compra ${data?.numero_compra} creada en Cuentas por Pagar`);
-    setConfirmarProveedorOpen(null);
+    setEnRutaOpen(null);
+    await loadGrupos();
     await load();
     if (seleccionada) abrirDetalle(seleccionada);
   }
+
 
   async function ejecutarRecepcion() {
     if (!seleccionada || !almacenSel) { toast.error('Selecciona almacén'); return; }
@@ -395,16 +485,26 @@ export default function OrdenesCompraPage() {
                   </Button>
                 </>
               )}
-              {seleccionada.estado === 'pendiente_confirmar' && (esAdmin || esCompras) && (
+              {(seleccionada.estado === 'pendiente_confirmar' || seleccionada.estado === 'confirmada_proveedor') && (esAdmin || esCompras) && (
                 <>
                   <Button variant="outline" className="gap-2" onClick={() => generarExcelProveedor(seleccionada)}>
                     <FileDown className="h-4 w-4" />Generar OC (Excel)
                   </Button>
-                  <Button className="gap-2 bg-emerald-600 hover:bg-emerald-700" onClick={() => abrirConfirmarProveedor(seleccionada)}>
-                    <Truck className="h-4 w-4" />Confirmar con proveedor y marcar en ruta
+                  <Button
+                    className="gap-2 bg-teal-600 hover:bg-teal-700"
+                    disabled={seleccionada.estado !== 'pendiente_confirmar'}
+                    onClick={() => confirmarConProveedor({ orden_id: seleccionada.id, folio: seleccionada.folio })}>
+                    <Check className="h-4 w-4" />1. Confirmar con proveedor
+                  </Button>
+                  <Button
+                    className="gap-2 bg-emerald-600 hover:bg-emerald-700"
+                    disabled={seleccionada.estado !== 'confirmada_proveedor'}
+                    onClick={() => abrirEnRuta({ orden_id: seleccionada.id, folio: seleccionada.folio })}>
+                    <Truck className="h-4 w-4" />2. Marcar en ruta
                   </Button>
                 </>
               )}
+
               {!esAlmacen && seleccionada.estado === 'borrador' && (
                 <>
                   <Button onClick={() => cambiarEstado(seleccionada, 'enviada')} className="gap-2"><Send className="h-4 w-4" />Enviar</Button>
@@ -536,9 +636,10 @@ export default function OrdenesCompraPage() {
           </DialogContent>
         </Dialog>
 
-        <Dialog open={!!confirmarProveedorOpen} onOpenChange={o => !o && setConfirmarProveedorOpen(null)}>
+        <Dialog open={!!enRutaOpen} onOpenChange={o => !o && setEnRutaOpen(null)}>
           <DialogContent>
-            <DialogHeader><DialogTitle>Confirmar con proveedor — {confirmarProveedorOpen?.folio}</DialogTitle></DialogHeader>
+            <DialogHeader><DialogTitle>Marcar en ruta — {enRutaOpen?.folio}</DialogTitle></DialogHeader>
+
             <div className="space-y-3">
               <p className="text-sm text-muted-foreground">
                 Esto se hace cuando ya quedaron de acuerdo con el proveedor en cómo y cuándo se paga, y el pedido
@@ -575,9 +676,10 @@ export default function OrdenesCompraPage() {
               </div>
             </div>
             <DialogFooter>
-              <Button variant="outline" onClick={() => setConfirmarProveedorOpen(null)}>Cancelar</Button>
+              <Button variant="outline" onClick={() => setEnRutaOpen(null)}>Cancelar</Button>
               <Button onClick={confirmarProveedor} disabled={confirmandoProveedor} className="bg-emerald-600 hover:bg-emerald-700">
-                {confirmandoProveedor ? 'Confirmando...' : 'Confirmar y marcar en ruta'}
+                {confirmandoProveedor ? 'Procesando...' : 'Marcar en ruta'}
+
               </Button>
             </DialogFooter>
           </DialogContent>
@@ -620,6 +722,10 @@ export default function OrdenesCompraPage() {
             <TabsTrigger value="grupos" className="gap-2"><Truck className="h-4 w-4" /> Por proveedor</TabsTrigger>
           )}
           <TabsTrigger value="todas">Todas</TabsTrigger>
+          <TabsTrigger value="seguimiento" className="gap-2">
+            <PackageCheck className="h-4 w-4" /> Mi sucursal
+          </TabsTrigger>
+
           {pendientesRevisionGerente.length > 0 || esGerencia || esAdmin ? (
             <TabsTrigger value="revision_gerente" className="gap-2">
               <ShieldCheck className="h-4 w-4" /> Por revisar (gerente)
@@ -673,30 +779,42 @@ export default function OrdenesCompraPage() {
                     <TableCell>
                       <Badge className={
                         g.estado === 'enviada' ? 'bg-emerald-600' :
+                        g.estado === 'confirmada_proveedor' ? 'bg-teal-600' :
                         g.estado === 'lista_para_enviar' ? 'bg-blue-600' :
                         g.estado === 'cancelada' ? 'bg-rose-600' : 'bg-amber-600'
                       }>
                         {g.estado === 'en_revision' ? 'En revisión de sucursales' :
-                         g.estado === 'lista_para_enviar' ? 'Lista para enviar' :
-                         g.estado === 'enviada' ? 'Enviada al proveedor' : 'Cancelada'}
+                         g.estado === 'lista_para_enviar' ? 'Lista para confirmar' :
+                         g.estado === 'confirmada_proveedor' ? 'Confirmada con proveedor' :
+                         g.estado === 'enviada' ? 'En ruta / enviada al proveedor' : 'Cancelada'}
                       </Badge>
                     </TableCell>
                     <TableCell className="text-right tabular-nums font-semibold">
                       ${Number(g.total_consolidado).toLocaleString('es-MX', { minimumFractionDigits: 2 })}
                     </TableCell>
                     <TableCell className="text-right">
-                      {esAdmin && g.estado === 'lista_para_enviar' && (
-                        <Button size="sm" className="gap-1 bg-emerald-600 hover:bg-emerald-700" onClick={() => enviarGrupoAProveedor(g)}>
-                          <Send className="h-3.5 w-3.5" /> Enviar al proveedor
-                        </Button>
+                      {(esAdmin || esCompras) && (g.estado === 'lista_para_enviar' || g.estado === 'confirmada_proveedor') && (
+                        <div className="flex gap-2 justify-end">
+                          <Button size="sm" className="gap-1 bg-teal-600 hover:bg-teal-700"
+                            disabled={g.estado !== 'lista_para_enviar'}
+                            onClick={() => confirmarConProveedor({ grupo_id: g.id, folio: g.folio })}>
+                            <Check className="h-3.5 w-3.5" /> 1. Confirmar con proveedor
+                          </Button>
+                          <Button size="sm" className="gap-1 bg-emerald-600 hover:bg-emerald-700"
+                            disabled={g.estado !== 'confirmada_proveedor'}
+                            onClick={() => abrirEnRuta({ grupo_id: g.id, folio: g.folio })}>
+                            <Truck className="h-3.5 w-3.5" /> 2. Marcar en ruta
+                          </Button>
+                        </div>
                       )}
-                      {g.estado !== 'lista_para_enviar' && (
+                      {g.estado !== 'lista_para_enviar' && g.estado !== 'confirmada_proveedor' && (
                         <Button size="sm" variant="outline" onClick={() => { setFiltroGrupo(g.id); setTab('todas'); }}>
                           Ver sucursales
                         </Button>
                       )}
                     </TableCell>
                   </TableRow>
+
                 ))}
               </TableBody>
             </Table>
@@ -722,7 +840,7 @@ export default function OrdenesCompraPage() {
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Todos</SelectItem>
-                  {['borrador','pendiente_aprobacion','confirmada_gerente','enviada','confirmada','parcial','recibida','cancelada'].map(e =>
+                  {['borrador','pendiente_aprobacion','confirmada_gerente','pendiente_confirmar','confirmada_proveedor','en_ruta','enviada','confirmada','parcial','recibida','cancelada'].map(e =>
                     <SelectItem key={e} value={e}>{ESTADO_LABEL[e] || e}</SelectItem>)}
                 </SelectContent>
               </Select>
@@ -764,6 +882,75 @@ export default function OrdenesCompraPage() {
           </Card>
         </TabsContent>
 
+        {/* Punto 4: seguimiento por sucursal para gerente y almacenista —
+            saber en qué va cada OC y cuándo ya se puede recibir físicamente. */}
+        <TabsContent value="seguimiento" className="space-y-4">
+          {(() => {
+            const misOcs = misSucursales.length
+              ? ocs.filter(o => o.sucursal_destino_id && misSucursales.includes(o.sucursal_destino_id))
+              : ocs;
+            const activas = misOcs.filter(o => o.estado !== 'cancelada' && o.estado !== 'recibida');
+            const porRecibir = misOcs.filter(o => ['en_ruta', 'enviada', 'confirmada', 'parcial'].includes(o.estado));
+            const porAutorizar = misOcs.filter(o => ['pendiente_aprobacion', 'confirmada_gerente'].includes(o.estado));
+            return (
+              <>
+                <div className="grid gap-3 sm:grid-cols-3">
+                  <Card className="p-4">
+                    <div className="text-xs text-muted-foreground">Pendientes de autorizar</div>
+                    <div className="text-2xl font-bold">{porAutorizar.length}</div>
+                  </Card>
+                  <Card className="p-4">
+                    <div className="text-xs text-muted-foreground">En camino (listas para recibir)</div>
+                    <div className="text-2xl font-bold text-blue-600">{porRecibir.length}</div>
+                  </Card>
+                  <Card className="p-4">
+                    <div className="text-xs text-muted-foreground">Órdenes activas</div>
+                    <div className="text-2xl font-bold">{activas.length}</div>
+                  </Card>
+                </div>
+                <Card className="p-0 overflow-hidden">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Folio</TableHead><TableHead>Proveedor</TableHead>
+                        <TableHead>Sucursal</TableHead><TableHead>Estado</TableHead>
+                        <TableHead>Fecha</TableHead>
+                        <TableHead className="text-right">Monto</TableHead>
+                        <TableHead className="text-right">Acción</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {!misOcs.length && <TableRow><TableCell colSpan={7} className="text-center p-6 text-muted-foreground">No hay órdenes de compra para tu sucursal.</TableCell></TableRow>}
+                      {misOcs.map(oc => {
+                        const listaParaRecibir = ['en_ruta', 'enviada', 'confirmada', 'parcial'].includes(oc.estado);
+                        return (
+                          <TableRow key={oc.id} className="cursor-pointer hover:bg-accent" onClick={() => abrirDetalle(oc)}>
+                            <TableCell className="font-mono font-medium">{oc.folio}</TableCell>
+                            <TableCell>{oc.proveedor?.nombre}</TableCell>
+                            <TableCell>{oc.sucursal_destino?.codigo || '—'}</TableCell>
+                            <TableCell>
+                              <Badge className={ESTADO_COLOR[oc.estado]}>{ESTADO_LABEL[oc.estado] || oc.estado}</Badge>
+                            </TableCell>
+                            <TableCell className="text-xs">{oc.fecha_creacion}</TableCell>
+                            <TableCell className="text-right tabular-nums">${Number(oc.total).toLocaleString('es-MX', { minimumFractionDigits: 2 })}</TableCell>
+                            <TableCell className="text-right">
+                              <Button size="sm" variant={listaParaRecibir ? 'default' : 'outline'} onClick={(e) => { e.stopPropagation(); abrirDetalle(oc); }}>
+                                {listaParaRecibir ? 'Recibir' : 'Ver'}
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                </Card>
+              </>
+            );
+          })()}
+        </TabsContent>
+
+
+
         <TabsContent value="revision_gerente">
           <Card className="p-0 overflow-hidden">
             <Table>
@@ -778,7 +965,9 @@ export default function OrdenesCompraPage() {
               <TableBody>
                 {!pendientesRevisionGerente.length && <TableRow><TableCell colSpan={6} className="text-center p-6 text-muted-foreground">No hay OCs pendientes de tu revisión.</TableCell></TableRow>}
                 {pendientesRevisionGerente.map(oc => (
-                  <TableRow key={oc.id}>
+                  <Fragment key={oc.id}>
+                  <TableRow>
+
                     <TableCell className="font-mono font-medium">{oc.folio}</TableCell>
                     <TableCell>{oc.proveedor?.nombre}</TableCell>
                     <TableCell>{oc.sucursal_destino?.codigo || '—'}</TableCell>
@@ -795,7 +984,15 @@ export default function OrdenesCompraPage() {
                       </div>
                     </TableCell>
                   </TableRow>
+                  <TableRow className="hover:bg-transparent">
+                    <TableCell colSpan={6} className="pt-0">
+                      <PreviewInsumos lineas={lineasPorOc[oc.id]} />
+                    </TableCell>
+                  </TableRow>
+                  </Fragment>
+
                 ))}
+
               </TableBody>
             </Table>
           </Card>
@@ -816,7 +1013,8 @@ export default function OrdenesCompraPage() {
                 <TableBody>
                   {!pendientesAutorizacionAdmin.length && <TableRow><TableCell colSpan={6} className="text-center p-6 text-muted-foreground">No hay OCs pendientes de autorización final.</TableCell></TableRow>}
                   {pendientesAutorizacionAdmin.map(oc => (
-                    <TableRow key={oc.id}>
+                    <Fragment key={oc.id}>
+                    <TableRow>
                       <TableCell className="font-mono font-medium">{oc.folio}</TableCell>
                       <TableCell>{oc.proveedor?.nombre}</TableCell>
                       <TableCell>{oc.sucursal_destino?.codigo || '—'}</TableCell>
@@ -841,7 +1039,14 @@ export default function OrdenesCompraPage() {
                         </div>
                       </TableCell>
                     </TableRow>
+                    <TableRow className="hover:bg-transparent">
+                      <TableCell colSpan={6} className="pt-0">
+                        <PreviewInsumos lineas={lineasPorOc[oc.id]} />
+                      </TableCell>
+                    </TableRow>
+                    </Fragment>
                   ))}
+
                 </TableBody>
               </Table>
             </Card>

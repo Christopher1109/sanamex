@@ -871,14 +871,21 @@ export type Database = {
           conciliado_at: string | null
           conciliado_por: string | null
           created_at: string | null
+          cuenta_contable_id: string | null
           documento_id: string | null
           documento_tipo: string | null
+          entidad_id: string | null
+          entidad_tipo: string | null
+          enviado_a_cuenta: boolean
+          enviado_en: string | null
+          enviado_por: string | null
           estado: string
           fecha_estado_cuenta: string | null
           id: string
           monto: number
           movimiento_id: string | null
           notas: string | null
+          poliza_id: string | null
           referencia: string | null
         }
         Insert: {
@@ -886,14 +893,21 @@ export type Database = {
           conciliado_at?: string | null
           conciliado_por?: string | null
           created_at?: string | null
+          cuenta_contable_id?: string | null
           documento_id?: string | null
           documento_tipo?: string | null
+          entidad_id?: string | null
+          entidad_tipo?: string | null
+          enviado_a_cuenta?: boolean
+          enviado_en?: string | null
+          enviado_por?: string | null
           estado?: string
           fecha_estado_cuenta?: string | null
           id?: string
           monto: number
           movimiento_id?: string | null
           notas?: string | null
+          poliza_id?: string | null
           referencia?: string | null
         }
         Update: {
@@ -901,14 +915,21 @@ export type Database = {
           conciliado_at?: string | null
           conciliado_por?: string | null
           created_at?: string | null
+          cuenta_contable_id?: string | null
           documento_id?: string | null
           documento_tipo?: string | null
+          entidad_id?: string | null
+          entidad_tipo?: string | null
+          enviado_a_cuenta?: boolean
+          enviado_en?: string | null
+          enviado_por?: string | null
           estado?: string
           fecha_estado_cuenta?: string | null
           id?: string
           monto?: number
           movimiento_id?: string | null
           notas?: string | null
+          poliza_id?: string | null
           referencia?: string | null
         }
         Relationships: [
@@ -920,10 +941,24 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "conciliacion_bancaria_cuenta_contable_id_fkey"
+            columns: ["cuenta_contable_id"]
+            isOneToOne: false
+            referencedRelation: "catalogo_cuentas"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "conciliacion_bancaria_movimiento_id_fkey"
             columns: ["movimiento_id"]
             isOneToOne: false
             referencedRelation: "movimientos_bancarios"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "conciliacion_bancaria_poliza_id_fkey"
+            columns: ["poliza_id"]
+            isOneToOne: false
+            referencedRelation: "polizas"
             referencedColumns: ["id"]
           },
         ]
@@ -2350,6 +2385,118 @@ export type Database = {
           },
         ]
       }
+      notas_credito_proveedor: {
+        Row: {
+          aplicada: boolean
+          aplicada_en: string | null
+          aplicada_por: string | null
+          cantidad_incidencia: number | null
+          compra_id: string | null
+          creada_por: string | null
+          created_at: string
+          es_retroactiva: boolean
+          fecha: string
+          folio: string
+          id: string
+          lote_id: string | null
+          monto: number
+          motivo: string | null
+          periodo_fin: string | null
+          periodo_inicio: string | null
+          poliza_id: string | null
+          producto_id: string | null
+          proveedor_id: string
+          tipo: string
+        }
+        Insert: {
+          aplicada?: boolean
+          aplicada_en?: string | null
+          aplicada_por?: string | null
+          cantidad_incidencia?: number | null
+          compra_id?: string | null
+          creada_por?: string | null
+          created_at?: string
+          es_retroactiva?: boolean
+          fecha?: string
+          folio: string
+          id?: string
+          lote_id?: string | null
+          monto: number
+          motivo?: string | null
+          periodo_fin?: string | null
+          periodo_inicio?: string | null
+          poliza_id?: string | null
+          producto_id?: string | null
+          proveedor_id: string
+          tipo: string
+        }
+        Update: {
+          aplicada?: boolean
+          aplicada_en?: string | null
+          aplicada_por?: string | null
+          cantidad_incidencia?: number | null
+          compra_id?: string | null
+          creada_por?: string | null
+          created_at?: string
+          es_retroactiva?: boolean
+          fecha?: string
+          folio?: string
+          id?: string
+          lote_id?: string | null
+          monto?: number
+          motivo?: string | null
+          periodo_fin?: string | null
+          periodo_inicio?: string | null
+          poliza_id?: string | null
+          producto_id?: string | null
+          proveedor_id?: string
+          tipo?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notas_credito_proveedor_compra_id_fkey"
+            columns: ["compra_id"]
+            isOneToOne: false
+            referencedRelation: "compras"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "notas_credito_proveedor_lote_id_fkey"
+            columns: ["lote_id"]
+            isOneToOne: false
+            referencedRelation: "lotes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "notas_credito_proveedor_poliza_id_fkey"
+            columns: ["poliza_id"]
+            isOneToOne: false
+            referencedRelation: "polizas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "notas_credito_proveedor_producto_id_fkey"
+            columns: ["producto_id"]
+            isOneToOne: false
+            referencedRelation: "productos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "notas_credito_proveedor_proveedor_id_fkey"
+            columns: ["proveedor_id"]
+            isOneToOne: false
+            referencedRelation: "proveedores"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "notas_credito_proveedor_proveedor_id_fkey"
+            columns: ["proveedor_id"]
+            isOneToOne: false
+            referencedRelation: "vista_fill_rate_proveedores"
+            referencedColumns: ["proveedor_id"]
+          },
+        ]
+      }
       notificaciones: {
         Row: {
           created_at: string
@@ -2502,7 +2649,76 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "orden_compra_lineas_orden_id_fkey"
+            columns: ["orden_id"]
+            isOneToOne: false
+            referencedRelation: "v_ordenes_compra_trazabilidad"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "orden_compra_lineas_producto_id_fkey"
+            columns: ["producto_id"]
+            isOneToOne: false
+            referencedRelation: "productos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      orden_compra_lineas_ajustes: {
+        Row: {
+          ajustado_en: string
+          ajustado_por: string | null
+          cantidad_anterior: number
+          cantidad_nueva: number
+          id: string
+          linea_id: string
+          orden_id: string
+          producto_id: string | null
+        }
+        Insert: {
+          ajustado_en?: string
+          ajustado_por?: string | null
+          cantidad_anterior: number
+          cantidad_nueva: number
+          id?: string
+          linea_id: string
+          orden_id: string
+          producto_id?: string | null
+        }
+        Update: {
+          ajustado_en?: string
+          ajustado_por?: string | null
+          cantidad_anterior?: number
+          cantidad_nueva?: number
+          id?: string
+          linea_id?: string
+          orden_id?: string
+          producto_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "orden_compra_lineas_ajustes_linea_id_fkey"
+            columns: ["linea_id"]
+            isOneToOne: false
+            referencedRelation: "orden_compra_lineas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "orden_compra_lineas_ajustes_orden_id_fkey"
+            columns: ["orden_id"]
+            isOneToOne: false
+            referencedRelation: "ordenes_compra"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "orden_compra_lineas_ajustes_orden_id_fkey"
+            columns: ["orden_id"]
+            isOneToOne: false
+            referencedRelation: "v_ordenes_compra_trazabilidad"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "orden_compra_lineas_ajustes_producto_id_fkey"
             columns: ["producto_id"]
             isOneToOne: false
             referencedRelation: "productos"
@@ -2512,12 +2728,17 @@ export type Database = {
       }
       ordenes_compra: {
         Row: {
+          ahorro_estimado: number | null
           aprobada_por: string | null
+          autorizada_por: string | null
+          cantidades_modificadas_gerente: boolean
+          compra_real_id: string | null
           creada_por: string | null
           created_at: string | null
           enviada_por: string | null
           estado: string
           fecha_aprobacion: string | null
+          fecha_autorizacion: string | null
           fecha_creacion: string | null
           fecha_envio: string | null
           fecha_recepcion_esperada: string | null
@@ -2537,12 +2758,17 @@ export type Database = {
           updated_at: string | null
         }
         Insert: {
+          ahorro_estimado?: number | null
           aprobada_por?: string | null
+          autorizada_por?: string | null
+          cantidades_modificadas_gerente?: boolean
+          compra_real_id?: string | null
           creada_por?: string | null
           created_at?: string | null
           enviada_por?: string | null
           estado?: string
           fecha_aprobacion?: string | null
+          fecha_autorizacion?: string | null
           fecha_creacion?: string | null
           fecha_envio?: string | null
           fecha_recepcion_esperada?: string | null
@@ -2562,12 +2788,17 @@ export type Database = {
           updated_at?: string | null
         }
         Update: {
+          ahorro_estimado?: number | null
           aprobada_por?: string | null
+          autorizada_por?: string | null
+          cantidades_modificadas_gerente?: boolean
+          compra_real_id?: string | null
           creada_por?: string | null
           created_at?: string | null
           enviada_por?: string | null
           estado?: string
           fecha_aprobacion?: string | null
+          fecha_autorizacion?: string | null
           fecha_creacion?: string | null
           fecha_envio?: string | null
           fecha_recepcion_esperada?: string | null
@@ -2587,6 +2818,13 @@ export type Database = {
           updated_at?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "ordenes_compra_compra_real_id_fkey"
+            columns: ["compra_real_id"]
+            isOneToOne: false
+            referencedRelation: "compras"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "ordenes_compra_grupo_id_fkey"
             columns: ["grupo_id"]
@@ -2626,6 +2864,7 @@ export type Database = {
       }
       ordenes_compra_grupo: {
         Row: {
+          compra_real_id: string | null
           creada_por: string | null
           created_at: string
           estado: string
@@ -2638,6 +2877,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          compra_real_id?: string | null
           creada_por?: string | null
           created_at?: string
           estado?: string
@@ -2650,6 +2890,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          compra_real_id?: string | null
           creada_por?: string | null
           created_at?: string
           estado?: string
@@ -2662,6 +2903,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "ordenes_compra_grupo_compra_real_id_fkey"
+            columns: ["compra_real_id"]
+            isOneToOne: false
+            referencedRelation: "compras"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "ordenes_compra_grupo_proveedor_id_fkey"
             columns: ["proveedor_id"]
@@ -2718,6 +2966,13 @@ export type Database = {
             columns: ["orden_id"]
             isOneToOne: false
             referencedRelation: "ordenes_compra"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ordenes_compra_transito_orden_id_fkey"
+            columns: ["orden_id"]
+            isOneToOne: false
+            referencedRelation: "v_ordenes_compra_trazabilidad"
             referencedColumns: ["id"]
           },
           {
@@ -2964,6 +3219,7 @@ export type Database = {
           id: string
           notas: string | null
           numero_pedido: string
+          requiere_factura: boolean | null
           ruta_id: string | null
           sucursal_id: string
           updated_at: string | null
@@ -2976,6 +3232,7 @@ export type Database = {
           id?: string
           notas?: string | null
           numero_pedido: string
+          requiere_factura?: boolean | null
           ruta_id?: string | null
           sucursal_id: string
           updated_at?: string | null
@@ -2988,6 +3245,7 @@ export type Database = {
           id?: string
           notas?: string | null
           numero_pedido?: string
+          requiere_factura?: boolean | null
           ruta_id?: string | null
           sucursal_id?: string
           updated_at?: string | null
@@ -4707,6 +4965,7 @@ export type Database = {
           notas: string | null
           numero_venta: string
           origen: string
+          requiere_factura: boolean | null
           sincronizada_at: string | null
           subtotal: number
           sucursal_id: string
@@ -4732,6 +4991,7 @@ export type Database = {
           notas?: string | null
           numero_venta: string
           origen?: string
+          requiere_factura?: boolean | null
           sincronizada_at?: string | null
           subtotal?: number
           sucursal_id: string
@@ -4757,6 +5017,7 @@ export type Database = {
           notas?: string | null
           numero_venta?: string
           origen?: string
+          requiere_factura?: boolean | null
           sincronizada_at?: string | null
           subtotal?: number
           sucursal_id?: string
@@ -4871,6 +5132,73 @@ export type Database = {
           total_sucursales: number | null
         }
         Relationships: []
+      }
+      v_ordenes_compra_trazabilidad: {
+        Row: {
+          autorizada_por: string | null
+          autorizada_por_nombre: string | null
+          cantidades_modificadas_gerente: boolean | null
+          creada_por: string | null
+          creada_por_nombre: string | null
+          enviada_por: string | null
+          estado: string | null
+          fecha_autorizacion: string | null
+          fecha_creacion: string | null
+          fecha_envio: string | null
+          fecha_recepcion_real: string | null
+          fecha_revision_gerente: string | null
+          folio: string | null
+          grupo_id: string | null
+          id: string | null
+          num_ajustes: number | null
+          proveedor_id: string | null
+          proveedor_nombre: string | null
+          razon_aprobacion: string | null
+          recibida_por: string | null
+          revisada_por_gerente: string | null
+          revisada_por_gerente_nombre: string | null
+          sucursal_codigo: string | null
+          sucursal_destino_id: string | null
+          sucursal_nombre: string | null
+          total: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ordenes_compra_grupo_id_fkey"
+            columns: ["grupo_id"]
+            isOneToOne: false
+            referencedRelation: "ordenes_compra_grupo"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ordenes_compra_grupo_id_fkey"
+            columns: ["grupo_id"]
+            isOneToOne: false
+            referencedRelation: "v_ordenes_compra_grupo_resumen"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ordenes_compra_proveedor_id_fkey"
+            columns: ["proveedor_id"]
+            isOneToOne: false
+            referencedRelation: "proveedores"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ordenes_compra_proveedor_id_fkey"
+            columns: ["proveedor_id"]
+            isOneToOne: false
+            referencedRelation: "vista_fill_rate_proveedores"
+            referencedColumns: ["proveedor_id"]
+          },
+          {
+            foreignKeyName: "ordenes_compra_sucursal_destino_id_fkey"
+            columns: ["sucursal_destino_id"]
+            isOneToOne: false
+            referencedRelation: "sucursales"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       v_transito_abierto: {
         Row: {
@@ -5017,6 +5345,31 @@ export type Database = {
         Args: { p_dias_ventana?: number }
         Returns: undefined
       }
+      conciliacion_enviar_a_cuenta: {
+        Args: {
+          p_compra_ids?: string[]
+          p_conciliacion_id: string
+          p_cuenta_contable_id: string
+          p_entidad_id: string
+          p_entidad_tipo: string
+        }
+        Returns: Json
+      }
+      confirmar_con_proveedor: {
+        Args: { p_grupo_id?: string; p_notas?: string; p_orden_id?: string }
+        Returns: Json
+      }
+      confirmar_envio_proveedor: {
+        Args: {
+          p_dias_credito?: number
+          p_fecha_pago_limite?: string
+          p_grupo_id?: string
+          p_metodo_pago?: string
+          p_notas?: string
+          p_orden_id?: string
+        }
+        Returns: Json
+      }
       cotizador_generar_oc: { Args: { payload: Json }; Returns: Json }
       cotizador_historial_mensual: {
         Args: { p_producto_id: string }
@@ -5066,6 +5419,23 @@ export type Database = {
         }
         Returns: undefined
       }
+      crear_nota_credito_proveedor: {
+        Args: {
+          p_almacen_id?: string
+          p_cantidad_incidencia?: number
+          p_compra_id?: string
+          p_es_retroactiva?: boolean
+          p_lote_id?: string
+          p_monto: number
+          p_motivo?: string
+          p_periodo_fin?: string
+          p_periodo_inicio?: string
+          p_producto_id?: string
+          p_proveedor_id: string
+          p_tipo: string
+        }
+        Returns: Json
+      }
       dispersar_nomina: {
         Args: {
           p_cuenta_bancaria_id: string
@@ -5075,7 +5445,6 @@ export type Database = {
         }
         Returns: Json
       }
-      enviar_grupo_a_proveedor: { Args: { p_grupo_id: string }; Returns: Json }
       enviar_traspaso: {
         Args: {
           p_almacen_destino_id: string
@@ -5183,33 +5552,20 @@ export type Database = {
           vigencia_hasta: string
         }[]
       }
-      process_pos_sale:
-        | {
-            Args: {
-              p_cajero_id: string
-              p_cliente_id?: string
-              p_efectivo_recibido?: number
-              p_items: Json
-              p_metodo_pago?: string
-              p_nota?: string
-              p_sucursal_id: string
-            }
-            Returns: Json
-          }
-        | {
-            Args: {
-              p_cajero_id: string
-              p_cliente_id?: string
-              p_cliente_uuid_local?: string
-              p_efectivo_recibido?: number
-              p_items: Json
-              p_metodo_pago?: string
-              p_nota?: string
-              p_origen?: string
-              p_sucursal_id: string
-            }
-            Returns: Json
-          }
+      process_pos_sale: {
+        Args: {
+          p_cajero_id: string
+          p_cliente_id?: string
+          p_cliente_uuid_local?: string
+          p_efectivo_recibido?: number
+          p_items: Json
+          p_metodo_pago?: string
+          p_nota?: string
+          p_origen?: string
+          p_sucursal_id: string
+        }
+        Returns: Json
+      }
       productos_pendientes_compra: {
         Args: {
           p_fecha_corte?: string
