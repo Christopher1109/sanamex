@@ -76,6 +76,45 @@ type Grupo = {
   autorizadas: number; canceladas: number; total_consolidado: number;
 };
 
+// Vista previa de insumos dentro de la propia lista (sin entrar al detalle).
+function PreviewInsumos({ lineas }: { lineas?: Linea[] }) {
+  if (!lineas) return <div className="text-xs text-muted-foreground px-2 py-1">Cargando insumos…</div>;
+  if (!lineas.length) return <div className="text-xs text-muted-foreground px-2 py-1">Esta orden no tiene renglones.</div>;
+  const totalPiezas = lineas.reduce((s, l) => s + Number(l.cantidad_solicitada || 0), 0);
+  return (
+    <div className="rounded-md border bg-muted/30 p-2">
+      <div className="text-xs font-medium mb-1">
+        {lineas.length} producto{lineas.length === 1 ? '' : 's'} · {totalPiezas.toLocaleString('es-MX')} pieza{totalPiezas === 1 ? '' : 's'} solicitadas
+      </div>
+      <div className="max-h-56 overflow-auto">
+        <table className="w-full text-xs">
+          <thead className="text-muted-foreground">
+            <tr>
+              <th className="text-left font-medium py-1 px-1">SKU</th>
+              <th className="text-left font-medium py-1 px-1">Descripción</th>
+              <th className="text-right font-medium py-1 px-1">Cantidad</th>
+              <th className="text-right font-medium py-1 px-1">P. unitario</th>
+              <th className="text-right font-medium py-1 px-1">Importe</th>
+            </tr>
+          </thead>
+          <tbody>
+            {lineas.map(l => (
+              <tr key={l.id} className="border-t">
+                <td className="font-mono py-1 px-1">{l.producto?.sku || '—'}</td>
+                <td className="py-1 px-1">{l.producto?.nombre || '—'}</td>
+                <td className="text-right tabular-nums py-1 px-1">{Number(l.cantidad_solicitada).toLocaleString('es-MX')}</td>
+                <td className="text-right tabular-nums py-1 px-1">${Number(l.precio_unitario).toLocaleString('es-MX', { minimumFractionDigits: 2 })}</td>
+                <td className="text-right tabular-nums py-1 px-1">${Number(l.subtotal).toLocaleString('es-MX', { minimumFractionDigits: 2 })}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+
 export default function OrdenesCompraPage() {
   const { user, userRole } = useAuth();
   const esAdmin = !!userRole && ROLES_ADMIN.includes(userRole);
