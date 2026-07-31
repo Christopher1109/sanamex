@@ -816,10 +816,14 @@ export default function OrdenesCompraPage() {
           {(esAdmin || esCompras) && (
             <TabsTrigger value="grupos" className="gap-2"><Truck className="h-4 w-4" /> Por proveedor</TabsTrigger>
           )}
-          <TabsTrigger value="todas">Todas</TabsTrigger>
-          <TabsTrigger value="seguimiento" className="gap-2">
-            <PackageCheck className="h-4 w-4" /> Mi sucursal
-          </TabsTrigger>
+          {!(esGerencia || esAlmacen) && (
+            <TabsTrigger value="todas">Todas</TabsTrigger>
+          )}
+          {(esGerencia || esAlmacen) && (
+            <TabsTrigger value="seguimiento" className="gap-2">
+              <PackageCheck className="h-4 w-4" /> Mi sucursal
+            </TabsTrigger>
+          )}
 
           {pendientesRevisionGerente.length > 0 || esGerencia || esAdmin ? (
             <TabsTrigger value="revision_gerente" className="gap-2">
@@ -912,6 +916,7 @@ export default function OrdenesCompraPage() {
         </TabsContent>
         )}
 
+        {!(esGerencia || esAlmacen) && (
         <TabsContent value="todas" className="space-y-4">
           {filtroGrupo && (
             <div className="flex items-center gap-2 text-sm bg-accent rounded-md px-3 py-2">
@@ -971,9 +976,12 @@ export default function OrdenesCompraPage() {
             </Table>
           </Card>
         </TabsContent>
+        )}
 
         {/* Punto 4: seguimiento por sucursal para gerente y almacenista —
-            saber en qué va cada OC y cuándo ya se puede recibir físicamente. */}
+            saber en qué va cada OC y cuándo ya se puede recibir físicamente.
+            Solo para roles operativos: administración/compras ya tiene "Todas". */}
+        {(esGerencia || esAlmacen) && (
         <TabsContent value="seguimiento" className="space-y-4">
           {(() => {
             const misOcs = misSucursales.length
@@ -1051,6 +1059,7 @@ export default function OrdenesCompraPage() {
             );
           })()}
         </TabsContent>
+        )}
 
 
 
