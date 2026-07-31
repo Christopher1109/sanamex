@@ -158,14 +158,15 @@ export default function OrdenesCompraPage() {
   async function loadLineasPreview(ids: string[]) {
     const faltantes = ids.filter(id => !lineasPorOc[id]);
     if (!faltantes.length) return;
-    const { data } = await supabase
-      .from('ordenes_compra_lineas')
-      .select('id, orden_compra_id, producto_id, cantidad_solicitada, cantidad_recibida, precio_unitario, subtotal, producto:productos(nombre, sku)')
-      .in('orden_compra_id', faltantes);
+    const { data } = await (supabase as any)
+      .from('orden_compra_lineas')
+      .select('id, orden_id, producto_id, cantidad_solicitada, cantidad_recibida, precio_unitario, subtotal, producto:productos(nombre, sku)')
+      .in('orden_id', faltantes);
     const map: Record<string, Linea[]> = {};
     (data || []).forEach((l: any) => {
-      (map[l.orden_compra_id] ||= []).push(l as Linea);
+      (map[l.orden_id] ||= []).push(l as Linea);
     });
+
     setLineasPorOc(prev => ({ ...prev, ...map }));
   }
 
