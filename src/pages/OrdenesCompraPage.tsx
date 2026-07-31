@@ -64,6 +64,60 @@ const ESTADO_LABEL: Record<string, string> = {
 };
 
 
+// Rediseño: etapas visuales del flujo de una OC, para que cualquier rol
+// (admin, gerente, almacenista) entienda de un vistazo en qué momento va,
+// sin tener que interpretar el nombre técnico del estado.
+const PIPELINE_ETAPAS = ['Revisión', 'Autorización', 'Con proveedor', 'En ruta', 'Recibido'] as const;
+function pipelineIndice(estado: string): number {
+  switch (estado) {
+    case 'borrador':
+    case 'pendiente_aprobacion': return 0;
+    case 'confirmada_gerente': return 1;
+    case 'pendiente_confirmar':
+    case 'confirmada_proveedor': return 2;
+    case 'en_ruta':
+    case 'enviada': return 3;
+    case 'confirmada':
+    case 'parcial':
+    case 'recibida': return 4;
+    default: return -1; // cancelada u otro estado terminal negativo
+  }
+}
+
+// Barra compacta de etapas — se usa en todas las listas y en el detalle para
+// que "en qué va" se lea igual en Por revisar, Mi sucursal, Todas, etc.
+function PipelineOC({ estado, className = '' }: { estado: string; className?: string }) {
+  if (estado === 'cancelada') {
+    return <Badge className="bg-rose-600">Cancelada</Badge>;
+  }
+  const idx = pipelineIndice(estado);
+  return (
+    <div className={`flex items-center gap-1 ${className}`} title={ESTADO_LABEL[estado] || estado}>
+      {PIPELINE_ETAPAS.map((etapa, i) => {
+        const completada = i < idx;
+        const actual = i === idx;
+        return (
+          <div key={etapa} className="flex items-center gap-1">
+            <div
+              className={
+                'h-2 w-2 rounded-full shrink-0 ' +
+                (completada ? 'bg-emerald-500' : actual ? 'bg-blue-600 ring-2 ring-blue-200' : 'bg-slate-200')
+              }
+            />
+            {i < PIPELINE_ETAPAS.length - 1 && (
+              <div className={'h-0.5 w-4 ' + (completada ? 'bg-emerald-500' : 'bg-slate-200')} />
+            )}
+          </div>
+        );
+      })}
+      <span className={'ml-1.5 text-xs font-medium ' + (idx === 4 ? 'text-emerald-700' : 'text-muted-foreground')}>
+        {PIPELINE_ETAPAS[idx] ?? '—'}
+        {estado === 'parcial' && ' (parcial)'}
+      </span>
+    </div>
+  );
+}
+
 const ROLES_ADMIN = ['admin', 'super_admin'];
 const ROLES_GERENCIA = ['gerente', 'subgerente'];
 const ROLES_COMPRAS = ['compras'];
@@ -103,8 +157,8 @@ function PreviewInsumos({ lineas }: { lineas?: Linea[] }) {
                 <td className="font-mono py-1 px-1">{l.producto?.sku || '—'}</td>
                 <td className="py-1 px-1">{l.producto?.nombre || '—'}</td>
                 <td className="text-right tabular-nums py-1 px-1">{Number(l.cantidad_solicitada).toLocaleString('es-MX')}</td>
-                <td className="text-right tabular-nums py-1 px-1">${Number(l.precio_unitario).toLocaleString('es-MX', { minimumFractionDigits: 2 })}</td>
-                <td className="text-right tabular-nums py-1 px-1">${Number(l.subtotal).toLocaleString('es-MX', { minimumFractionDigits: 2 })}</td>
+                <td className="text-right tabular-nums py-1 px-1">${Number(l.precio_unitario).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                <td className="text-right tabular-nums py-1 px-1">${Number(l.subtotal).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
               </tr>
             ))}
           </tbody>
@@ -235,6 +289,49 @@ export default function OrdenesCompraPage() {
     await loadGrupos();
     await load();
     if (seleccionada) await abrirDetalle(seleccionada);
+    // Al confirmar, se descargan de una vez todos los Excel de OC involucrados
+    // (uno por sucursal) — antes había que entrar OC por OC a generarlo manualmente.
+    if (args.grupo_id) await descargarExcelesDelGrupo(args.grupo_id);
+    else if (args.orden_id && seleccionada?.id === args.orden_id) await generarExcelProveedor(seleccionada);
+  }
+
+  // Descarga un Excel por cada OC (sucursal) que forme parte del grupo confirmado,
+  // en el mismo formato de machote que ya se usa para una OC individual.
+  async function descargarExcelesDelGrupo(grupoId: string) {
+    const { data: hijas } = await supabase
+      .from('ordenes_compra')
+      .select('id, folio, proveedor:proveedores(nombre), sucursal_destino:sucursales!sucursal_destino_id(codigo, nombre)')
+      .eq('grupo_id', grupoId);
+    if (!hijas?.length) return;
+    toast.info(`Generando ${hijas.length} archivo${hijas.length === 1 ? '' : 's'} de Excel (uno por sucursal)…`);
+    for (let i = 0; i < hijas.length; i++) {
+      const h: any = hijas[i];
+      const { data: lns } = await supabase
+        .from('orden_compra_lineas')
+        .select('producto_id, cantidad_solicitada, precio_con_iva, producto:productos(sku, nombre)')
+        .eq('orden_id', h.id);
+      const sucCodigo = h.sucursal_destino?.codigo || '';
+      const lineasExcel = (lns || []).map((l: any) => ({
+        sku: l.producto?.sku || '', nombre: l.producto?.nombre || '',
+        piezas: l.cantidad_solicitada, precioConIva: l.precio_con_iva,
+        reparto: sucCodigo ? { [sucCodigo]: l.cantidad_solicitada } : {},
+      }));
+      try {
+        const blob = await generarOcProveedorExcel({
+          proveedorNombre: h.proveedor?.nombre || '',
+          numeroOC: h.folio,
+          condicionesPago: 'Por confirmar con proveedor',
+          sucursalDestinoTexto: sucCodigo,
+          folioCotizacion: '',
+          lineas: lineasExcel,
+        });
+        descargarBlob(blob, `${h.folio}_${sucCodigo || 'orden'}_compra.xlsx`);
+      } catch (e: any) {
+        toast.error(`No se pudo generar el Excel de ${h.folio}: ${e.message}`);
+      }
+      // Pausa breve entre descargas para que el navegador no las bloquee por ir muy seguidas.
+      if (i < hijas.length - 1) await new Promise(r => setTimeout(r, 400));
+    }
   }
 
 
@@ -455,6 +552,7 @@ export default function OrdenesCompraPage() {
                 <h2 className="text-xl font-bold">{seleccionada.folio}</h2>
                 <Badge className={ESTADO_COLOR[seleccionada.estado]}>{ESTADO_LABEL[seleccionada.estado] || seleccionada.estado}</Badge>
               </div>
+              <div className="mt-2"><PipelineOC estado={seleccionada.estado} /></div>
               <p className="text-sm text-muted-foreground mt-1">
                 {seleccionada.proveedor?.nombre} · Destino: {seleccionada.sucursal_destino?.codigo || '—'}
               </p>
@@ -553,7 +651,7 @@ export default function OrdenesCompraPage() {
                           onBlur={e => actualizarPrecio(l, parseFloat(e.target.value))} />
                       : `$${Number(l.precio_unitario).toFixed(2)}`}
                   </TableCell>
-                  <TableCell className="text-right tabular-nums">${Number(l.subtotal).toLocaleString('es-MX', { minimumFractionDigits: 2 })}</TableCell>
+                  <TableCell className="text-right tabular-nums">${Number(l.subtotal).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</TableCell>
                   {seleccionada.estado === 'borrador' && (
                     <TableCell>
                       <Button size="icon" variant="ghost" onClick={() => eliminarLinea(l)}>
@@ -568,9 +666,9 @@ export default function OrdenesCompraPage() {
           </Table>
           <div className="border-t p-4 flex justify-end gap-8">
             <div className="text-sm space-y-1 text-right">
-              <p>Subtotal: <span className="tabular-nums font-medium">${Number(seleccionada.subtotal).toLocaleString('es-MX', { minimumFractionDigits: 2 })}</span></p>
-              <p>IVA: <span className="tabular-nums font-medium">${Number(seleccionada.iva).toLocaleString('es-MX', { minimumFractionDigits: 2 })}</span></p>
-              <p className="text-lg font-bold">Total: ${Number(seleccionada.total).toLocaleString('es-MX', { minimumFractionDigits: 2 })}</p>
+              <p>Subtotal: <span className="tabular-nums font-medium">${Number(seleccionada.subtotal).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></p>
+              <p>IVA: <span className="tabular-nums font-medium">${Number(seleccionada.iva).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></p>
+              <p className="text-lg font-bold">Total: ${Number(seleccionada.total).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
             </div>
           </div>
         </Card>
@@ -790,7 +888,7 @@ export default function OrdenesCompraPage() {
                       </Badge>
                     </TableCell>
                     <TableCell className="text-right tabular-nums font-semibold">
-                      ${Number(g.total_consolidado).toLocaleString('es-MX', { minimumFractionDigits: 2 })}
+                      ${Number(g.total_consolidado).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </TableCell>
                     <TableCell className="text-right">
                       {(esAdmin || esCompras) && (g.estado === 'lista_para_enviar' || g.estado === 'confirmada_proveedor') && (
@@ -866,15 +964,15 @@ export default function OrdenesCompraPage() {
                     <TableCell>{oc.proveedor?.nombre}</TableCell>
                     <TableCell>{oc.sucursal_destino?.codigo || '—'}</TableCell>
                     <TableCell>
-                      <div className="flex items-center gap-1.5">
-                        <Badge className={ESTADO_COLOR[oc.estado]}>{ESTADO_LABEL[oc.estado] || oc.estado}</Badge>
+                      <div className="flex flex-col gap-1">
+                        <PipelineOC estado={oc.estado} />
                         {oc.cantidades_modificadas_gerente && (
-                          <Badge variant="outline" className="text-[10px] border-amber-500 text-amber-600">Modificada</Badge>
+                          <Badge variant="outline" className="text-[10px] border-amber-500 text-amber-600 w-fit">Modificada</Badge>
                         )}
                       </div>
                     </TableCell>
                     <TableCell className="text-xs">{oc.fecha_creacion}</TableCell>
-                    <TableCell className="text-right tabular-nums">${Number(oc.total).toLocaleString('es-MX', { minimumFractionDigits: 2 })}</TableCell>
+                    <TableCell className="text-right tabular-nums">${Number(oc.total).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -908,19 +1006,34 @@ export default function OrdenesCompraPage() {
                     <div className="text-2xl font-bold">{activas.length}</div>
                   </Card>
                 </div>
+                {(esGerencia || esAlmacen) && !esAdmin && !esCompras && !misSucursales.length && (
+                  <div className="rounded-md border border-amber-300 bg-amber-50 text-amber-800 text-sm px-3 py-2">
+                    No tienes ninguna sucursal asignada todavía, por eso no ves órdenes aquí — esto es una
+                    configuración pendiente, no un error. Pide a un administrador que te asigne tu sucursal
+                    en "Gestión de usuarios".
+                  </div>
+                )}
                 <Card className="p-0 overflow-hidden">
                   <Table>
                     <TableHeader>
                       <TableRow>
                         <TableHead>Folio</TableHead><TableHead>Proveedor</TableHead>
-                        <TableHead>Sucursal</TableHead><TableHead>Estado</TableHead>
+                        <TableHead>Sucursal</TableHead><TableHead>En qué va</TableHead>
                         <TableHead>Fecha</TableHead>
                         <TableHead className="text-right">Monto</TableHead>
                         <TableHead className="text-right">Acción</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {!misOcs.length && <TableRow><TableCell colSpan={7} className="text-center p-6 text-muted-foreground">No hay órdenes de compra para tu sucursal.</TableCell></TableRow>}
+                      {!misOcs.length && (
+                        <TableRow>
+                          <TableCell colSpan={7} className="text-center p-6 text-muted-foreground">
+                            {misSucursales.length || esAdmin || esCompras
+                              ? 'No hay órdenes de compra para tu sucursal por ahora.'
+                              : 'Sin sucursal asignada — ver aviso arriba.'}
+                          </TableCell>
+                        </TableRow>
+                      )}
                       {misOcs.map(oc => {
                         const listaParaRecibir = ['en_ruta', 'enviada', 'confirmada', 'parcial'].includes(oc.estado);
                         return (
@@ -928,11 +1041,9 @@ export default function OrdenesCompraPage() {
                             <TableCell className="font-mono font-medium">{oc.folio}</TableCell>
                             <TableCell>{oc.proveedor?.nombre}</TableCell>
                             <TableCell>{oc.sucursal_destino?.codigo || '—'}</TableCell>
-                            <TableCell>
-                              <Badge className={ESTADO_COLOR[oc.estado]}>{ESTADO_LABEL[oc.estado] || oc.estado}</Badge>
-                            </TableCell>
+                            <TableCell><PipelineOC estado={oc.estado} /></TableCell>
                             <TableCell className="text-xs">{oc.fecha_creacion}</TableCell>
-                            <TableCell className="text-right tabular-nums">${Number(oc.total).toLocaleString('es-MX', { minimumFractionDigits: 2 })}</TableCell>
+                            <TableCell className="text-right tabular-nums">${Number(oc.total).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</TableCell>
                             <TableCell className="text-right">
                               <Button size="sm" variant={listaParaRecibir ? 'default' : 'outline'} onClick={(e) => { e.stopPropagation(); abrirDetalle(oc); }}>
                                 {listaParaRecibir ? 'Recibir' : 'Ver'}
@@ -968,12 +1079,15 @@ export default function OrdenesCompraPage() {
                   <Fragment key={oc.id}>
                   <TableRow>
 
-                    <TableCell className="font-mono font-medium">{oc.folio}</TableCell>
+                    <TableCell className="font-mono font-medium">
+                      {oc.folio}
+                      <div className="mt-1"><PipelineOC estado={oc.estado} /></div>
+                    </TableCell>
                     <TableCell>{oc.proveedor?.nombre}</TableCell>
                     <TableCell>{oc.sucursal_destino?.codigo || '—'}</TableCell>
                     <TableCell className="text-xs">{oc.fecha_creacion}</TableCell>
                     <TableCell className="text-right tabular-nums font-semibold">
-                      ${Number(oc.total).toLocaleString('es-MX', { minimumFractionDigits: 2 })}
+                      ${Number(oc.total).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex gap-2 justify-end">
@@ -1015,7 +1129,10 @@ export default function OrdenesCompraPage() {
                   {pendientesAutorizacionAdmin.map(oc => (
                     <Fragment key={oc.id}>
                     <TableRow>
-                      <TableCell className="font-mono font-medium">{oc.folio}</TableCell>
+                      <TableCell className="font-mono font-medium">
+                        {oc.folio}
+                        <div className="mt-1"><PipelineOC estado={oc.estado} /></div>
+                      </TableCell>
                       <TableCell>{oc.proveedor?.nombre}</TableCell>
                       <TableCell>{oc.sucursal_destino?.codigo || '—'}</TableCell>
                       <TableCell className="text-xs text-muted-foreground">
@@ -1025,7 +1142,7 @@ export default function OrdenesCompraPage() {
                         )}
                       </TableCell>
                       <TableCell className="text-right tabular-nums font-semibold">
-                        ${Number(oc.total).toLocaleString('es-MX', { minimumFractionDigits: 2 })}
+                        ${Number(oc.total).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </TableCell>
                       <TableCell className="text-right">
                         <div className="flex gap-2 justify-end">
@@ -1089,7 +1206,7 @@ export default function OrdenesCompraPage() {
                       </TableCell>
                       <TableCell className="text-xs">{t.autorizada_por_nombre || '—'}</TableCell>
                       <TableCell className="text-right tabular-nums font-semibold">
-                        ${Number(t.total).toLocaleString('es-MX', { minimumFractionDigits: 2 })}
+                        ${Number(t.total).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </TableCell>
                     </TableRow>
                   ))}
