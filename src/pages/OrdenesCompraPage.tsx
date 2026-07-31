@@ -418,16 +418,26 @@ export default function OrdenesCompraPage() {
                   </Button>
                 </>
               )}
-              {seleccionada.estado === 'pendiente_confirmar' && (esAdmin || esCompras) && (
+              {(seleccionada.estado === 'pendiente_confirmar' || seleccionada.estado === 'confirmada_proveedor') && (esAdmin || esCompras) && (
                 <>
                   <Button variant="outline" className="gap-2" onClick={() => generarExcelProveedor(seleccionada)}>
                     <FileDown className="h-4 w-4" />Generar OC (Excel)
                   </Button>
-                  <Button className="gap-2 bg-emerald-600 hover:bg-emerald-700" onClick={() => abrirConfirmarProveedor(seleccionada)}>
-                    <Truck className="h-4 w-4" />Confirmar con proveedor y marcar en ruta
+                  <Button
+                    className="gap-2 bg-teal-600 hover:bg-teal-700"
+                    disabled={seleccionada.estado !== 'pendiente_confirmar'}
+                    onClick={() => confirmarConProveedor({ orden_id: seleccionada.id, folio: seleccionada.folio })}>
+                    <Check className="h-4 w-4" />1. Confirmar con proveedor
+                  </Button>
+                  <Button
+                    className="gap-2 bg-emerald-600 hover:bg-emerald-700"
+                    disabled={seleccionada.estado !== 'confirmada_proveedor'}
+                    onClick={() => abrirEnRuta({ orden_id: seleccionada.id, folio: seleccionada.folio })}>
+                    <Truck className="h-4 w-4" />2. Marcar en ruta
                   </Button>
                 </>
               )}
+
               {!esAlmacen && seleccionada.estado === 'borrador' && (
                 <>
                   <Button onClick={() => cambiarEstado(seleccionada, 'enviada')} className="gap-2"><Send className="h-4 w-4" />Enviar</Button>
