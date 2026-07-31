@@ -569,9 +569,10 @@ export default function OrdenesCompraPage() {
           </DialogContent>
         </Dialog>
 
-        <Dialog open={!!confirmarProveedorOpen} onOpenChange={o => !o && setConfirmarProveedorOpen(null)}>
+        <Dialog open={!!enRutaOpen} onOpenChange={o => !o && setEnRutaOpen(null)}>
           <DialogContent>
-            <DialogHeader><DialogTitle>Confirmar con proveedor — {confirmarProveedorOpen?.folio}</DialogTitle></DialogHeader>
+            <DialogHeader><DialogTitle>Marcar en ruta — {enRutaOpen?.folio}</DialogTitle></DialogHeader>
+
             <div className="space-y-3">
               <p className="text-sm text-muted-foreground">
                 Esto se hace cuando ya quedaron de acuerdo con el proveedor en cómo y cuándo se paga, y el pedido
