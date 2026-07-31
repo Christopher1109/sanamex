@@ -882,6 +882,75 @@ export default function OrdenesCompraPage() {
           </Card>
         </TabsContent>
 
+        {/* Punto 4: seguimiento por sucursal para gerente y almacenista —
+            saber en qué va cada OC y cuándo ya se puede recibir físicamente. */}
+        <TabsContent value="seguimiento" className="space-y-4">
+          {(() => {
+            const misOcs = misSucursales.length
+              ? ocs.filter(o => o.sucursal_destino_id && misSucursales.includes(o.sucursal_destino_id))
+              : ocs;
+            const activas = misOcs.filter(o => o.estado !== 'cancelada' && o.estado !== 'recibida');
+            const porRecibir = misOcs.filter(o => ['en_ruta', 'enviada', 'confirmada', 'parcial'].includes(o.estado));
+            const porAutorizar = misOcs.filter(o => ['pendiente_aprobacion', 'confirmada_gerente'].includes(o.estado));
+            return (
+              <>
+                <div className="grid gap-3 sm:grid-cols-3">
+                  <Card className="p-4">
+                    <div className="text-xs text-muted-foreground">Pendientes de autorizar</div>
+                    <div className="text-2xl font-bold">{porAutorizar.length}</div>
+                  </Card>
+                  <Card className="p-4">
+                    <div className="text-xs text-muted-foreground">En camino (listas para recibir)</div>
+                    <div className="text-2xl font-bold text-blue-600">{porRecibir.length}</div>
+                  </Card>
+                  <Card className="p-4">
+                    <div className="text-xs text-muted-foreground">Órdenes activas</div>
+                    <div className="text-2xl font-bold">{activas.length}</div>
+                  </Card>
+                </div>
+                <Card className="p-0 overflow-hidden">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Folio</TableHead><TableHead>Proveedor</TableHead>
+                        <TableHead>Sucursal</TableHead><TableHead>Estado</TableHead>
+                        <TableHead>Fecha</TableHead>
+                        <TableHead className="text-right">Monto</TableHead>
+                        <TableHead className="text-right">Acción</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {!misOcs.length && <TableRow><TableCell colSpan={7} className="text-center p-6 text-muted-foreground">No hay órdenes de compra para tu sucursal.</TableCell></TableRow>}
+                      {misOcs.map(oc => {
+                        const listaParaRecibir = ['en_ruta', 'enviada', 'confirmada', 'parcial'].includes(oc.estado);
+                        return (
+                          <TableRow key={oc.id} className="cursor-pointer hover:bg-accent" onClick={() => abrirDetalle(oc)}>
+                            <TableCell className="font-mono font-medium">{oc.folio}</TableCell>
+                            <TableCell>{oc.proveedor?.nombre}</TableCell>
+                            <TableCell>{oc.sucursal_destino?.codigo || '—'}</TableCell>
+                            <TableCell>
+                              <Badge className={ESTADO_COLOR[oc.estado]}>{ESTADO_LABEL[oc.estado] || oc.estado}</Badge>
+                            </TableCell>
+                            <TableCell className="text-xs">{oc.fecha_creacion}</TableCell>
+                            <TableCell className="text-right tabular-nums">${Number(oc.total).toLocaleString('es-MX', { minimumFractionDigits: 2 })}</TableCell>
+                            <TableCell className="text-right">
+                              <Button size="sm" variant={listaParaRecibir ? 'default' : 'outline'} onClick={(e) => { e.stopPropagation(); abrirDetalle(oc); }}>
+                                {listaParaRecibir ? 'Recibir' : 'Ver'}
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                </Card>
+              </>
+            );
+          })()}
+        </TabsContent>
+
+
+
         <TabsContent value="revision_gerente">
           <Card className="p-0 overflow-hidden">
             <Table>
