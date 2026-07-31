@@ -722,6 +722,10 @@ export default function OrdenesCompraPage() {
             <TabsTrigger value="grupos" className="gap-2"><Truck className="h-4 w-4" /> Por proveedor</TabsTrigger>
           )}
           <TabsTrigger value="todas">Todas</TabsTrigger>
+          <TabsTrigger value="seguimiento" className="gap-2">
+            <PackageCheck className="h-4 w-4" /> Mi sucursal
+          </TabsTrigger>
+
           {pendientesRevisionGerente.length > 0 || esGerencia || esAdmin ? (
             <TabsTrigger value="revision_gerente" className="gap-2">
               <ShieldCheck className="h-4 w-4" /> Por revisar (gerente)
