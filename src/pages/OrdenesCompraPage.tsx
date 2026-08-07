@@ -12,7 +12,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { Send, PackageCheck, X, ClipboardList, ArrowLeft, Check, ShieldCheck, Truck, RefreshCw, FileDown, ChevronDown, ChevronRight, Loader2, AlertTriangle, Receipt, FileUp, FileText, Plus, FileMinus } from 'lucide-react';
+import { Send, PackageCheck, X, ClipboardList, ArrowLeft, Check, ShieldCheck, Truck, RefreshCw, FileDown, ChevronDown, ChevronRight, Loader2, Receipt, FileUp, FileText, Plus, FileMinus } from 'lucide-react';
 import { toast } from 'sonner';
 import { generarOcProveedorExcel, descargarBlob } from '@/lib/generarOcProveedor';
 
@@ -20,6 +20,8 @@ type OC = {
   id: string; folio: string; estado: string;
   fecha_creacion: string; fecha_envio: string | null; fecha_recepcion_real: string | null;
   fecha_estimada_entrega?: string | null;
+  llego_fisicamente?: boolean;
+  llego_fisicamente_en?: string | null;
   subtotal: number; iva: number; total: number; notas: string | null;
   creada_por: string | null;
   cantidades_modificadas_gerente?: boolean;
@@ -272,16 +274,26 @@ function OrdenesCompraPageInner() {
   const [recibirOpen, setRecibirOpen] = useState(false);
   type RecepcionLinea = { cantidad: number; numero_lote: string; fecha_caducidad: string; costo_unitario: string; incidencia_tipo: string; incidencia_notas: string };
   const [recepciones, setRecepciones] = useState<Record<string, RecepcionLinea>>({});
-  const [ligandoFactura, setLigandoFactura] = useState(false);
-  const [almacenes, setAlmacenes] = useState<{ id: string; nombre: string; sucursal: string }[]>([]);
+  const [tab, setTab] = useState<'grupos' | 'todas' | 'seguimiento' | 'revision_gerente' | 'autorizacion_admin' | 'bitacora'>('grupos');
+  const [almacenes, setAlmacenes] = useState<{ id: string; nombre: string; sucursal: string; sucursal_id?: string }[]>([]);
   const [almacenSel, setAlmacenSel] = useState<string>('');
+  // "Ya llegó" — marca ligera, independiente de la recepción formal.
+  const [marcandoLlegada, setMarcandoLlegada] = useState<string | null>(null);
+  // Bitácora de recepción.
+  const [bitacora, setBitacora] = useState<any[]>([]);
+  const [reportandoBitacora, setReportandoBitacora] = useState(false);
+  const [bitacoraManualOpen, setBitacoraManualOpen] = useState(false);
+  const [bitacoraManualForm, setBitacoraManualForm] = useState({
+    sucursal_id: '', fecha: new Date().toISOString().slice(0, 10), proveedor_nombre: '',
+    factura_folio: '', factura_monto: '', orden_folio: '', orden_total: '', notas: '',
+  });
+  const [guardandoBitacoraManual, setGuardandoBitacoraManual] = useState(false);
   // Paso 2 (marcar en ruta): puede ser sobre un grupo completo o una OC individual.
   const [enRutaOpen, setEnRutaOpen] = useState<{ grupo_id?: string | null; orden_id?: string | null; folio: string } | null>(null);
   const [pagoProveedorForm, setPagoProveedorForm] = useState({ metodo_pago: 'credito' as 'credito' | 'contado', dias_credito: '30', fecha_pago_limite: '', fecha_estimada_entrega: '', monto_a_pagar: '', notas: '' });
   // Total de la OC/grupo que se está marcando en ruta, para precargar "se va a pagar".
   const [totalEnRuta, setTotalEnRuta] = useState<number>(0);
   const [confirmandoProveedor, setConfirmandoProveedor] = useState(false);
-  const [tab, setTab] = useState<'grupos' | 'todas' | 'seguimiento' | 'revision_gerente' | 'autorizacion_admin' | 'pend_factura'>('grupos');
   // Filtros de la vista "Por proveedor" (grupos de OC).
   const [filtroGrupos, setFiltroGrupos] = useState({ folio: '', proveedor: '', desde: '', hasta: '', sucursal: 'all' });
   const [rechazoOpen, setRechazoOpen] = useState<{ oc: OC; tipo: 'gerente' | 'admin' } | null>(null);
@@ -531,7 +543,7 @@ function OrdenesCompraPageInner() {
     const { data } = await supabase
       .from('ordenes_compra')
       .select(`id, folio, estado, fecha_creacion, fecha_envio, fecha_recepcion_real, fecha_estimada_entrega, subtotal, iva, total, notas,
-               sucursal_destino_id, grupo_id, cantidades_modificadas_gerente, compra_real_id,
+               sucursal_destino_id, grupo_id, cantidades_modificadas_gerente, compra_real_id, llego_fisicamente, llego_fisicamente_en,
                proveedor:proveedores(nombre, codigo),
                sucursal_destino:sucursales!sucursal_destino_id(codigo, nombre)`)
       .order('created_at', { ascending: false });
@@ -542,10 +554,10 @@ function OrdenesCompraPageInner() {
   async function loadAlmacenes() {
     const { data } = await supabase
       .from('almacenes')
-      .select('id, nombre, sucursal:sucursales(codigo, nombre)')
+      .select('id, nombre, sucursal_id, sucursal:sucursales(codigo, nombre)')
       .eq('activo', true);
     setAlmacenes((data || []).map((a: any) => ({
-      id: a.id, nombre: a.nombre, sucursal: a.sucursal?.codigo || '',
+      id: a.id, nombre: a.nombre, sucursal: a.sucursal?.codigo || '', sucursal_id: a.sucursal_id,
     })));
   }
 
@@ -813,8 +825,23 @@ function OrdenesCompraPageInner() {
   }
 
 
+  // Abre "Recibir mercancía": para gerente/almacenista el almacén queda fijo
+  // a su propia sucursal (no tiene sentido preguntarles, solo tienen una).
+  // Admin/compras sí pueden elegir, porque llegan a operar más de una.
+  function abrirRecibir() {
+    if (!(esAdmin || esCompras)) {
+      const miAlmacen = almacenes.find(a => misSucursales.includes(a.sucursal_id || ''));
+      setAlmacenSel(miAlmacen?.id || '');
+    } else {
+      setAlmacenSel('');
+    }
+    setFacturaSel('');
+    setRecibirOpen(true);
+  }
+
   async function ejecutarRecepcion() {
     if (!seleccionada || !almacenSel) { toast.error('Selecciona almacén'); return; }
+    if (!facturaSel) { toast.error('Liga el folio de factura antes de recibir mercancía'); return; }
     const items = Object.entries(recepciones)
       .filter(([, r]) => r.cantidad > 0)
       .map(([linea_id, r]) => ({
@@ -831,35 +858,81 @@ function OrdenesCompraPageInner() {
     const conIncidenciaSinNota = items.filter(i => i.incidencia_tipo && !i.incidencia_notas);
     if (conIncidenciaSinNota.length) { toast.error('Describe cada incidencia reportada'); return; }
     const { data, error } = await (supabase as any).rpc('recibir_oc', {
-      p_orden_id: seleccionada.id, p_recepciones: items, p_almacen_id: almacenSel,
-      p_factura_id: facturaSel || null,
+      p_orden_id: seleccionada.id, p_recepciones: items, p_almacen_id: almacenSel, p_factura_id: facturaSel,
     });
     if (error) return toast.error(error.message);
-    toast.success(facturaSel
-      ? `Recepción registrada y aceptada en inventario: ${data?.estado}`
-      : 'Recepción registrada en stand by — liga la factura para que entre a inventario');
+    toast.success(`Recepción registrada y aceptada en inventario: ${data?.estado}`);
     setRecibirOpen(false); setRecepciones({});
     await load(); await loadGrupos(); abrirDetalle(seleccionada);
   }
 
-  // Ligar factura a una recepción que quedó en stand by: es lo que mete el
-  // lote al inventario. Se usa desde el detalle y desde la pestaña
-  // "Pendientes de factura".
-  async function ligarFacturaRecepcion(ordenId: string, facturaId: string) {
-    if (!facturaId) { toast.error('Selecciona la factura'); return; }
-    setLigandoFactura(true);
+  // "Ya llegó" — marca ligera e independiente de recibir_oc. Se puede
+  // encender y apagar (por si se marcó por error).
+  async function toggleLlegada(oc: OC) {
+    setMarcandoLlegada(oc.id);
     try {
-      const { error } = await (supabase as any).rpc('ligar_factura_recepcion', {
-        p_orden_id: ordenId, p_factura_id: facturaId,
-      });
+      const nuevoValor = !oc.llego_fisicamente;
+      const { error } = await (supabase as any).rpc('marcar_llegada_oc', { p_orden_id: oc.id, p_valor: nuevoValor });
       if (error) { toast.error(error.message); return; }
-      toast.success('Factura ligada — mercancía aceptada en inventario');
-      await load(); await loadGrupos();
-      if (seleccionada) abrirDetalle(seleccionada);
+      toast.success(nuevoValor ? 'Marcado como llegado' : 'Se quitó la marca de llegada');
+      await load();
+      setSeleccionada(prev => (prev && prev.id === oc.id ? { ...prev, llego_fisicamente: nuevoValor } : prev));
+    } catch (e: any) {
+      toast.error('No se pudo actualizar: ' + (e?.message || 'error desconocido'));
     } finally {
-      setLigandoFactura(false);
+      setMarcandoLlegada(null);
     }
   }
+
+  // Bitácora de recepción — reporte automático con todo lo ya capturado.
+  async function reportarBitacora(oc: OC) {
+    setReportandoBitacora(true);
+    try {
+      const { error } = await (supabase as any).rpc('reportar_bitacora_recepcion', { p_orden_id: oc.id, p_notas: null });
+      if (error) { toast.error(error.message); return; }
+      toast.success('Reportado en la bitácora de recepción');
+      await loadBitacora();
+    } catch (e: any) {
+      toast.error('No se pudo reportar en la bitácora: ' + (e?.message || 'error desconocido'));
+    } finally {
+      setReportandoBitacora(false);
+    }
+  }
+
+  async function loadBitacora() {
+    let q = (supabase as any).from('bitacora_recepcion').select('*').order('created_at', { ascending: false }).limit(200);
+    if (!(esAdmin || esCompras) && misSucursales.length) q = q.in('sucursal_id', misSucursales);
+    const { data } = await q;
+    setBitacora(data || []);
+  }
+
+  async function guardarBitacoraManual() {
+    if (!bitacoraManualForm.sucursal_id) { toast.error('Selecciona la sucursal'); return; }
+    setGuardandoBitacoraManual(true);
+    try {
+      const { error } = await (supabase as any).from('bitacora_recepcion').insert({
+        sucursal_id: bitacoraManualForm.sucursal_id,
+        fecha: bitacoraManualForm.fecha,
+        proveedor_nombre: bitacoraManualForm.proveedor_nombre || null,
+        factura_folio: bitacoraManualForm.factura_folio || null,
+        factura_monto: bitacoraManualForm.factura_monto ? Number(bitacoraManualForm.factura_monto) : null,
+        orden_folio: bitacoraManualForm.orden_folio || null,
+        orden_total: bitacoraManualForm.orden_total ? Number(bitacoraManualForm.orden_total) : null,
+        notas: bitacoraManualForm.notas || null,
+        automatico: false,
+      });
+      if (error) { toast.error(error.message); return; }
+      toast.success('Registro agregado a la bitácora');
+      setBitacoraManualOpen(false);
+      setBitacoraManualForm({ sucursal_id: '', fecha: new Date().toISOString().slice(0, 10), proveedor_nombre: '', factura_folio: '', factura_monto: '', orden_folio: '', orden_total: '', notas: '' });
+      await loadBitacora();
+    } catch (e: any) {
+      toast.error('No se pudo guardar: ' + (e?.message || 'error desconocido'));
+    } finally {
+      setGuardandoBitacoraManual(false);
+    }
+  }
+
 
   const filtradas = useMemo(() => ocs.filter(o => {
     if (filtroEstado !== 'all' && o.estado !== filtroEstado) return false;
@@ -895,15 +968,6 @@ function OrdenesCompraPageInner() {
 
   const pendientesRevisionGerente = ocs.filter(o => o.estado === 'pendiente_aprobacion' && puedeRevisarComoGerente(o));
   const pendientesAutorizacionAdmin = esAdmin ? ocs.filter(o => o.estado === 'confirmada_gerente') : [];
-
-  // Recibidas físicamente pero sin factura ligada — no están en inventario aún.
-  const pendientesFactura = useMemo(() => {
-    const base = ocs.filter(o => o.estado === 'recibida_pend_factura');
-    if (esAdmin || esCompras) return base;
-    return misSucursales.length
-      ? base.filter(o => o.sucursal_destino_id && misSucursales.includes(o.sucursal_destino_id))
-      : [];
-  }, [ocs, esAdmin, esCompras, misSucursales]);
 
   // Rediseño: "Por revisar (gerente)" y "Por autorizar (admin)" mostraban una
   // fila plana por cada OC individual — con varias sucursales del mismo
@@ -1070,7 +1134,23 @@ function OrdenesCompraPageInner() {
                 <Button onClick={() => cambiarEstado(seleccionada, 'confirmada')}>Marcar confirmada</Button>
               )}
               {['en_ruta', 'enviada', 'confirmada', 'parcial'].includes(seleccionada.estado) && (
-                <Button onClick={() => setRecibirOpen(true)} className="gap-2"><PackageCheck className="h-4 w-4" />Recibir mercancía</Button>
+                <Button
+                  variant={seleccionada.llego_fisicamente ? 'secondary' : 'outline'}
+                  className="gap-2"
+                  disabled={marcandoLlegada === seleccionada.id}
+                  onClick={() => toggleLlegada(seleccionada)}>
+                  {marcandoLlegada === seleccionada.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
+                  {seleccionada.llego_fisicamente ? 'Ya llegó ✓' : 'Marcar que ya llegó'}
+                </Button>
+              )}
+              {['en_ruta', 'enviada', 'confirmada', 'parcial'].includes(seleccionada.estado) && (
+                <Button onClick={abrirRecibir} className="gap-2"><PackageCheck className="h-4 w-4" />Recibir mercancía</Button>
+              )}
+              {['parcial', 'recibida'].includes(seleccionada.estado) && (
+                <Button variant="outline" className="gap-2" disabled={reportandoBitacora} onClick={() => reportarBitacora(seleccionada)}>
+                  {reportandoBitacora ? <Loader2 className="h-4 w-4 animate-spin" /> : <ClipboardList className="h-4 w-4" />}
+                  Reportar en bitácora de recepción
+                </Button>
               )}
             </div>
           </div>
@@ -1139,38 +1219,7 @@ function OrdenesCompraPageInner() {
           </div>
         </Card>
 
-        {seleccionada.estado === 'recibida_pend_factura' && (
-          <Card className="p-4 border-orange-300 bg-orange-50/60">
-            <div className="flex items-center gap-2 mb-2">
-              <AlertTriangle className="h-5 w-5 text-orange-600" />
-              <h3 className="font-semibold">Recepción en stand by — falta ligar la factura</h3>
-            </div>
-            <p className="text-sm text-orange-800 mb-3">
-              La mercancía ya se recibió (lote, caducidad, costo e incidencias quedaron registrados) pero
-              todavía <strong>no entra al inventario</strong>. Da de alta la factura del proveedor y lígala aquí.
-            </p>
-            <div className="flex flex-wrap items-end gap-2">
-              <div className="min-w-[220px]">
-                <Label className="text-xs">Factura del proveedor</Label>
-                <Select value={facturaSel || ''} onValueChange={setFacturaSel}>
-                  <SelectTrigger className="h-9"><SelectValue placeholder={facturas.length ? 'Selecciona la factura…' : 'Sin facturas dadas de alta'} /></SelectTrigger>
-                  <SelectContent>
-                    {facturas.map(f => <SelectItem key={f.id} value={f.id}>{f.folio}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </div>
-              <Button variant="outline" className="gap-1" onClick={() => { setNuevaFacturaForm({ folio: '', fecha_factura: '', importe: '' }); setNuevaFacturaOpen(true); }}>
-                <Plus className="h-4 w-4" /> Agregar factura
-              </Button>
-              <Button disabled={!facturaSel || ligandoFactura} onClick={() => ligarFacturaRecepcion(seleccionada.id, facturaSel as string)}>
-                {ligandoFactura ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Check className="h-4 w-4 mr-1" />}
-                Ligar factura y aceptar en inventario
-              </Button>
-            </div>
-          </Card>
-        )}
-
-        {['en_ruta', 'enviada', 'confirmada', 'parcial', 'recibida', 'recibida_pend_factura'].includes(seleccionada.estado) && (
+        {['en_ruta', 'enviada', 'confirmada', 'parcial', 'recibida'].includes(seleccionada.estado) && (
           <Card className="p-4">
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-2">
@@ -1292,18 +1341,24 @@ function OrdenesCompraPageInner() {
               <div className="grid gap-3 sm:grid-cols-2">
                 <div>
                   <Label className="text-xs">Almacén de recepción</Label>
-                  <Select value={almacenSel} onValueChange={setAlmacenSel}>
-                    <SelectTrigger><SelectValue placeholder="Selecciona almacén…" /></SelectTrigger>
-                    <SelectContent>
-                      {almacenes.map(a => <SelectItem key={a.id} value={a.id}>{a.sucursal} · {a.nombre}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
+                  {(esAdmin || esCompras) ? (
+                    <Select value={almacenSel} onValueChange={setAlmacenSel}>
+                      <SelectTrigger><SelectValue placeholder="Selecciona almacén…" /></SelectTrigger>
+                      <SelectContent>
+                        {almacenes.map(a => <SelectItem key={a.id} value={a.id}>{a.sucursal} · {a.nombre}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <div className="h-9 flex items-center px-3 rounded-md border bg-muted text-sm">
+                      {almacenes.find(a => a.id === almacenSel)?.sucursal} · {almacenes.find(a => a.id === almacenSel)?.nombre || 'Tu almacén'}
+                    </div>
+                  )}
                 </div>
                 <div>
-                  <Label className="text-xs">Folio de factura (opcional — sin factura queda en stand by)</Label>
+                  <Label className="text-xs">Folio de factura (obligatorio)</Label>
                   <div className="flex gap-1">
                     <Select value={facturaSel} onValueChange={setFacturaSel}>
-                      <SelectTrigger><SelectValue placeholder="Sin factura por ahora" /></SelectTrigger>
+                      <SelectTrigger><SelectValue placeholder="Selecciona la factura…" /></SelectTrigger>
                       <SelectContent>
                         {facturas.map(f => (
                           <SelectItem key={f.id} value={f.id}>
@@ -1318,12 +1373,11 @@ function OrdenesCompraPageInner() {
                   </div>
                 </div>
               </div>
-              {!facturaSel && (
-                <div className="text-xs rounded-md border border-orange-300 bg-orange-50 text-orange-900 px-3 py-2">
-                  Sin factura ligada la recepción queda <strong>en stand by</strong>: se guardan lote, caducidad,
-                  costo e incidencias, pero la mercancía <strong>no entra al inventario</strong> hasta que se ligue
-                  el folio de la factura (pestaña "Pendientes de factura"). Si el proveedor mandó varias facturas
-                  para esta orden, agrega cada una por separado con el botón "+".
+              {!facturas.length && (
+                <div className="text-xs rounded-md border border-amber-300 bg-amber-50 text-amber-900 px-3 py-2">
+                  Esta orden todavía no tiene ninguna factura ligada. No se puede recibir mercancía sin antes agregar
+                  el folio (botón "+"). Si el proveedor mandó varias facturas para esta misma orden, agrega cada una
+                  por separado — vas a poder elegir cuál corresponde a lo que estás recibiendo ahora.
                 </div>
               )}
               {/* Antes era una tabla de 8 columnas: en la pantalla del gerente
@@ -1406,8 +1460,8 @@ function OrdenesCompraPageInner() {
             </div>
             <DialogFooter className="flex-col-reverse gap-2 sm:flex-row">
               <Button variant="outline" onClick={() => setRecibirOpen(false)}>Cancelar</Button>
-              <Button onClick={ejecutarRecepcion} className={facturaSel ? '' : 'bg-orange-600 hover:bg-orange-700'}>
-                {facturaSel ? 'Confirmar recepción y aceptar en inventario' : 'Registrar recepción sin factura (stand by)'}
+              <Button onClick={ejecutarRecepcion} disabled={!facturaSel} title={!facturaSel ? 'Liga primero el folio de factura' : undefined}>
+                Confirmar recepción y aceptar en inventario
               </Button>
             </DialogFooter>
           </DialogContent>
@@ -1475,6 +1529,7 @@ function OrdenesCompraPageInner() {
         // mientras la pantalla ya estaba abierta, no aparecía hasta recargar la página entera.
         load();
         if (v === 'grupos' && (esAdmin || esCompras)) loadGrupos();
+        if (v === 'bitacora') loadBitacora();
       }}>
         <TabsList>
           {(esAdmin || esCompras) && (
@@ -1502,48 +1557,53 @@ function OrdenesCompraPageInner() {
             </TabsTrigger>
           )}
           {(esGerencia || esAlmacen || esAdmin || esCompras) && (
-            <TabsTrigger value="pend_factura" className="gap-2">
-              <Receipt className="h-4 w-4" /> Pendientes de factura
-              {pendientesFactura.length > 0 && <Badge variant="destructive" className="ml-1">{pendientesFactura.length}</Badge>}
+            <TabsTrigger value="bitacora" className="gap-2">
+              <ClipboardList className="h-4 w-4" /> Bitácora
             </TabsTrigger>
           )}
         </TabsList>
 
-        {/* Recibidas físicamente pero sin factura ligada: la mercancía todavía
-            NO entró al inventario. Visible para gerencia/almacén (su sucursal)
-            y para administración/compras (todas). */}
+        {/* Bitácora de recepción: se llena sola al terminar de recibir (botón
+            "Reportar en bitácora de recepción" en el detalle), y también
+            admite alta manual para lo que no se haya hecho desde el sistema.
+            Gerencia/almacén ven solo su(s) sucursal(es); admin/compras ven todo. */}
         {(esGerencia || esAlmacen || esAdmin || esCompras) && (
-        <TabsContent value="pend_factura" className="space-y-3">
-          <div className="rounded-md border border-orange-300 bg-orange-50 text-orange-800 text-sm px-3 py-2">
-            Estas órdenes ya se recibieron físicamente (con lote, caducidad, costo e incidencias reportadas),
-            pero <strong>no entran al inventario hasta que se ligue el folio de la factura</strong>. Entra al detalle,
-            da de alta la factura con su PDF/XML y liga la recepción.
+        <TabsContent value="bitacora" className="space-y-3">
+          <div className="flex justify-between items-center">
+            <p className="text-sm text-muted-foreground">
+              Se reporta sola cuando terminan de recibir una orden. Si algo se recibió fuera del sistema, se puede agregar aquí a mano.
+            </p>
+            <Button variant="outline" size="sm" className="gap-1" onClick={() => setBitacoraManualOpen(true)}>
+              <Plus className="h-4 w-4" /> Registro manual
+            </Button>
           </div>
           <Card className="p-0 overflow-hidden">
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Folio</TableHead><TableHead>Proveedor</TableHead>
-                  <TableHead>Sucursal</TableHead><TableHead>Recibida</TableHead>
-                  <TableHead className="text-right">Monto</TableHead>
-                  <TableHead className="text-right">Acción</TableHead>
+                  <TableHead>Fecha</TableHead><TableHead>Sucursal</TableHead><TableHead>Proveedor</TableHead>
+                  <TableHead>Folio factura</TableHead><TableHead className="text-right">Monto factura</TableHead>
+                  <TableHead>Folio OC</TableHead><TableHead className="text-right">Total OC</TableHead>
+                  <TableHead>Origen</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {!pendientesFactura.length && (
-                  <TableRow><TableCell colSpan={6} className="text-center p-6 text-muted-foreground">
-                    Nada pendiente: todas las recepciones ya tienen factura ligada.
-                  </TableCell></TableRow>
+                {!bitacora.length && (
+                  <TableRow><TableCell colSpan={8} className="text-center p-6 text-muted-foreground">Todavía no hay registros en la bitácora.</TableCell></TableRow>
                 )}
-                {pendientesFactura.map(oc => (
-                  <TableRow key={oc.id} className="cursor-pointer hover:bg-accent" onClick={() => abrirDetalle(oc)}>
-                    <TableCell className="font-mono font-medium">{oc.folio}</TableCell>
-                    <TableCell>{oc.proveedor?.nombre}</TableCell>
-                    <TableCell>{oc.sucursal_destino?.codigo || '—'}</TableCell>
-                    <TableCell className="text-xs">{(oc as any).fecha_recepcion_real || oc.fecha_creacion}</TableCell>
-                    <TableCell className="text-right tabular-nums">${Number(oc.total).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</TableCell>
-                    <TableCell className="text-right">
-                      <Button size="sm" onClick={(e) => { e.stopPropagation(); abrirDetalle(oc); }}>Ligar factura</Button>
+                {bitacora.map(b => (
+                  <TableRow key={b.id}>
+                    <TableCell className="text-xs">{b.fecha}</TableCell>
+                    <TableCell>{almacenes.find(a => a.sucursal_id === b.sucursal_id)?.sucursal || '—'}</TableCell>
+                    <TableCell>{b.proveedor_nombre || '—'}</TableCell>
+                    <TableCell className="font-mono text-xs">{b.factura_folio || '—'}</TableCell>
+                    <TableCell className="text-right tabular-nums">{b.factura_monto ? `$${Number(b.factura_monto).toLocaleString('es-MX', { minimumFractionDigits: 2 })}` : '—'}</TableCell>
+                    <TableCell className="font-mono text-xs">{b.orden_folio || '—'}</TableCell>
+                    <TableCell className="text-right tabular-nums">{b.orden_total ? `$${Number(b.orden_total).toLocaleString('es-MX', { minimumFractionDigits: 2 })}` : '—'}</TableCell>
+                    <TableCell>
+                      {b.automatico
+                        ? <Badge variant="outline" className="text-emerald-700 border-emerald-400">Automático</Badge>
+                        : <Badge variant="outline" className="text-amber-700 border-amber-400">Manual</Badge>}
                     </TableCell>
                   </TableRow>
                 ))}
@@ -2016,6 +2076,69 @@ function OrdenesCompraPageInner() {
               else autorizarComoAdmin(rechazoOpen.oc, 'rechazar', razonRechazo.trim());
               setRechazoOpen(null); setRazonRechazo('');
             }}>Confirmar rechazo</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Registro manual de bitácora — para lo que se reciba fuera del sistema. */}
+      <Dialog open={bitacoraManualOpen} onOpenChange={setBitacoraManualOpen}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Registro manual — Bitácora de recepción</DialogTitle></DialogHeader>
+          <div className="space-y-3">
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label className="text-xs">Sucursal *</Label>
+                <Select value={bitacoraManualForm.sucursal_id} onValueChange={v => setBitacoraManualForm({ ...bitacoraManualForm, sucursal_id: v })}>
+                  <SelectTrigger><SelectValue placeholder="Selecciona…" /></SelectTrigger>
+                  <SelectContent>
+                    {[...new Map(almacenes.map(a => [a.sucursal_id, a])).values()].map(a => (
+                      <SelectItem key={a.sucursal_id} value={a.sucursal_id as string}>{a.sucursal}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label className="text-xs">Fecha</Label>
+                <Input type="date" value={bitacoraManualForm.fecha} onChange={e => setBitacoraManualForm({ ...bitacoraManualForm, fecha: e.target.value })} />
+              </div>
+            </div>
+            <div>
+              <Label className="text-xs">Proveedor</Label>
+              <Input value={bitacoraManualForm.proveedor_nombre} onChange={e => setBitacoraManualForm({ ...bitacoraManualForm, proveedor_nombre: e.target.value })} />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label className="text-xs">Folio de factura</Label>
+                <Input value={bitacoraManualForm.factura_folio} onChange={e => setBitacoraManualForm({ ...bitacoraManualForm, factura_folio: e.target.value })} />
+              </div>
+              <div>
+                <Label className="text-xs">Monto de factura</Label>
+                <Input type="number" step="0.01" value={bitacoraManualForm.factura_monto} onChange={e => setBitacoraManualForm({ ...bitacoraManualForm, factura_monto: e.target.value })} />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label className="text-xs">Folio de la orden de compra</Label>
+                <Input value={bitacoraManualForm.orden_folio} onChange={e => setBitacoraManualForm({ ...bitacoraManualForm, orden_folio: e.target.value })} />
+              </div>
+              <div>
+                <Label className="text-xs">Total de la orden</Label>
+                <Input type="number" step="0.01" value={bitacoraManualForm.orden_total} onChange={e => setBitacoraManualForm({ ...bitacoraManualForm, orden_total: e.target.value })} />
+              </div>
+            </div>
+            <div>
+              <Label className="text-xs">Notas</Label>
+              <Textarea rows={2} value={bitacoraManualForm.notas} onChange={e => setBitacoraManualForm({ ...bitacoraManualForm, notas: e.target.value })} placeholder="Qué se recibió, cuánto, cualquier detalle relevante…" />
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Este registro se marca como "Manual" en la bitácora, para distinguirlo de los que se generan solos al recibir desde el sistema.
+            </p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setBitacoraManualOpen(false)}>Cancelar</Button>
+            <Button onClick={guardarBitacoraManual} disabled={guardandoBitacoraManual}>
+              {guardandoBitacoraManual ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : null}Guardar registro
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
