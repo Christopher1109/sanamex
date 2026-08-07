@@ -1300,10 +1300,10 @@ function OrdenesCompraPageInner() {
                   </Select>
                 </div>
                 <div>
-                  <Label className="text-xs">Folio de factura (obligatorio)</Label>
+                  <Label className="text-xs">Folio de factura (opcional — sin factura queda en stand by)</Label>
                   <div className="flex gap-1">
                     <Select value={facturaSel} onValueChange={setFacturaSel}>
-                      <SelectTrigger><SelectValue placeholder="Selecciona la factura…" /></SelectTrigger>
+                      <SelectTrigger><SelectValue placeholder="Sin factura por ahora" /></SelectTrigger>
                       <SelectContent>
                         {facturas.map(f => (
                           <SelectItem key={f.id} value={f.id}>
@@ -1318,11 +1318,12 @@ function OrdenesCompraPageInner() {
                   </div>
                 </div>
               </div>
-              {!facturas.length && (
-                <div className="text-xs rounded-md border border-amber-300 bg-amber-50 text-amber-900 px-3 py-2">
-                  Esta orden todavía no tiene ninguna factura ligada. No se puede recibir mercancía sin antes agregar
-                  el folio (botón "+"). Si el proveedor mandó varias facturas para esta misma orden, agrega cada una
-                  por separado — vas a poder elegir cuál corresponde a lo que estás recibiendo ahora.
+              {!facturaSel && (
+                <div className="text-xs rounded-md border border-orange-300 bg-orange-50 text-orange-900 px-3 py-2">
+                  Sin factura ligada la recepción queda <strong>en stand by</strong>: se guardan lote, caducidad,
+                  costo e incidencias, pero la mercancía <strong>no entra al inventario</strong> hasta que se ligue
+                  el folio de la factura (pestaña "Pendientes de factura"). Si el proveedor mandó varias facturas
+                  para esta orden, agrega cada una por separado con el botón "+".
                 </div>
               )}
               <Table>
