@@ -844,6 +844,68 @@ function OrdenesCompraPageInner() {
   const gruposRevisionGerente = useMemo(() => agruparPorProveedor(pendientesRevisionGerente), [pendientesRevisionGerente]);
   const gruposAutorizacionAdmin = useMemo(() => agruparPorProveedor(pendientesAutorizacionAdmin), [pendientesAutorizacionAdmin]);
 
+  // El diálogo de "Marcar en ruta" vivía solo dentro de la vista de detalle,
+  // así que al pulsar el botón desde la lista de grupos el estado cambiaba pero
+  // no había diálogo montado y "no pasaba nada". Se comparte en ambas vistas.
+  const enRutaDialog = (
+        <Dialog open={!!enRutaOpen} onOpenChange={o => !o && setEnRutaOpen(null)}>
+          <DialogContent>
+            <DialogHeader><DialogTitle>Marcar en ruta — {enRutaOpen?.folio}</DialogTitle></DialogHeader>
+  
+            <div className="space-y-3">
+              <p className="text-sm text-muted-foreground">
+                Esto se hace cuando ya quedaron de acuerdo con el proveedor en cómo y cuándo se paga, y el pedido
+                ya va en camino. Se crea el registro en Cuentas por Pagar y la orden pasa a "En ruta".
+              </p>
+              <div>
+                <Label className="text-xs">Forma de pago</Label>
+                <Select value={pagoProveedorForm.metodo_pago} onValueChange={(v: 'credito' | 'contado') => setPagoProveedorForm({ ...pagoProveedorForm, metodo_pago: v })}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="credito">Crédito</SelectItem>
+                    <SelectItem value="contado">Contado</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              {pagoProveedorForm.metodo_pago === 'credito' && (
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <Label className="text-xs">Días de crédito</Label>
+                    <Input type="number" value={pagoProveedorForm.dias_credito}
+                      onChange={e => setPagoProveedorForm({ ...pagoProveedorForm, dias_credito: e.target.value })} />
+                  </div>
+                  <div>
+                    <Label className="text-xs">Fecha límite de pago (opcional)</Label>
+                    <Input type="date" value={pagoProveedorForm.fecha_pago_limite}
+                      onChange={e => setPagoProveedorForm({ ...pagoProveedorForm, fecha_pago_limite: e.target.value })} />
+                  </div>
+                </div>
+              )}
+              <div>
+                <Label className="text-xs">Fecha estimada de entrega</Label>
+                <Input type="date" value={pagoProveedorForm.fecha_estimada_entrega}
+                  onChange={e => setPagoProveedorForm({ ...pagoProveedorForm, fecha_estimada_entrega: e.target.value })} />
+                <p className="text-xs text-muted-foreground mt-1">
+                  Se le avisa a la sucursal y le sirve para ordenar sus pedidos por cuándo les llega.
+                </p>
+              </div>
+              <div>
+                <Label className="text-xs">Notas (opcional)</Label>
+                <Textarea rows={2} value={pagoProveedorForm.notas}
+                  onChange={e => setPagoProveedorForm({ ...pagoProveedorForm, notas: e.target.value })} />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setEnRutaOpen(null)}>Cancelar</Button>
+              <Button onClick={confirmarProveedor} disabled={confirmandoProveedor} className="bg-emerald-600 hover:bg-emerald-700">
+                {confirmandoProveedor ? 'Procesando...' : 'Marcar en ruta'}
+  
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+  );
+
   if (seleccionada) {
     return (
       <div className="space-y-4">
@@ -1222,62 +1284,7 @@ function OrdenesCompraPageInner() {
           </DialogContent>
         </Dialog>
 
-        <Dialog open={!!enRutaOpen} onOpenChange={o => !o && setEnRutaOpen(null)}>
-          <DialogContent>
-            <DialogHeader><DialogTitle>Marcar en ruta — {enRutaOpen?.folio}</DialogTitle></DialogHeader>
-
-            <div className="space-y-3">
-              <p className="text-sm text-muted-foreground">
-                Esto se hace cuando ya quedaron de acuerdo con el proveedor en cómo y cuándo se paga, y el pedido
-                ya va en camino. Se crea el registro en Cuentas por Pagar y la orden pasa a "En ruta".
-              </p>
-              <div>
-                <Label className="text-xs">Forma de pago</Label>
-                <Select value={pagoProveedorForm.metodo_pago} onValueChange={(v: 'credito' | 'contado') => setPagoProveedorForm({ ...pagoProveedorForm, metodo_pago: v })}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="credito">Crédito</SelectItem>
-                    <SelectItem value="contado">Contado</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              {pagoProveedorForm.metodo_pago === 'credito' && (
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <Label className="text-xs">Días de crédito</Label>
-                    <Input type="number" value={pagoProveedorForm.dias_credito}
-                      onChange={e => setPagoProveedorForm({ ...pagoProveedorForm, dias_credito: e.target.value })} />
-                  </div>
-                  <div>
-                    <Label className="text-xs">Fecha límite de pago (opcional)</Label>
-                    <Input type="date" value={pagoProveedorForm.fecha_pago_limite}
-                      onChange={e => setPagoProveedorForm({ ...pagoProveedorForm, fecha_pago_limite: e.target.value })} />
-                  </div>
-                </div>
-              )}
-              <div>
-                <Label className="text-xs">Fecha estimada de entrega</Label>
-                <Input type="date" value={pagoProveedorForm.fecha_estimada_entrega}
-                  onChange={e => setPagoProveedorForm({ ...pagoProveedorForm, fecha_estimada_entrega: e.target.value })} />
-                <p className="text-xs text-muted-foreground mt-1">
-                  Se le avisa a la sucursal y le sirve para ordenar sus pedidos por cuándo les llega.
-                </p>
-              </div>
-              <div>
-                <Label className="text-xs">Notas (opcional)</Label>
-                <Textarea rows={2} value={pagoProveedorForm.notas}
-                  onChange={e => setPagoProveedorForm({ ...pagoProveedorForm, notas: e.target.value })} />
-              </div>
-            </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setEnRutaOpen(null)}>Cancelar</Button>
-              <Button onClick={confirmarProveedor} disabled={confirmandoProveedor} className="bg-emerald-600 hover:bg-emerald-700">
-                {confirmandoProveedor ? 'Procesando...' : 'Marcar en ruta'}
-
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+        {enRutaDialog}
       </div>
     );
   }
@@ -1758,6 +1765,7 @@ function OrdenesCompraPageInner() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      {enRutaDialog}
     </div>
   );
 }
