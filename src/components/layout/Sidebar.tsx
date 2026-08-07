@@ -37,12 +37,30 @@ const ICONS: Record<string, any> = {
   actividad: History, super_admin: Shield,
 };
 
+const COLLAPSE_KEY = 'sanamex_sidebar_colapsado';
+
 const Sidebar = ({ userRole, onLogout }: SidebarProps) => {
   const location = useLocation();
   const { user } = useAuth();
   const { getNivel, isBypass, loading } = useModuleAccess(user?.id, userRole);
   const [pendientesAprob, setPendientesAprob] = useState(0);
   const esAprobador = ['gerente','admin','super_admin'].includes(userRole);
+
+  // Colapsado "fijo" (se recuerda entre sesiones) + expansión temporal al pasar
+  // el cursor, que no empuja el contenido de la página (flyout absoluto).
+  const [colapsado, setColapsado] = useState(() => localStorage.getItem(COLLAPSE_KEY) === '1');
+  const [hover, setHover] = useState(false);
+  const expandido = !colapsado || hover;
+
+  const toggleColapsado = () => {
+    setColapsado(prev => {
+      const next = !prev;
+      localStorage.setItem(COLLAPSE_KEY, next ? '1' : '0');
+      return next;
+    });
+    setHover(false);
+  };
+
 
   useEffect(() => {
     if (!esAprobador) return;
