@@ -12,7 +12,7 @@ import {
   Store, ShoppingCart,
   PackageCheck, AlertCircle, History, FileSpreadsheet,
   Monitor, CloudOff, Shield, Receipt, Wallet, TrendingUp, DollarSign,
-  Undo2, Upload, UserCog, ClipboardEdit, Lock
+  Undo2, Upload, UserCog, ClipboardEdit, Lock, PanelLeftOpen, PanelLeftClose
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
