@@ -48,18 +48,48 @@ const Sidebar = ({ userRole, onLogout }: SidebarProps) => {
 
   // Colapsado "fijo" (se recuerda entre sesiones) + expansión temporal al pasar
   // el cursor, que no empuja el contenido de la página (flyout absoluto).
-  const [colapsado, setColapsado] = useState(() => localStorage.getItem(COLLAPSE_KEY) === '1');
+  const [colapsado, setColapsado] = useState(() => {
+    try { return localStorage.getItem(COLLAPSE_KEY) === '1'; } catch { return false; }
+  });
   const [hover, setHover] = useState(false);
   const expandido = !colapsado || hover;
+  const leaveTimer = useRef<number | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  const clearLeaveTimer = () => {
+    if (leaveTimer.current !== null) { window.clearTimeout(leaveTimer.current); leaveTimer.current = null; }
+  };
+
+  const abrirFlyout = () => {
+    if (!colapsado) return;
+    clearLeaveTimer();
+    setHover(true);
+  };
+
+  // Cierre con pequeño retardo: evita parpadeos al cruzar el borde y mantiene
+  // el flyout abierto mientras haya un dropdown (portal de Radix) o foco dentro.
+  const cerrarFlyout = () => {
+    clearLeaveTimer();
+    leaveTimer.current = window.setTimeout(() => {
+      const popperAbierto = document.querySelector('[data-radix-popper-content-wrapper]');
+      const focoDentro = containerRef.current?.contains(document.activeElement);
+      if (popperAbierto || focoDentro) { cerrarFlyout(); return; }
+      setHover(false);
+    }, 180);
+  };
+
+  useEffect(() => () => clearLeaveTimer(), []);
 
   const toggleColapsado = () => {
+    clearLeaveTimer();
     setColapsado(prev => {
       const next = !prev;
-      localStorage.setItem(COLLAPSE_KEY, next ? '1' : '0');
+      try { localStorage.setItem(COLLAPSE_KEY, next ? '1' : '0'); } catch { /* ignore */ }
       return next;
     });
     setHover(false);
   };
+
 
 
   useEffect(() => {
