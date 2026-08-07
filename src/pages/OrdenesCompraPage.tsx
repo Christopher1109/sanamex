@@ -12,7 +12,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { Send, PackageCheck, X, ClipboardList, ArrowLeft, Check, ShieldCheck, Truck, RefreshCw, FileDown, ChevronDown, ChevronRight, Loader2, Receipt, FileUp, FileText, Plus, FileMinus } from 'lucide-react';
+import { Send, PackageCheck, Package, X, ClipboardList, ArrowLeft, Check, ShieldCheck, Truck, RefreshCw, FileDown, ChevronDown, ChevronRight, Loader2, Receipt, FileUp, FileText, Plus, FileMinus, Printer, Building2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { generarOcProveedorExcel, descargarBlob } from '@/lib/generarOcProveedor';
 
@@ -62,10 +62,12 @@ const ESTADO_LABEL: Record<string, string> = {
   confirmada_proveedor: 'Confirmada con proveedor',
   en_ruta: 'En ruta',
   enviada: 'Enviada', confirmada: 'Confirmada por proveedor',
-  parcial: 'Recepción parcial', recibida: 'Recibida',
+  parcial: 'Recepción parcial (aceptada en inventario)',
+  recibida: 'Recibida y aceptada en inventario',
   recibida_pend_factura: 'Recibida — pendiente de ligar factura',
   cancelada: 'Cancelada',
 };
+
 
 
 // Rediseño: etapas visuales del flujo de una OC, para que cualquier rol
@@ -168,28 +170,34 @@ class OcErrorBoundary extends React.Component<{ children: React.ReactNode }, { e
 // por sucursal con su código, coloreada según en qué parte del flujo va, para
 // identificar de un vistazo quién ya aprobó y quién no sin tener que expandir
 // cada grupo.
-type HijaGrupo = { sucursal_codigo: string; estado: string; cantidades_modificadas_gerente: boolean };
+type HijaGrupo = { sucursal_codigo: string; estado: string; cantidades_modificadas_gerente: boolean; llego_fisicamente?: boolean };
 function SucursalDots({ hijas }: { hijas?: HijaGrupo[] }) {
   if (!hijas || !hijas.length) return null;
   return (
     <div className="flex flex-wrap gap-1 mt-1">
       {hijas.map((h, i) => {
         const modificada = h.cantidades_modificadas_gerente;
+        const recibida = h.estado === 'recibida' || h.estado === 'parcial';
+        const yaLlego = !recibida && !!h.llego_fisicamente;
         const color = h.estado === 'cancelada' ? 'bg-rose-500'
+          : recibida ? 'bg-blue-600'
           : h.estado === 'pendiente_aprobacion' ? 'bg-slate-300'
           : h.estado === 'confirmada_gerente' ? 'bg-amber-500'
           : 'bg-emerald-500';
         const label = h.estado === 'cancelada' ? 'Cancelada'
+          : h.estado === 'recibida' ? 'Ya recibió y aceptó en inventario'
+          : h.estado === 'parcial' ? 'Recibió parcialmente'
           : h.estado === 'pendiente_aprobacion' ? 'Pendiente de revisión del gerente'
           : h.estado === 'confirmada_gerente' ? 'Revisada por el gerente — pendiente de autorizar' + (modificada ? ' (modificó cantidades)' : '')
-          : 'Autorizada / en proceso';
+          : (yaLlego ? 'Ya llegó físicamente — pendiente de recibir' : 'Autorizada / en camino');
         return (
           <Tooltip key={i}>
             <TooltipTrigger asChild>
               <span
-                className={`inline-flex items-center justify-center h-5 min-w-5 px-1 rounded-full text-[9px] font-bold text-white ${color} ${modificada ? 'ring-2 ring-offset-1 ring-amber-400' : ''}`}
+                className={`inline-flex items-center gap-0.5 justify-center h-5 min-w-5 px-1 rounded-full text-[9px] font-bold text-white ${color} ${modificada ? 'ring-2 ring-offset-1 ring-amber-400' : ''} ${yaLlego ? 'ring-2 ring-offset-1 ring-sky-400' : ''}`}
               >
                 {h.sucursal_codigo.slice(0, 3).toUpperCase()}
+                {yaLlego && <Package className="h-2.5 w-2.5" />}
               </span>
             </TooltipTrigger>
             <TooltipContent>{h.sucursal_codigo} — {label}</TooltipContent>
@@ -199,6 +207,20 @@ function SucursalDots({ hijas }: { hijas?: HijaGrupo[] }) {
     </div>
   );
 }
+
+// Punto 1: la marca "Ya llegó" (marcar_llegada_oc) solo se notaba dentro del
+// detalle. Este badge la hace visible en las listas; se deja de mostrar solo
+// cuando la OC ya se recibió formalmente (recibida / parcial / cancelada).
+function LlegoBadge({ oc }: { oc: { estado: string; llego_fisicamente?: boolean } }) {
+  if (!oc.llego_fisicamente) return null;
+  if (['recibida', 'parcial', 'cancelada'].includes(oc.estado)) return null;
+  return (
+    <Badge variant="outline" className="gap-1 w-fit border-sky-400 bg-sky-50 text-sky-700 text-[10px]">
+      <Package className="h-3 w-3" /> Ya llegó — pendiente de recibir
+    </Badge>
+  );
+}
+
 
 // Vista previa de insumos dentro de la propia lista (sin entrar al detalle).
 function PreviewInsumos({ lineas }: { lineas?: Linea[] }) {
@@ -326,6 +348,15 @@ function OrdenesCompraPageInner() {
   const [notaOpen, setNotaOpen] = useState<Factura | null>(null);
   const [notaForm, setNotaForm] = useState({ tipo: 'incidencia' as 'incidencia' | 'negociada' | 'objetivo_trimestral', monto: '', motivo: '', productoId: '', cantidad: '' });
   const [guardandoNota, setGuardandoNota] = useState(false);
+  // Punto 3: notas de crédito ya creadas de esta OC, para poder consultarlas
+  // después y generarles un formato imprimible para el proveedor.
+  type NotaCredito = {
+    id: string; folio: string; tipo: string; monto: number; motivo: string | null;
+    fecha: string | null; created_at: string; factura_id: string | null;
+    cantidad_incidencia: number | null;
+  };
+  const [notasCredito, setNotasCredito] = useState<NotaCredito[]>([]);
+  
 
 
   useEffect(() => { load(); loadAlmacenes(); }, []);
@@ -384,7 +415,7 @@ function OrdenesCompraPageInner() {
     if (!ids.length) { setHijasPorGrupo({}); return; }
     const { data: hijas } = await supabase
       .from('ordenes_compra')
-      .select('grupo_id, estado, cantidades_modificadas_gerente, sucursal_destino:sucursales!sucursal_destino_id(codigo)')
+      .select('grupo_id, estado, cantidades_modificadas_gerente, llego_fisicamente, sucursal_destino:sucursales!sucursal_destino_id(codigo)')
       .in('grupo_id', ids);
     const map: Record<string, HijaGrupo[]> = {};
     (hijas || []).forEach((h: any) => {
@@ -393,6 +424,7 @@ function OrdenesCompraPageInner() {
         sucursal_codigo: h.sucursal_destino?.codigo || '?',
         estado: h.estado,
         cantidades_modificadas_gerente: !!h.cantidades_modificadas_gerente,
+        llego_fisicamente: !!h.llego_fisicamente,
       });
     });
     setHijasPorGrupo(map);
@@ -599,7 +631,70 @@ function OrdenesCompraPageInner() {
       (map[r.factura_id] ||= []).push({ linea_id: r.linea_id, cantidad: r.cantidad, factura_folio: r.ordenes_compra_facturas?.folio || '' });
     });
     setRecepcionesPorFactura(map);
+    await loadNotasCredito((data || []).map((f: any) => f.id));
   }
+
+  // Notas de crédito ligadas a cualquiera de las facturas de esta OC.
+  async function loadNotasCredito(facturaIds: string[]) {
+    if (!facturaIds.length) { setNotasCredito([]); return; }
+    const { data } = await (supabase as any)
+      .from('notas_credito_proveedor')
+      .select('id, folio, tipo, monto, motivo, fecha, created_at, factura_id, cantidad_incidencia')
+      .in('factura_id', facturaIds)
+      .order('created_at', { ascending: false });
+    setNotasCredito((data || []) as NotaCredito[]);
+  }
+
+  const NOTA_TIPO_LABEL: Record<string, string> = {
+    incidencia: 'Incidencia (faltante de piezas)',
+    negociada: 'Negociada / descuento',
+    objetivo_trimestral: 'Objetivo trimestral',
+  };
+
+  // "Generar formato": documento imprimible listo para mandarle al proveedor.
+  function imprimirNota(nota: NotaCredito) {
+    const factura = facturas.find(f => f.id === nota.factura_id);
+    const esc = (s: any) => String(s ?? '').replace(/[<>&]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' }[c] as string));
+    const monto = Number(nota.monto || 0).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const html = `<!doctype html><html lang="es"><head><meta charset="utf-8">
+<title>Nota de crédito ${esc(nota.folio)}</title>
+<style>
+  body{font-family:system-ui,-apple-system,'Segoe UI',sans-serif;color:#111;margin:40px;}
+  h1{font-size:20px;margin:0 0 4px;}
+  .sub{color:#666;font-size:12px;margin-bottom:24px;}
+  table{width:100%;border-collapse:collapse;font-size:13px;margin-bottom:20px;}
+  th,td{text-align:left;padding:8px 10px;border-bottom:1px solid #e5e5e5;}
+  th{width:220px;color:#555;font-weight:600;background:#fafafa;}
+  .total{font-size:18px;font-weight:700;}
+  .firma{margin-top:60px;display:flex;gap:60px;font-size:12px;color:#555;}
+  .firma div{flex:1;border-top:1px solid #999;padding-top:6px;text-align:center;}
+  @media print{body{margin:16px;}}
+</style></head><body>
+<h1>Nota de crédito a proveedor</h1>
+<div class="sub">Folio ${esc(nota.folio)} · Emitida ${esc(nota.fecha || (nota.created_at || '').slice(0, 10))}</div>
+<table>
+  <tr><th>Proveedor</th><td>${esc(seleccionada?.proveedor?.nombre || '—')}</td></tr>
+  <tr><th>Orden de compra</th><td>${esc(seleccionada?.folio || '—')}</td></tr>
+  <tr><th>Factura afectada</th><td>${esc(factura?.folio || '—')}${factura?.fecha_factura ? ' · ' + esc(factura.fecha_factura) : ''}</td></tr>
+  <tr><th>Sucursal destino</th><td>${esc(seleccionada?.sucursal_destino?.nombre || seleccionada?.sucursal_destino?.codigo || '—')}</td></tr>
+  <tr><th>Tipo de nota</th><td>${esc(NOTA_TIPO_LABEL[nota.tipo] || nota.tipo)}</td></tr>
+  ${nota.cantidad_incidencia ? `<tr><th>Piezas afectadas</th><td>${esc(nota.cantidad_incidencia)}</td></tr>` : ''}
+  <tr><th>Motivo</th><td>${esc(nota.motivo || '—')}</td></tr>
+  <tr><th>Importe de la nota</th><td class="total">$${monto}</td></tr>
+</table>
+<p style="font-size:12px;color:#555;">
+  Por medio del presente documento se hace constar la aplicación de la nota de crédito arriba descrita
+  contra el saldo de la factura indicada. Favor de considerar este ajuste en el estado de cuenta correspondiente.
+</p>
+<div class="firma"><div>Autorizó (Sanamex)</div><div>Recibió (proveedor)</div></div>
+<script>window.onload=function(){window.print();}<\/script>
+</body></html>`;
+    const w = window.open('', '_blank');
+    if (!w) { toast.error('El navegador bloqueó la ventana. Permite las ventanas emergentes para generar el formato.'); return; }
+    w.document.write(html);
+    w.document.close();
+  }
+
 
   async function crearFactura() {
     if (!seleccionada) return;
@@ -684,6 +779,7 @@ function OrdenesCompraPageInner() {
       if (error) { toast.error(error.message); return; }
       toast.success(`Nota de crédito ${data?.folio} ligada a la factura ${notaOpen.folio}`);
       setNotaOpen(null);
+      await loadFacturas(seleccionada.id);
     } catch (e: any) {
       toast.error('No se pudo crear la nota de crédito: ' + (e?.message || 'error desconocido'));
     } finally {
@@ -861,7 +957,9 @@ function OrdenesCompraPageInner() {
       p_orden_id: seleccionada.id, p_recepciones: items, p_almacen_id: almacenSel, p_factura_id: facturaSel,
     });
     if (error) return toast.error(error.message);
-    toast.success(`Recepción registrada y aceptada en inventario: ${data?.estado}`);
+    toast.success(data?.estado === 'recibida'
+      ? 'Recepción completa: la mercancía ya entró al inventario y la orden quedó como Recibida y aceptada.'
+      : 'Recepción parcial registrada: lo recibido ya entró al inventario; la orden sigue con piezas pendientes.');
     setRecibirOpen(false); setRecepciones({});
     await load(); await loadGrupos(); abrirDetalle(seleccionada);
   }
@@ -986,6 +1084,28 @@ function OrdenesCompraPageInner() {
   }
   const gruposRevisionGerente = useMemo(() => agruparPorProveedor(pendientesRevisionGerente), [pendientesRevisionGerente]);
   const gruposAutorizacionAdmin = useMemo(() => agruparPorProveedor(pendientesAutorizacionAdmin), [pendientesAutorizacionAdmin]);
+
+  // Punto 6: "Por revisar (gerente)" se agrupaba por proveedor. El gerente
+  // razona por sucursal, así que ahora se arma un bloque por sucursal con
+  // TODAS sus OC pendientes, sin importar el proveedor. Se muestran también
+  // las sucursales sin pendientes (en cero) para que quede claro el panorama.
+  const bloquesRevisionSucursal = useMemo(() => {
+    const sucursales = new Map<string, { id: string; codigo: string; ocs: OC[] }>();
+    const visibles = esAdmin || esCompras ? null : misSucursales;
+    [...new Map(almacenes.map(a => [a.sucursal_id, a])).values()].forEach(a => {
+      if (!a.sucursal_id) return;
+      if (visibles && visibles.length && !visibles.includes(a.sucursal_id)) return;
+      sucursales.set(a.sucursal_id, { id: a.sucursal_id, codigo: a.sucursal || '—', ocs: [] });
+    });
+    for (const oc of pendientesRevisionGerente) {
+      const key = oc.sucursal_destino_id || 'sin_sucursal';
+      if (!sucursales.has(key)) {
+        sucursales.set(key, { id: key, codigo: oc.sucursal_destino?.codigo || 'Sin sucursal', ocs: [] });
+      }
+      sucursales.get(key)!.ocs.push(oc);
+    }
+    return [...sucursales.values()].sort((a, b) => a.codigo.localeCompare(b.codigo));
+  }, [pendientesRevisionGerente, almacenes, misSucursales, esAdmin, esCompras]);
 
   // El diálogo de "Marcar en ruta" vivía solo dentro de la vista de detalle,
   // así que al pulsar el botón desde la lista de grupos el estado cambiaba pero
@@ -1233,15 +1353,17 @@ function OrdenesCompraPageInner() {
             </div>
             {!facturas.length ? (
               <p className="text-sm text-muted-foreground">
-                Todavía no se ha ligado ningún folio de factura a esta orden. Se puede recibir sin factura
-                (queda en stand by), pero la mercancía solo entra al inventario cuando se liga la factura.
+                Todavía no se ha ligado ningún folio de factura a esta orden. La mercancía solo entra al
+                inventario cuando se recibe con su folio de factura.
               </p>
             ) : (
               <div className="space-y-2">
                 {facturas.map(f => {
                   const recibidoEnEstaFactura = (recepcionesPorFactura[f.id] || []).reduce((s, r) => s + r.cantidad, 0);
+                  const notasDeFactura = notasCredito.filter(n => n.factura_id === f.id);
                   return (
-                    <div key={f.id} className="border rounded-md p-3 flex flex-wrap items-center justify-between gap-2">
+                    <div key={f.id} className="border rounded-md p-3 space-y-2">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
                       <div>
                         <div className="font-medium text-sm">{f.folio}</div>
                         <div className="text-xs text-muted-foreground">
@@ -1267,9 +1389,50 @@ function OrdenesCompraPageInner() {
                           {f.xml_path ? 'Ver XML' : 'Subir XML'}
                         </Button>
                         <Button size="sm" variant="outline" className="gap-1" onClick={() => abrirNota(f)}>
-                          <FileMinus className="h-3.5 w-3.5" /> Nota de crédito
+                          <FileMinus className="h-3.5 w-3.5" /> Nueva nota de crédito
                         </Button>
                       </div>
+                    </div>
+                    {/* Punto 3: las notas de crédito ya creadas se quedaban invisibles.
+                        Aquí se listan y se les puede generar el formato para el proveedor. */}
+                    {notasDeFactura.length > 0 && (
+                      <div className="rounded-md border bg-muted/30 p-2">
+                        <div className="text-xs font-medium mb-1">
+                          Notas de crédito de esta factura ({notasDeFactura.length}) — total $
+                          {notasDeFactura.reduce((s, n) => s + Number(n.monto || 0), 0).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </div>
+                        <table className="w-full text-xs">
+                          <thead className="text-muted-foreground">
+                            <tr>
+                              <th className="text-left font-medium py-1 px-1">Folio</th>
+                              <th className="text-left font-medium py-1 px-1">Tipo</th>
+                              <th className="text-right font-medium py-1 px-1">Monto</th>
+                              <th className="text-left font-medium py-1 px-1">Motivo</th>
+                              <th className="text-left font-medium py-1 px-1">Fecha</th>
+                              <th className="text-right font-medium py-1 px-1"></th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {notasDeFactura.map(n => (
+                              <tr key={n.id} className="border-t">
+                                <td className="font-mono py-1 px-1">{n.folio}</td>
+                                <td className="py-1 px-1">{NOTA_TIPO_LABEL[n.tipo] || n.tipo}</td>
+                                <td className="text-right tabular-nums py-1 px-1">
+                                  ${Number(n.monto || 0).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                </td>
+                                <td className="py-1 px-1 max-w-[240px] truncate" title={n.motivo || ''}>{n.motivo || '—'}</td>
+                                <td className="py-1 px-1">{n.fecha || (n.created_at || '').slice(0, 10)}</td>
+                                <td className="text-right py-1 px-1">
+                                  <Button size="sm" variant="outline" className="h-7 gap-1 text-xs" onClick={() => imprimirNota(n)}>
+                                    <Printer className="h-3 w-3" /> Generar formato
+                                  </Button>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
                     </div>
                   );
                 })}
@@ -1689,17 +1852,27 @@ function OrdenesCompraPageInner() {
                       <SucursalDots hijas={hijasPorGrupo[g.id]} />
                     </TableCell>
                     <TableCell>
-                      <Badge className={
-                        g.estado === 'enviada' ? 'bg-emerald-600' :
-                        g.estado === 'confirmada_proveedor' ? 'bg-teal-600' :
-                        g.estado === 'lista_para_enviar' ? 'bg-blue-600' :
-                        g.estado === 'cancelada' ? 'bg-rose-600' : 'bg-amber-600'
-                      }>
-                        {g.estado === 'en_revision' ? 'En revisión de sucursales' :
-                         g.estado === 'lista_para_enviar' ? 'Lista para confirmar' :
-                         g.estado === 'confirmada_proveedor' ? 'Confirmada con proveedor' :
-                         g.estado === 'enviada' ? 'En ruta / enviada al proveedor' : 'Cancelada'}
-                      </Badge>
+                      {/* Punto 4: cuando todas las sucursales del grupo ya recibieron,
+                          el grupo se muestra como Terminada (aunque la RPC siga en "enviada"). */}
+                      {(() => {
+                        const hijas = hijasPorGrupo[g.id] || [];
+                        const vivas = hijas.filter(h => h.estado !== 'cancelada');
+                        const terminada = vivas.length > 0 && vivas.every(h => h.estado === 'recibida');
+                        if (terminada) return <Badge className="bg-blue-600">Terminada — todas recibieron</Badge>;
+                        return (
+                          <Badge className={
+                            g.estado === 'enviada' ? 'bg-emerald-600' :
+                            g.estado === 'confirmada_proveedor' ? 'bg-teal-600' :
+                            g.estado === 'lista_para_enviar' ? 'bg-blue-600' :
+                            g.estado === 'cancelada' ? 'bg-rose-600' : 'bg-amber-600'
+                          }>
+                            {g.estado === 'en_revision' ? 'En revisión de sucursales' :
+                             g.estado === 'lista_para_enviar' ? 'Lista para confirmar' :
+                             g.estado === 'confirmada_proveedor' ? 'Confirmada con proveedor' :
+                             g.estado === 'enviada' ? 'En ruta / enviada al proveedor' : 'Cancelada'}
+                          </Badge>
+                        );
+                      })()}
                     </TableCell>
                     <TableCell className="text-right tabular-nums font-semibold">
                       ${Number(g.total_consolidado).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
@@ -1753,7 +1926,8 @@ function OrdenesCompraPageInner() {
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Todos</SelectItem>
-                  {['borrador','pendiente_aprobacion','confirmada_gerente','pendiente_confirmar','confirmada_proveedor','en_ruta','enviada','confirmada','parcial','recibida','cancelada'].map(e =>
+                  {/* Punto 5: solo los estados que hoy sí se usan en el flujo. */}
+                  {['pendiente_aprobacion','confirmada_gerente','pendiente_confirmar','confirmada_proveedor','en_ruta','enviada','recibida'].map(e =>
                     <SelectItem key={e} value={e}>{ESTADO_LABEL[e] || e}</SelectItem>)}
                 </SelectContent>
               </Select>
@@ -1781,6 +1955,7 @@ function OrdenesCompraPageInner() {
                     <TableCell>
                       <div className="flex flex-col gap-1">
                         <PipelineOC estado={oc.estado} />
+                        <LlegoBadge oc={oc} />
                         {oc.cantidades_modificadas_gerente && (
                           <Badge variant="outline" className="text-[10px] border-amber-500 text-amber-600 w-fit">Modificada</Badge>
                         )}
@@ -1882,7 +2057,12 @@ function OrdenesCompraPageInner() {
                             <TableCell className="font-mono font-medium">{oc.folio}</TableCell>
                             <TableCell>{oc.proveedor?.nombre}</TableCell>
                             <TableCell>{oc.sucursal_destino?.codigo || '—'}</TableCell>
-                            <TableCell><PipelineOC estado={oc.estado} /></TableCell>
+                            <TableCell>
+                              <div className="flex flex-col gap-1">
+                                <PipelineOC estado={oc.estado} />
+                                <LlegoBadge oc={oc} />
+                              </div>
+                            </TableCell>
                             <TableCell className={`text-xs ${eta?.color || 'text-muted-foreground'}`}>{eta?.texto || (listaParaRecibir ? 'Sin fecha estimada' : '—')}</TableCell>
                             <TableCell className="text-xs">{oc.fecha_creacion}</TableCell>
                             <TableCell className="text-right tabular-nums">${Number(oc.total).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</TableCell>
@@ -1905,47 +2085,56 @@ function OrdenesCompraPageInner() {
 
 
 
+        {/* Punto 6: bloques por sucursal (no por proveedor): dentro de cada
+            sucursal se ven todas sus OC pendientes, sin importar el proveedor. */}
         <TabsContent value="revision_gerente" className="space-y-3">
-          {!gruposRevisionGerente.length && (
+          {!pendientesRevisionGerente.length && (
             <Card className="p-6 text-center text-muted-foreground">No hay OCs pendientes de tu revisión.</Card>
           )}
-          {gruposRevisionGerente.map(grupo => {
-            const abierto = !!gruposAbiertos[grupo.key];
-            const totalGrupo = grupo.ocs.reduce((s, o) => s + Number(o.total || 0), 0);
+          {!!pendientesRevisionGerente.length && bloquesRevisionSucursal.map(bloque => {
+            const llave = 'suc:' + bloque.id;
+            const abierto = gruposAbiertos[llave] ?? bloque.ocs.length > 0;
+            const totalBloque = bloque.ocs.reduce((s, o) => s + Number(o.total || 0), 0);
             return (
-              <Card key={grupo.key} className="p-0 overflow-hidden">
+              <Card key={bloque.id} className="p-0 overflow-hidden">
                 <button
                   className="w-full flex items-center justify-between px-4 py-3 hover:bg-accent text-left"
-                  onClick={() => setGruposAbiertos(prev => ({ ...prev, [grupo.key]: !abierto }))}
+                  onClick={() => setGruposAbiertos(prev => ({ ...prev, [llave]: !abierto }))}
                 >
                   <div className="flex items-center gap-2">
                     {abierto ? <ChevronDown className="h-4 w-4 shrink-0" /> : <ChevronRight className="h-4 w-4 shrink-0" />}
-                    <span className="font-semibold">{grupo.proveedor}</span>
-                    <Badge variant="outline">{grupo.ocs.length} sucursal{grupo.ocs.length === 1 ? '' : 'es'} por revisar</Badge>
+                    <Building2 className="h-4 w-4 shrink-0 text-muted-foreground" />
+                    <span className="font-semibold">{bloque.codigo}</span>
+                    <Badge variant={bloque.ocs.length ? 'destructive' : 'outline'}>
+                      {bloque.ocs.length} orden{bloque.ocs.length === 1 ? '' : 'es'} por revisar
+                    </Badge>
                   </div>
                   <span className="font-semibold tabular-nums">
-                    ${totalGrupo.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    ${totalBloque.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </span>
                 </button>
-                {abierto && (
+                {abierto && (!bloque.ocs.length ? (
+                  <p className="px-4 pb-4 text-sm text-muted-foreground">Esta sucursal no tiene órdenes pendientes de revisión.</p>
+                ) : (
                   <Table>
                     <TableHeader>
                       <TableRow>
                         <TableHead>Folio</TableHead>
-                        <TableHead>Destino</TableHead><TableHead>Fecha</TableHead>
+                        <TableHead>Proveedor</TableHead><TableHead>Fecha</TableHead>
                         <TableHead className="text-right">Monto</TableHead>
                         <TableHead className="text-right">Acciones</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {grupo.ocs.map(oc => (
+                      {bloque.ocs.map(oc => (
                         <Fragment key={oc.id}>
                         <TableRow>
                           <TableCell className="font-mono font-medium">
                             {oc.folio}
                             <div className="mt-1"><PipelineOC estado={oc.estado} /></div>
+                            <LlegoBadge oc={oc} />
                           </TableCell>
-                          <TableCell>{oc.sucursal_destino?.codigo || '—'}</TableCell>
+                          <TableCell>{oc.proveedor?.nombre || '—'}</TableCell>
                           <TableCell className="text-xs">{oc.fecha_creacion}</TableCell>
                           <TableCell className="text-right tabular-nums font-semibold">
                             ${Number(oc.total).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
@@ -1968,7 +2157,7 @@ function OrdenesCompraPageInner() {
                       ))}
                     </TableBody>
                   </Table>
-                )}
+                ))}
               </Card>
             );
           })}
