@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import sanamexLogo from '@/assets/sanamex-logo.png.asset.json';
@@ -135,9 +135,11 @@ const Sidebar = ({ userRole, onLogout }: SidebarProps) => {
 
   return (
     <div
+      ref={containerRef}
       className={cn('relative h-screen shrink-0 transition-[width] duration-200', colapsado ? 'w-16' : 'w-64')}
-      onMouseEnter={() => colapsado && setHover(true)}
-      onMouseLeave={() => setHover(false)}
+      onPointerEnter={abrirFlyout}
+      onPointerLeave={cerrarFlyout}
+      onFocusCapture={abrirFlyout}
     >
       <div
         className={cn(
