@@ -1945,6 +1945,7 @@ function OrdenesCompraPageInner() {
                     <TableCell>
                       <div className="flex flex-col gap-1">
                         <PipelineOC estado={oc.estado} />
+                        <LlegoBadge oc={oc} />
                         {oc.cantidades_modificadas_gerente && (
                           <Badge variant="outline" className="text-[10px] border-amber-500 text-amber-600 w-fit">Modificada</Badge>
                         )}
