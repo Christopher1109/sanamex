@@ -2047,7 +2047,12 @@ function OrdenesCompraPageInner() {
                             <TableCell className="font-mono font-medium">{oc.folio}</TableCell>
                             <TableCell>{oc.proveedor?.nombre}</TableCell>
                             <TableCell>{oc.sucursal_destino?.codigo || '—'}</TableCell>
-                            <TableCell><PipelineOC estado={oc.estado} /></TableCell>
+                            <TableCell>
+                              <div className="flex flex-col gap-1">
+                                <PipelineOC estado={oc.estado} />
+                                <LlegoBadge oc={oc} />
+                              </div>
+                            </TableCell>
                             <TableCell className={`text-xs ${eta?.color || 'text-muted-foreground'}`}>{eta?.texto || (listaParaRecibir ? 'Sin fecha estimada' : '—')}</TableCell>
                             <TableCell className="text-xs">{oc.fecha_creacion}</TableCell>
                             <TableCell className="text-right tabular-nums">${Number(oc.total).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</TableCell>
