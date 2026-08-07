@@ -785,6 +785,7 @@ function OrdenesCompraPageInner() {
         p_fecha_pago_limite: pagoProveedorForm.fecha_pago_limite || null,
         p_fecha_estimada_entrega: pagoProveedorForm.fecha_estimada_entrega || null,
         p_notas: pagoProveedorForm.notas || null,
+        p_monto_a_pagar: pagoProveedorForm.monto_a_pagar ? Number(pagoProveedorForm.monto_a_pagar) : null,
       });
       if (error) { toast.error(error.message); return; }
       toast.success(`Marcada en ruta — compra ${data?.numero_compra} creada en Cuentas por Pagar`);
