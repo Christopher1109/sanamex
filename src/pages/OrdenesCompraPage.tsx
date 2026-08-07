@@ -270,7 +270,9 @@ function OrdenesCompraPageInner() {
   const [almacenSel, setAlmacenSel] = useState<string>('');
   // Paso 2 (marcar en ruta): puede ser sobre un grupo completo o una OC individual.
   const [enRutaOpen, setEnRutaOpen] = useState<{ grupo_id?: string | null; orden_id?: string | null; folio: string } | null>(null);
-  const [pagoProveedorForm, setPagoProveedorForm] = useState({ metodo_pago: 'credito' as 'credito' | 'contado', dias_credito: '30', fecha_pago_limite: '', fecha_estimada_entrega: '', notas: '' });
+  const [pagoProveedorForm, setPagoProveedorForm] = useState({ metodo_pago: 'credito' as 'credito' | 'contado', dias_credito: '30', fecha_pago_limite: '', fecha_estimada_entrega: '', monto_a_pagar: '', notas: '' });
+  // Total de la OC/grupo que se está marcando en ruta, para precargar "se va a pagar".
+  const [totalEnRuta, setTotalEnRuta] = useState<number>(0);
   const [confirmandoProveedor, setConfirmandoProveedor] = useState(false);
   const [tab, setTab] = useState<'grupos' | 'todas' | 'seguimiento' | 'revision_gerente' | 'autorizacion_admin'>('grupos');
   const [rechazoOpen, setRechazoOpen] = useState<{ oc: OC; tipo: 'gerente' | 'admin' } | null>(null);
