@@ -1326,61 +1326,64 @@ function OrdenesCompraPageInner() {
                   para esta orden, agrega cada una por separado con el botón "+".
                 </div>
               )}
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Producto</TableHead>
-                    <TableHead className="text-right">Solicitado</TableHead>
-                    <TableHead className="text-right">Ya recibido</TableHead>
-                    <TableHead className="text-right">Recibir ahora</TableHead>
-                    <TableHead>No. de lote</TableHead>
-                    <TableHead>Caducidad</TableHead>
-                    <TableHead className="text-right">Costo unitario</TableHead>
-                    <TableHead>Incidencia</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {lineas.map(l => {
-                    const pend = l.cantidad_solicitada - l.cantidad_recibida;
-                    const r: RecepcionLinea = recepciones[l.id] || {
-                      cantidad: 0, numero_lote: '', fecha_caducidad: '',
-                      costo_unitario: String(Number(l.precio_unitario ?? 0)), incidencia_tipo: '', incidencia_notas: '',
-                    };
-                    const set = (patch: Partial<RecepcionLinea>) =>
-                      setRecepciones(p => ({ ...p, [l.id]: { ...r, ...patch } }));
-                    const faltante = r.cantidad > 0 && r.cantidad < pend;
-                    return (
-                      <Fragment key={l.id}>
-                      <TableRow>
-                        <TableCell className="text-xs">{l.producto?.sku} · {l.producto?.nombre}</TableCell>
-                        <TableCell className="text-right">{l.cantidad_solicitada}</TableCell>
-                        <TableCell className="text-right">{l.cantidad_recibida}</TableCell>
-                        <TableCell className="text-right">
-                          <Input type="number" min={0} max={pend} className="h-8 w-20 text-right ml-auto"
+              {/* Antes era una tabla de 8 columnas: en la pantalla del gerente
+                  se salía del diálogo y no se alcanzaban a ver los campos.
+                  Ahora es una tarjeta por producto con campos etiquetados. */}
+              <div className="space-y-2">
+                {lineas.map(l => {
+                  const pend = l.cantidad_solicitada - l.cantidad_recibida;
+                  const r: RecepcionLinea = recepciones[l.id] || {
+                    cantidad: 0, numero_lote: '', fecha_caducidad: '',
+                    costo_unitario: String(Number(l.precio_unitario ?? 0)), incidencia_tipo: '', incidencia_notas: '',
+                  };
+                  const set = (patch: Partial<RecepcionLinea>) =>
+                    setRecepciones(p => ({ ...p, [l.id]: { ...r, ...patch } }));
+                  const faltante = r.cantidad > 0 && r.cantidad < pend;
+                  return (
+                    <div key={l.id} className="rounded-md border p-3 space-y-2">
+                      <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+                        <div className="min-w-0">
+                          <div className="font-mono text-xs text-muted-foreground">{l.producto?.sku}</div>
+                          <div className="text-sm font-medium">{l.producto?.nombre}</div>
+                        </div>
+                        <div className="text-xs text-muted-foreground whitespace-nowrap">
+                          Solicitado <span className="font-semibold text-foreground tabular-nums">{l.cantidad_solicitada}</span>
+                          {' · '}Ya recibido <span className="font-semibold text-foreground tabular-nums">{l.cantidad_recibida}</span>
+                          {' · '}Pendiente <span className="font-semibold text-foreground tabular-nums">{pend}</span>
+                        </div>
+                      </div>
+                      <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
+                        <div>
+                          <Label className="text-xs">Recibir ahora</Label>
+                          <Input type="number" min={0} max={pend} className="h-9"
                             value={r.cantidad || ''}
                             onChange={e => set({ cantidad: parseInt(e.target.value || '0') })} />
                           {faltante && (
-                            <div className="text-[10px] text-amber-600 whitespace-nowrap">faltan {pend - r.cantidad}</div>
+                            <div className="text-[11px] text-amber-600">Faltan {pend - r.cantidad} pza(s)</div>
                           )}
-                        </TableCell>
-                        <TableCell>
-                          <Input className="h-8 w-32" placeholder="Lote"
+                        </div>
+                        <div>
+                          <Label className="text-xs">No. de lote</Label>
+                          <Input className="h-9" placeholder="Lote"
                             value={r.numero_lote}
                             onChange={e => set({ numero_lote: e.target.value })} />
-                        </TableCell>
-                        <TableCell>
-                          <Input type="date" className="h-8 w-36"
+                        </div>
+                        <div>
+                          <Label className="text-xs">Caducidad</Label>
+                          <Input type="date" className="h-9"
                             value={r.fecha_caducidad}
                             onChange={e => set({ fecha_caducidad: e.target.value })} />
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <Input type="number" step="0.01" min={0} className="h-8 w-24 text-right ml-auto"
+                        </div>
+                        <div>
+                          <Label className="text-xs">Costo unitario</Label>
+                          <Input type="number" step="0.01" min={0} className="h-9 text-right"
                             value={r.costo_unitario}
                             onChange={e => set({ costo_unitario: e.target.value })} />
-                        </TableCell>
-                        <TableCell>
+                        </div>
+                        <div>
+                          <Label className="text-xs">Incidencia</Label>
                           <Select value={r.incidencia_tipo || 'ninguna'} onValueChange={v => set({ incidencia_tipo: v === 'ninguna' ? '' : v })}>
-                            <SelectTrigger className="h-8 w-40 text-xs"><SelectValue /></SelectTrigger>
+                            <SelectTrigger className="h-9 text-xs"><SelectValue /></SelectTrigger>
                             <SelectContent>
                               <SelectItem value="ninguna">Sin incidencia</SelectItem>
                               <SelectItem value="faltante">Llegó menos cantidad</SelectItem>
@@ -1389,24 +1392,19 @@ function OrdenesCompraPageInner() {
                               <SelectItem value="otro">Otra incidencia</SelectItem>
                             </SelectContent>
                           </Select>
-                        </TableCell>
-                      </TableRow>
+                        </div>
+                      </div>
                       {r.incidencia_tipo && (
-                        <TableRow className="hover:bg-transparent">
-                          <TableCell colSpan={8} className="pt-0">
-                            <Input className="h-8" placeholder="Describe la incidencia (qué pasó, cuántas piezas, etc.)"
-                              value={r.incidencia_notas}
-                              onChange={e => set({ incidencia_notas: e.target.value })} />
-                          </TableCell>
-                        </TableRow>
+                        <Input className="h-9" placeholder="Describe la incidencia (qué pasó, cuántas piezas, etc.)"
+                          value={r.incidencia_notas}
+                          onChange={e => set({ incidencia_notas: e.target.value })} />
                       )}
-                      </Fragment>
-                    );
-                  })}
-                </TableBody>
-              </Table>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
-            <DialogFooter>
+            <DialogFooter className="flex-col-reverse gap-2 sm:flex-row">
               <Button variant="outline" onClick={() => setRecibirOpen(false)}>Cancelar</Button>
               <Button onClick={ejecutarRecepcion} className={facturaSel ? '' : 'bg-orange-600 hover:bg-orange-700'}>
                 {facturaSel ? 'Confirmar recepción y aceptar en inventario' : 'Registrar recepción sin factura (stand by)'}
