@@ -1286,10 +1286,10 @@ function OrdenesCompraPageInner() {
         </Dialog>
 
         <Dialog open={recibirOpen} onOpenChange={setRecibirOpen}>
-          <DialogContent className="max-w-3xl">
+          <DialogContent className="max-w-[min(1100px,96vw)] max-h-[92vh] overflow-y-auto">
             <DialogHeader><DialogTitle>Recibir mercancía — {seleccionada.folio}</DialogTitle></DialogHeader>
             <div className="space-y-3">
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid gap-3 sm:grid-cols-2">
                 <div>
                   <Label className="text-xs">Almacén de recepción</Label>
                   <Select value={almacenSel} onValueChange={setAlmacenSel}>
