@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useMemo, useState } from 'react';
+import React, { Fragment, useEffect, useMemo, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { Card } from '@/components/ui/card';
@@ -11,7 +11,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
-import { Send, PackageCheck, X, ClipboardList, ArrowLeft, Check, ShieldCheck, Truck, RefreshCw, FileDown, ChevronDown, ChevronRight } from 'lucide-react';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { Send, PackageCheck, X, ClipboardList, ArrowLeft, Check, ShieldCheck, Truck, RefreshCw, FileDown, ChevronDown, ChevronRight, Loader2, AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
 import { generarOcProveedorExcel, descargarBlob } from '@/lib/generarOcProveedor';
 
@@ -120,6 +121,71 @@ type Grupo = {
   autorizadas: number; canceladas: number; total_consolidado: number;
 };
 
+// Si algo truena durante el render (ej. un dato inesperado del backend), sin
+// esto React desmonta el árbol entero y deja la pantalla en blanco sin ningún
+// mensaje — justo el síntoma reportado al entrar a autorizar OCs de gerentes.
+// Con esto se ve un aviso y un botón para reintentar en vez de blanco total.
+class OcErrorBoundary extends React.Component<{ children: React.ReactNode }, { error: Error | null }> {
+  constructor(props: { children: React.ReactNode }) {
+    super(props);
+    this.state = { error: null };
+  }
+  static getDerivedStateFromError(error: Error) { return { error }; }
+  componentDidCatch(error: Error, info: React.ErrorInfo) {
+    console.error('OrdenesCompraPage: error de render', error, info);
+  }
+  render() {
+    if (this.state.error) {
+      return (
+        <div className="p-6">
+          <Card className="p-6 text-center space-y-3">
+            <p className="font-semibold text-destructive">Ocurrió un error al mostrar Órdenes de Compra.</p>
+            <p className="text-sm text-muted-foreground break-words">{this.state.error.message}</p>
+            <Button onClick={() => { this.setState({ error: null }); window.location.reload(); }}>Reintentar</Button>
+          </Card>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
+// Estatus visual de cada sucursal dentro de un grupo (proveedor): una bolita
+// por sucursal con su código, coloreada según en qué parte del flujo va, para
+// identificar de un vistazo quién ya aprobó y quién no sin tener que expandir
+// cada grupo.
+type HijaGrupo = { sucursal_codigo: string; estado: string; cantidades_modificadas_gerente: boolean };
+function SucursalDots({ hijas }: { hijas?: HijaGrupo[] }) {
+  if (!hijas || !hijas.length) return null;
+  return (
+    <div className="flex flex-wrap gap-1 mt-1">
+      {hijas.map((h, i) => {
+        const modificada = h.cantidades_modificadas_gerente;
+        const color = h.estado === 'cancelada' ? 'bg-rose-500'
+          : h.estado === 'pendiente_aprobacion' ? 'bg-slate-300'
+          : h.estado === 'confirmada_gerente' ? 'bg-amber-500'
+          : 'bg-emerald-500';
+        const label = h.estado === 'cancelada' ? 'Cancelada'
+          : h.estado === 'pendiente_aprobacion' ? 'Pendiente de revisión del gerente'
+          : h.estado === 'confirmada_gerente' ? 'Revisada por el gerente — pendiente de autorizar' + (modificada ? ' (modificó cantidades)' : '')
+          : 'Autorizada / en proceso';
+        return (
+          <Tooltip key={i}>
+            <TooltipTrigger asChild>
+              <span
+                className={`inline-flex items-center justify-center h-5 min-w-5 px-1 rounded-full text-[9px] font-bold text-white ${color} ${modificada ? 'ring-2 ring-offset-1 ring-amber-400' : ''}`}
+              >
+                {h.sucursal_codigo.slice(0, 3).toUpperCase()}
+              </span>
+            </TooltipTrigger>
+            <TooltipContent>{h.sucursal_codigo} — {label}</TooltipContent>
+          </Tooltip>
+        );
+      })}
+    </div>
+  );
+}
+
 // Vista previa de insumos dentro de la propia lista (sin entrar al detalle).
 function PreviewInsumos({ lineas }: { lineas?: Linea[] }) {
   if (!lineas) return <div className="text-xs text-muted-foreground px-2 py-1">Cargando insumos…</div>;
@@ -146,7 +212,14 @@ function PreviewInsumos({ lineas }: { lineas?: Linea[] }) {
               <tr key={l.id} className="border-t">
                 <td className="font-mono py-1 px-1">{l.producto?.sku || '—'}</td>
                 <td className="py-1 px-1">{l.producto?.nombre || '—'}</td>
-                <td className="text-right tabular-nums py-1 px-1">{Number(l.cantidad_solicitada).toLocaleString('es-MX')}</td>
+                <td className="text-right tabular-nums py-1 px-1">
+                  {Number(l.cantidad_solicitada).toLocaleString('es-MX')}
+                  {(l as any).ajuste && (
+                    <div className="text-[9px] font-normal text-amber-600 whitespace-nowrap">
+                      antes: {(l as any).ajuste.cantidad_anterior.toLocaleString('es-MX')}
+                    </div>
+                  )}
+                </td>
                 <td className="text-right tabular-nums py-1 px-1">${Number(l.precio_unitario).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                 <td className="text-right tabular-nums py-1 px-1">${Number(l.subtotal).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
               </tr>
@@ -160,6 +233,16 @@ function PreviewInsumos({ lineas }: { lineas?: Linea[] }) {
 
 
 export default function OrdenesCompraPage() {
+  return (
+    <OcErrorBoundary>
+      <TooltipProvider>
+        <OrdenesCompraPageInner />
+      </TooltipProvider>
+    </OcErrorBoundary>
+  );
+}
+
+function OrdenesCompraPageInner() {
   const { user, userRole } = useAuth();
   const esAdmin = !!userRole && ROLES_ADMIN.includes(userRole);
   const esGerencia = !!userRole && ROLES_GERENCIA.includes(userRole);
@@ -192,9 +275,29 @@ export default function OrdenesCompraPage() {
   // Vista previa de insumos (punto 3): líneas precargadas por OC para mostrarlas
   // directamente en la lista del gerente, sin tener que entrar al detalle.
   const [lineasPorOc, setLineasPorOc] = useState<Record<string, Linea[]>>({});
+  // Estatus por sucursal dentro de cada grupo, para las "bolitas" visuales.
+  const [hijasPorGrupo, setHijasPorGrupo] = useState<Record<string, HijaGrupo[]>>({});
+  // Qué grupo/orden se está confirmando con el proveedor ahora mismo — para
+  // deshabilitar el botón y mostrar spinner en vez de que parezca congelado
+  // mientras corre la RPC + la descarga de los Excel.
+  const [confirmandoConProveedorKey, setConfirmandoConProveedorKey] = useState<string | null>(null);
+  // Ajustes de cantidad (antes → después) que hizo el gerente, para mostrarlos
+  // en el detalle de la OC cuando el administrador la está autorizando.
+  const [ajustesLineas, setAjustesLineas] = useState<Record<string, { cantidad_anterior: number; cantidad_nueva: number }>>({});
 
 
-  useEffect(() => { load(); loadAlmacenes(); if (esAdmin || esCompras) loadGrupos(); }, []);
+  useEffect(() => { load(); loadAlmacenes(); }, []);
+  useEffect(() => {
+    // Antes esto vivía en el mismo useEffect de montaje (deps: []), junto con
+    // load()/loadAlmacenes(). Bug real: esAdmin/esCompras dependen de userRole
+    // (useAuth), que puede no estar listo todavía en el primer render — si no
+    // lo estaba, loadGrupos() nunca se llamaba y la pestaña "Por proveedor"
+    // se quedaba vacía hasta que el usuario le diera "Refrescar" a mano
+    // (momento en el que userRole ya sí estaba listo). Al depender
+    // explícitamente de esAdmin/esCompras, se reintenta en cuanto el rol
+    // termine de cargar — mismo patrón que ya se usó para misSucursales.
+    if (esAdmin || esCompras) loadGrupos();
+  }, [esAdmin, esCompras]);
   useEffect(() => {
     // Antes esto vivía en el useEffect de montaje (deps: []) junto con loadMisSucursales().
     // Bug real: loadMisSucursales() corta con "if (!user) return" — si la sesión de auth
@@ -235,20 +338,46 @@ export default function OrdenesCompraPage() {
   async function loadGrupos() {
     const { data } = await (supabase as any).from('v_ordenes_compra_grupo_resumen').select('*').order('fecha_creacion', { ascending: false });
     setGrupos((data || []) as Grupo[]);
+    const ids = (data || []).map((g: any) => g.id);
+    if (!ids.length) { setHijasPorGrupo({}); return; }
+    const { data: hijas } = await supabase
+      .from('ordenes_compra')
+      .select('grupo_id, estado, cantidades_modificadas_gerente, sucursal_destino:sucursales!sucursal_destino_id(codigo)')
+      .in('grupo_id', ids);
+    const map: Record<string, HijaGrupo[]> = {};
+    (hijas || []).forEach((h: any) => {
+      if (!h.grupo_id) return;
+      (map[h.grupo_id] ||= []).push({
+        sucursal_codigo: h.sucursal_destino?.codigo || '?',
+        estado: h.estado,
+        cantidades_modificadas_gerente: !!h.cantidades_modificadas_gerente,
+      });
+    });
+    setHijasPorGrupo(map);
   }
 
   // Punto 3: precarga de insumos para que el gerente vea QUÉ y CUÁNTO se le
-  // está pidiendo sin tener que abrir "Ver y confirmar".
+  // está pidiendo sin tener que abrir "Ver y confirmar". También trae los
+  // ajustes de cantidad (antes → después) para que el admin vea desde la
+  // lista, sin entrar al detalle, si el gerente modificó algo.
   async function loadLineasPreview(ids: string[]) {
     const faltantes = ids.filter(id => !lineasPorOc[id]);
     if (!faltantes.length) return;
-    const { data } = await (supabase as any)
-      .from('orden_compra_lineas')
-      .select('id, orden_id, producto_id, cantidad_solicitada, cantidad_recibida, precio_unitario, subtotal, producto:productos(nombre, sku)')
-      .in('orden_id', faltantes);
+    const [{ data }, { data: ajustes }] = await Promise.all([
+      (supabase as any)
+        .from('orden_compra_lineas')
+        .select('id, orden_id, producto_id, cantidad_solicitada, cantidad_recibida, precio_unitario, subtotal, producto:productos(nombre, sku)')
+        .in('orden_id', faltantes),
+      (supabase as any)
+        .from('orden_compra_lineas_ajustes')
+        .select('linea_id, orden_id, cantidad_anterior, cantidad_nueva')
+        .in('orden_id', faltantes),
+    ]);
+    const ajusteMap: Record<string, { cantidad_anterior: number; cantidad_nueva: number }> = {};
+    (ajustes || []).forEach((a: any) => { ajusteMap[a.linea_id] = { cantidad_anterior: a.cantidad_anterior, cantidad_nueva: a.cantidad_nueva }; });
     const map: Record<string, Linea[]> = {};
     (data || []).forEach((l: any) => {
-      (map[l.orden_id] ||= []).push(l as Linea);
+      (map[l.orden_id] ||= []).push({ ...l, ajuste: ajusteMap[l.id] } as any);
     });
 
     setLineasPorOc(prev => ({ ...prev, ...map }));
@@ -261,20 +390,30 @@ export default function OrdenesCompraPage() {
   // validaba estados viejos y siempre fallaba. Ahora solo pasa las órdenes de
   // `pendiente_confirmar` → `confirmada_proveedor` (sin pedir método de pago).
   async function confirmarConProveedor(args: { grupo_id?: string | null; orden_id?: string | null; folio: string }) {
-    const { error } = await (supabase as any).rpc('confirmar_con_proveedor', {
-      p_grupo_id: args.grupo_id || null,
-      p_orden_id: args.grupo_id ? null : (args.orden_id || null),
-      p_notas: null,
-    });
-    if (error) return toast.error(error.message);
-    toast.success(`${args.folio} confirmada con el proveedor — ya se puede marcar en ruta`);
-    await loadGrupos();
-    await load();
-    if (seleccionada) await abrirDetalle(seleccionada);
-    // Al confirmar, se descargan de una vez todos los Excel de OC involucrados
-    // (uno por sucursal) — antes había que entrar OC por OC a generarlo manualmente.
-    if (args.grupo_id) await descargarExcelesDelGrupo(args.grupo_id);
-    else if (args.orden_id && seleccionada?.id === args.orden_id) await generarExcelProveedor(seleccionada);
+    const key = args.grupo_id || args.orden_id || args.folio;
+    setConfirmandoConProveedorKey(key);
+    try {
+      const { error } = await (supabase as any).rpc('confirmar_con_proveedor', {
+        p_grupo_id: args.grupo_id || null,
+        p_orden_id: args.grupo_id ? null : (args.orden_id || null),
+        p_notas: null,
+      });
+      if (error) { toast.error(error.message); return; }
+      toast.success(`${args.folio} confirmada con el proveedor — ya se puede marcar en ruta`);
+      await loadGrupos();
+      await load();
+      if (seleccionada) await abrirDetalle(seleccionada);
+      // Al confirmar, se descargan de una vez todos los Excel de OC involucrados
+      // (uno por sucursal) — antes había que entrar OC por OC a generarlo manualmente.
+      if (args.grupo_id) await descargarExcelesDelGrupo(args.grupo_id);
+      else if (args.orden_id && seleccionada?.id === args.orden_id) await generarExcelProveedor(seleccionada);
+    } catch (e: any) {
+      // Antes un error aquí (ej. de red) se quedaba sin manejar y el botón
+      // parecía congelado para siempre, sin ningún aviso.
+      toast.error('No se pudo confirmar con el proveedor: ' + (e?.message || 'error desconocido'));
+    } finally {
+      setConfirmandoConProveedorKey(null);
+    }
   }
 
   // Descarga un Excel por cada OC (sucursal) que forme parte del grupo confirmado,
@@ -383,11 +522,20 @@ export default function OrdenesCompraPage() {
   async function abrirDetalle(oc: OC) {
     setSeleccionada(oc);
     setLineasEditadas({});
-    const { data } = await supabase
-      .from('orden_compra_lineas')
-      .select('id, producto_id, cantidad_solicitada, cantidad_recibida, precio_unitario, subtotal, producto:productos(nombre, sku)')
-      .eq('orden_id', oc.id);
+    const [{ data }, { data: ajustes }] = await Promise.all([
+      supabase
+        .from('orden_compra_lineas')
+        .select('id, producto_id, cantidad_solicitada, cantidad_recibida, precio_unitario, subtotal, producto:productos(nombre, sku)')
+        .eq('orden_id', oc.id),
+      (supabase as any)
+        .from('orden_compra_lineas_ajustes')
+        .select('linea_id, cantidad_anterior, cantidad_nueva')
+        .eq('orden_id', oc.id),
+    ]);
     setLineas((data || []) as any);
+    const am: Record<string, { cantidad_anterior: number; cantidad_nueva: number }> = {};
+    (ajustes || []).forEach((a: any) => { am[a.linea_id] = { cantidad_anterior: a.cantidad_anterior, cantidad_nueva: a.cantidad_nueva }; });
+    setAjustesLineas(am);
   }
 
   async function cambiarEstado(oc: OC, nuevo: string) {
@@ -465,30 +613,52 @@ export default function OrdenesCompraPage() {
   }
 
   // PASO 2: abre el formulario de método de pago para marcar en ruta.
-  function abrirEnRuta(args: { grupo_id?: string | null; orden_id?: string | null; folio: string }) {
+  // Precarga los días de crédito con el valor que ya se tiene capturado para
+  // ese proveedor (proveedores.plazo_pago_dias) — el usuario lo puede
+  // modificar caso por caso, pero ya no arranca siempre en 30 por default.
+  async function abrirEnRuta(args: { grupo_id?: string | null; orden_id?: string | null; folio: string }) {
     setEnRutaOpen(args);
     setPagoProveedorForm({ metodo_pago: 'credito', dias_credito: '30', fecha_pago_limite: '', notas: '' });
+    try {
+      let q = supabase.from('ordenes_compra').select('proveedor:proveedores(plazo_pago_dias)').limit(1);
+      q = args.grupo_id ? q.eq('grupo_id', args.grupo_id) : q.eq('id', args.orden_id as string);
+      const { data } = await q.maybeSingle();
+      const dias = (data as any)?.proveedor?.plazo_pago_dias;
+      if (dias !== null && dias !== undefined) {
+        setPagoProveedorForm(prev => ({ ...prev, dias_credito: String(dias), metodo_pago: Number(dias) === 0 ? 'contado' : 'credito' }));
+      }
+    } catch {
+      // Si falla la consulta del default, se queda con 30 y el usuario lo ajusta a mano.
+    }
   }
 
   async function confirmarProveedor() {
     if (!enRutaOpen) return;
     setConfirmandoProveedor(true);
     const target = enRutaOpen;
-    const { data, error } = await (supabase as any).rpc('confirmar_envio_proveedor', {
-      p_grupo_id: target.grupo_id || null,
-      p_orden_id: target.grupo_id ? null : (target.orden_id || null),
-      p_metodo_pago: pagoProveedorForm.metodo_pago,
-      p_dias_credito: pagoProveedorForm.metodo_pago === 'credito' ? Number(pagoProveedorForm.dias_credito) : null,
-      p_fecha_pago_limite: pagoProveedorForm.fecha_pago_limite || null,
-      p_notas: pagoProveedorForm.notas || null,
-    });
-    setConfirmandoProveedor(false);
-    if (error) { toast.error(error.message); return; }
-    toast.success(`Marcada en ruta — compra ${data?.numero_compra} creada en Cuentas por Pagar`);
-    setEnRutaOpen(null);
-    await loadGrupos();
-    await load();
-    if (seleccionada) abrirDetalle(seleccionada);
+    try {
+      const { data, error } = await (supabase as any).rpc('confirmar_envio_proveedor', {
+        p_grupo_id: target.grupo_id || null,
+        p_orden_id: target.grupo_id ? null : (target.orden_id || null),
+        p_metodo_pago: pagoProveedorForm.metodo_pago,
+        p_dias_credito: pagoProveedorForm.metodo_pago === 'credito' ? Number(pagoProveedorForm.dias_credito) : null,
+        p_fecha_pago_limite: pagoProveedorForm.fecha_pago_limite || null,
+        p_notas: pagoProveedorForm.notas || null,
+      });
+      if (error) { toast.error(error.message); return; }
+      toast.success(`Marcada en ruta — compra ${data?.numero_compra} creada en Cuentas por Pagar`);
+      setEnRutaOpen(null);
+      await loadGrupos();
+      await load();
+      if (seleccionada) abrirDetalle(seleccionada);
+    } catch (e: any) {
+      // Antes, si la llamada tronaba por red (en vez de regresar { error }),
+      // el botón se quedaba en "Procesando..." para siempre — este es
+      // probablemente el "se queda congelado" reportado al marcar en ruta.
+      toast.error('No se pudo marcar en ruta: ' + (e?.message || 'error desconocido'));
+    } finally {
+      setConfirmandoProveedor(false);
+    }
   }
 
 
@@ -570,9 +740,10 @@ export default function OrdenesCompraPage() {
                   </Button>
                   <Button
                     className="gap-2 bg-teal-600 hover:bg-teal-700"
-                    disabled={seleccionada.estado !== 'pendiente_confirmar'}
+                    disabled={seleccionada.estado !== 'pendiente_confirmar' || confirmandoConProveedorKey === seleccionada.id}
                     onClick={() => confirmarConProveedor({ orden_id: seleccionada.id, folio: seleccionada.folio })}>
-                    <Check className="h-4 w-4" />1. Confirmar con proveedor
+                    {confirmandoConProveedorKey === seleccionada.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
+                    1. Confirmar con proveedor
                   </Button>
                   <Button
                     className="gap-2 bg-emerald-600 hover:bg-emerald-700"
@@ -622,7 +793,16 @@ export default function OrdenesCompraPage() {
                     {enRevisionGerente
                       ? <Input type="number" min={0} defaultValue={l.cantidad_solicitada} className="h-7 w-20 text-right text-xs ml-auto"
                           onChange={e => setLineasEditadas(p => ({ ...p, [l.id]: parseInt(e.target.value || '0') }))} />
-                      : l.cantidad_solicitada}
+                      : (
+                        <div>
+                          {l.cantidad_solicitada}
+                          {ajustesLineas[l.id] && (
+                            <div className="text-[10px] font-normal text-amber-600 whitespace-nowrap">
+                              antes: {ajustesLineas[l.id].cantidad_anterior} → {ajustesLineas[l.id].cantidad_nueva}
+                            </div>
+                          )}
+                        </div>
+                      )}
                   </TableCell>
                   <TableCell className="text-right tabular-nums">{l.cantidad_recibida}</TableCell>
                   <TableCell className="text-right tabular-nums">
@@ -869,6 +1049,7 @@ export default function OrdenesCompraPage() {
                         {g.pendientes_admin > 0 && <span>{g.pendientes_admin} por autorizar · </span>}
                         {g.autorizadas > 0 && <span>{g.autorizadas} autorizada{g.autorizadas === 1 ? '' : 's'}</span>}
                       </div>
+                      <SucursalDots hijas={hijasPorGrupo[g.id]} />
                     </TableCell>
                     <TableCell>
                       <Badge className={
@@ -890,9 +1071,9 @@ export default function OrdenesCompraPage() {
                       {(esAdmin || esCompras) && (g.estado === 'lista_para_enviar' || g.estado === 'confirmada_proveedor') && (
                         <div className="flex gap-2 justify-end">
                           <Button size="sm" className="gap-1 bg-teal-600 hover:bg-teal-700"
-                            disabled={g.estado !== 'lista_para_enviar'}
+                            disabled={g.estado !== 'lista_para_enviar' || confirmandoConProveedorKey === g.id}
                             onClick={() => confirmarConProveedor({ grupo_id: g.id, folio: g.folio })}>
-                            <Check className="h-3.5 w-3.5" /> 1. Confirmar con proveedor
+                            {confirmandoConProveedorKey === g.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />} 1. Confirmar con proveedor
                           </Button>
                           <Button size="sm" className="gap-1 bg-emerald-600 hover:bg-emerald-700"
                             disabled={g.estado !== 'confirmada_proveedor'}
