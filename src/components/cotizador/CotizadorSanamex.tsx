@@ -607,8 +607,27 @@ export default function CotizadorSanamex() {
                     })}
                     <TableCell className="text-right text-xs border-l">{f.ultimo_precio_compra ? '$' + Number(f.ultimo_precio_compra).toFixed(2) : '—'}</TableCell>
                     <TableCell className="text-right text-xs font-semibold">{f.mejor_precio ? '$' + Number(f.mejor_precio).toFixed(2) : '—'}</TableCell>
-                    <TableCell className={`text-right text-xs ${varPct != null && varPct > 15 ? 'bg-red-100 text-red-700 font-semibold' : varPct != null && varPct > 5 ? 'bg-amber-100 text-amber-700' : varPct != null && varPct < 0 ? 'text-green-600' : ''}`}>
-                      {varPct != null ? (<span className="inline-flex items-center gap-0.5">{varPct > 0 ? <TrendingUp className="h-3 w-3" /> : varPct < 0 ? <TrendingDown className="h-3 w-3" /> : null}{varPct.toFixed(1)}%{f.variacion_precio_abs ? <span className="ml-1 text-[10px] opacity-70">({f.variacion_precio_abs > 0 ? '+' : ''}${Number(f.variacion_precio_abs).toFixed(2)})</span> : null}</span>) : '—'}
+                    <TableCell className={`text-right text-xs ${
+                      varPct != null && varPct > 15 ? 'bg-red-100 text-red-700 font-semibold'
+                      : varPct != null && varPct > 5 ? 'bg-amber-100 text-amber-700'
+                      : varPct != null && varPct <= -15 ? 'bg-blue-100 text-blue-700 font-semibold'
+                      : varPct != null && varPct < 0 ? 'text-green-600' : ''
+                    }`}>
+                      {varPct != null ? (
+                        varPct <= -15 ? (
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <span className="inline-flex items-center gap-0.5 cursor-default">
+                                <TrendingDown className="h-3 w-3" /><AlertTriangle className="h-3 w-3" />{varPct.toFixed(1)}%
+                                {f.variacion_precio_abs ? <span className="ml-1 text-[10px] opacity-70">(${Number(f.variacion_precio_abs).toFixed(2)})</span> : null}
+                              </span>
+                            </TooltipTrigger>
+                            <TooltipContent>Baja fuerte de precio — posible corta caducidad. Confirmar con el proveedor antes de pedir.</TooltipContent>
+                          </Tooltip>
+                        ) : (
+                          <span className="inline-flex items-center gap-0.5">{varPct > 0 ? <TrendingUp className="h-3 w-3" /> : varPct < 0 ? <TrendingDown className="h-3 w-3" /> : null}{varPct.toFixed(1)}%{f.variacion_precio_abs ? <span className="ml-1 text-[10px] opacity-70">({f.variacion_precio_abs > 0 ? '+' : ''}${Number(f.variacion_precio_abs).toFixed(2)})</span> : null}</span>
+                        )
+                      ) : '—'}
                     </TableCell>
                     <TableCell className="text-xs align-top">
                       {(() => {
