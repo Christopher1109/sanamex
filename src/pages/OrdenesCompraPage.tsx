@@ -893,6 +893,18 @@ function OrdenesCompraPageInner() {
                 </div>
               )}
               <div>
+                <Label className="text-xs">Se va a pagar (monto)</Label>
+                <Input type="number" step="0.01" min="0" value={pagoProveedorForm.monto_a_pagar}
+                  onChange={e => setPagoProveedorForm({ ...pagoProveedorForm, monto_a_pagar: e.target.value })} />
+                <p className="text-xs text-muted-foreground mt-1">
+                  Total de la orden: ${totalEnRuta.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}.
+                  Este monto es el que se registra en Cuentas por Pagar.
+                  {pagoProveedorForm.monto_a_pagar && Math.abs(Number(pagoProveedorForm.monto_a_pagar) - totalEnRuta) > 0.5 && (
+                    <span className="text-amber-600"> Distinto al total de la orden.</span>
+                  )}
+                </p>
+              </div>
+              <div>
                 <Label className="text-xs">Fecha estimada de entrega</Label>
                 <Input type="date" value={pagoProveedorForm.fecha_estimada_entrega}
                   onChange={e => setPagoProveedorForm({ ...pagoProveedorForm, fecha_estimada_entrega: e.target.value })} />
