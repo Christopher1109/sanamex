@@ -104,58 +104,86 @@ const Sidebar = ({ userRole, onLogout }: SidebarProps) => {
   const showGestion = userRole === 'super_admin';
 
   return (
-    <div className="flex h-screen w-64 flex-col bg-sidebar text-sidebar-foreground">
+    <div
+      className={cn('relative h-screen shrink-0 transition-[width] duration-200', colapsado ? 'w-16' : 'w-64')}
+      onMouseEnter={() => colapsado && setHover(true)}
+      onMouseLeave={() => setHover(false)}
+    >
+      <div
+        className={cn(
+          'absolute inset-y-0 left-0 flex h-screen flex-col bg-sidebar text-sidebar-foreground transition-[width] duration-200',
+          expandido ? 'w-64' : 'w-16',
+          colapsado && hover ? 'z-50 shadow-2xl' : 'z-30'
+        )}
+      >
       <div className="sticky top-0 z-10 border-b border-sidebar-border bg-sidebar">
-        <div className="flex h-20 items-center justify-center px-4">
-          <img src={sanamexLogo.url} alt="Sanamex" className="h-12 w-auto rounded-xl object-contain shadow-sm" />
+        <div className="flex h-20 items-center justify-between gap-2 px-3">
+          <img src={sanamexLogo.url} alt="Sanamex"
+            className={cn('w-auto rounded-xl object-contain shadow-sm transition-all', expandido ? 'h-12' : 'h-9')} />
+          {expandido && (
+            <Button variant="ghost" size="icon"
+              className="h-8 w-8 shrink-0 text-sidebar-foreground hover:bg-sidebar-accent"
+              onClick={toggleColapsado}
+              title={colapsado ? 'Fijar sidebar expandido' : 'Colapsar sidebar'}>
+              {colapsado ? <PanelLeftOpen className="h-4 w-4" /> : <PanelLeftClose className="h-4 w-4" />}
+            </Button>
+          )}
         </div>
-        <div className="px-3 pb-3 space-y-2">
-          <div className="rounded-lg bg-sidebar-accent p-3">
-            <p className="text-xs text-sidebar-accent-foreground/70">Rol</p>
-            <p className="font-semibold text-sidebar-accent-foreground">{roleLabels[userRole]}</p>
+        {expandido && (
+          <div className="px-3 pb-3 space-y-2">
+            <div className="rounded-lg bg-sidebar-accent p-3">
+              <p className="text-xs text-sidebar-accent-foreground/70">Rol</p>
+              <p className="font-semibold text-sidebar-accent-foreground">{roleLabels[userRole]}</p>
+            </div>
+            <SucursalSelector />
           </div>
-          <SucursalSelector />
-        </div>
+        )}
       </div>
 
-      <div className="flex-1 overflow-y-auto px-3 py-4">
+      <div className={cn('flex-1 overflow-y-auto py-4', expandido ? 'px-3' : 'px-2')}>
         <nav className="space-y-1">
           {/* Dashboard siempre */}
           <div className="mb-3">
-            <Link to="/dashboard"
+            <Link to="/dashboard" title="Dashboard"
               className={cn('flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
+                !expandido && 'justify-center px-0',
                 location.pathname === '/dashboard'
                   ? 'bg-sidebar-primary text-sidebar-primary-foreground'
                   : 'text-sidebar-foreground hover:bg-sidebar-accent')}>
-              <LayoutDashboard className="h-5 w-5" />
-              <span className="flex-1">Dashboard</span>
+              <LayoutDashboard className="h-5 w-5 shrink-0" />
+              {expandido && <span className="flex-1 truncate">Dashboard</span>}
             </Link>
-            <Link to="/mi-nomina"
+            <Link to="/mi-nomina" title="Mi Nómina"
               className={cn('flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
+                !expandido && 'justify-center px-0',
                 location.pathname === '/mi-nomina'
                   ? 'bg-sidebar-primary text-sidebar-primary-foreground'
                   : 'text-sidebar-foreground hover:bg-sidebar-accent')}>
-              <Wallet className="h-5 w-5" />
-              <span className="flex-1">Mi Nómina</span>
+              <Wallet className="h-5 w-5 shrink-0" />
+              {expandido && <span className="flex-1 truncate">Mi Nómina</span>}
             </Link>
           </div>
 
           {CAT_ORDER.filter(c => grouped[c]?.length).map(cat => (
             <div key={cat} className="mb-3">
-              <p className="px-3 py-2 text-xs font-semibold text-sidebar-foreground/50 uppercase tracking-wider">{cat}</p>
+              {expandido
+                ? <p className="px-3 py-2 text-xs font-semibold text-sidebar-foreground/50 uppercase tracking-wider">{cat}</p>
+                : <div className="mx-2 my-2 border-t border-sidebar-border" />}
               {grouped[cat].map(m => {
                 const isActive = location.pathname === m.path;
                 const Icon = ICONS[m.key] || Package;
+                const badge = m.key === 'compras' && esAprobador && pendientesAprob > 0;
                 return (
-                  <Link key={m.key} to={m.path}
-                    className={cn('flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
+                  <Link key={m.key} to={m.path} title={m.label}
+                    className={cn('relative flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
+                      !expandido && 'justify-center px-0',
                       isActive ? 'bg-sidebar-primary text-sidebar-primary-foreground'
                                : 'text-sidebar-foreground hover:bg-sidebar-accent')}>
-                    <Icon className="h-5 w-5" />
-                    <span className="flex-1">{m.label}</span>
-                    {m.key === 'compras' && esAprobador && pendientesAprob > 0 && (
-                      <Badge variant="destructive" className="h-5 px-1.5 text-[10px]">{pendientesAprob}</Badge>
-                    )}
+                    <Icon className="h-5 w-5 shrink-0" />
+                    {expandido && <span className="flex-1 truncate">{m.label}</span>}
+                    {badge && (expandido
+                      ? <Badge variant="destructive" className="h-5 px-1.5 text-[10px]">{pendientesAprob}</Badge>
+                      : <span className="absolute right-1 top-1 h-2 w-2 rounded-full bg-destructive" />)}
                   </Link>
                 );
               })}
@@ -164,28 +192,43 @@ const Sidebar = ({ userRole, onLogout }: SidebarProps) => {
 
           {showGestion && (
             <div className="mb-3">
-              <p className="px-3 py-2 text-xs font-semibold text-sidebar-foreground/50 uppercase tracking-wider">Administración</p>
-              <Link to="/super-admin/usuarios"
+              {expandido
+                ? <p className="px-3 py-2 text-xs font-semibold text-sidebar-foreground/50 uppercase tracking-wider">Administración</p>
+                : <div className="mx-2 my-2 border-t border-sidebar-border" />}
+              <Link to="/super-admin/usuarios" title="Gestión de Usuarios"
                 className={cn('flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
+                  !expandido && 'justify-center px-0',
                   location.pathname === '/super-admin/usuarios'
                     ? 'bg-sidebar-primary text-sidebar-primary-foreground'
                     : 'text-sidebar-foreground hover:bg-sidebar-accent')}>
-                <UserCog className="h-5 w-5" />
-                <span className="flex-1">Gestión de Usuarios</span>
+                <UserCog className="h-5 w-5 shrink-0" />
+                {expandido && <span className="flex-1 truncate">Gestión de Usuarios</span>}
               </Link>
             </div>
           )}
         </nav>
       </div>
 
-      <div className="border-t border-sidebar-border p-4">
-        <Button variant="ghost" className="w-full justify-start gap-3 text-sidebar-foreground hover:bg-sidebar-accent" onClick={onLogout}>
-          <LogOut className="h-5 w-5" />
-          Cerrar Sesión
+      <div className={cn('border-t border-sidebar-border', expandido ? 'p-4' : 'p-2')}>
+        {!expandido && (
+          <Button variant="ghost" size="icon"
+            className="mb-1 w-full text-sidebar-foreground hover:bg-sidebar-accent"
+            onClick={toggleColapsado} title="Fijar sidebar expandido">
+            <PanelLeftOpen className="h-5 w-5" />
+          </Button>
+        )}
+        <Button variant="ghost"
+          className={cn('w-full gap-3 text-sidebar-foreground hover:bg-sidebar-accent',
+            expandido ? 'justify-start' : 'justify-center px-0')}
+          onClick={onLogout} title="Cerrar Sesión">
+          <LogOut className="h-5 w-5 shrink-0" />
+          {expandido && 'Cerrar Sesión'}
         </Button>
+      </div>
       </div>
     </div>
   );
 };
+
 
 export default Sidebar;
