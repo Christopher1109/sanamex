@@ -2395,6 +2395,7 @@ export type Database = {
           creada_por: string | null
           created_at: string
           es_retroactiva: boolean
+          factura_id: string | null
           fecha: string
           folio: string
           id: string
@@ -2417,6 +2418,7 @@ export type Database = {
           creada_por?: string | null
           created_at?: string
           es_retroactiva?: boolean
+          factura_id?: string | null
           fecha?: string
           folio: string
           id?: string
@@ -2439,6 +2441,7 @@ export type Database = {
           creada_por?: string | null
           created_at?: string
           es_retroactiva?: boolean
+          factura_id?: string | null
           fecha?: string
           folio?: string
           id?: string
@@ -2458,6 +2461,13 @@ export type Database = {
             columns: ["compra_id"]
             isOneToOne: false
             referencedRelation: "compras"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "notas_credito_proveedor_factura_id_fkey"
+            columns: ["factura_id"]
+            isOneToOne: false
+            referencedRelation: "ordenes_compra_facturas"
             referencedColumns: ["id"]
           },
           {
@@ -2741,6 +2751,7 @@ export type Database = {
           fecha_autorizacion: string | null
           fecha_creacion: string | null
           fecha_envio: string | null
+          fecha_estimada_entrega: string | null
           fecha_recepcion_esperada: string | null
           fecha_recepcion_real: string | null
           folio: string
@@ -2771,6 +2782,7 @@ export type Database = {
           fecha_autorizacion?: string | null
           fecha_creacion?: string | null
           fecha_envio?: string | null
+          fecha_estimada_entrega?: string | null
           fecha_recepcion_esperada?: string | null
           fecha_recepcion_real?: string | null
           folio?: string
@@ -2801,6 +2813,7 @@ export type Database = {
           fecha_autorizacion?: string | null
           fecha_creacion?: string | null
           fecha_envio?: string | null
+          fecha_estimada_entrega?: string | null
           fecha_recepcion_esperada?: string | null
           fecha_recepcion_real?: string | null
           folio?: string
@@ -2858,6 +2871,60 @@ export type Database = {
             columns: ["sucursal_destino_id"]
             isOneToOne: false
             referencedRelation: "sucursales"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ordenes_compra_facturas: {
+        Row: {
+          capturada_por: string | null
+          created_at: string
+          fecha_factura: string | null
+          folio: string
+          id: string
+          importe: number | null
+          orden_id: string
+          pdf_path: string | null
+          updated_at: string
+          xml_path: string | null
+        }
+        Insert: {
+          capturada_por?: string | null
+          created_at?: string
+          fecha_factura?: string | null
+          folio: string
+          id?: string
+          importe?: number | null
+          orden_id: string
+          pdf_path?: string | null
+          updated_at?: string
+          xml_path?: string | null
+        }
+        Update: {
+          capturada_por?: string | null
+          created_at?: string
+          fecha_factura?: string | null
+          folio?: string
+          id?: string
+          importe?: number | null
+          orden_id?: string
+          pdf_path?: string | null
+          updated_at?: string
+          xml_path?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ordenes_compra_facturas_orden_id_fkey"
+            columns: ["orden_id"]
+            isOneToOne: false
+            referencedRelation: "ordenes_compra"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ordenes_compra_facturas_orden_id_fkey"
+            columns: ["orden_id"]
+            isOneToOne: false
+            referencedRelation: "v_ordenes_compra_trazabilidad"
             referencedColumns: ["id"]
           },
         ]
@@ -2923,6 +2990,81 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "vista_fill_rate_proveedores"
             referencedColumns: ["proveedor_id"]
+          },
+        ]
+      }
+      ordenes_compra_recepciones: {
+        Row: {
+          cantidad: number
+          created_at: string
+          factura_id: string
+          fecha_caducidad: string | null
+          id: string
+          linea_id: string
+          numero_lote: string | null
+          orden_id: string
+          producto_id: string | null
+          recibido_por: string | null
+        }
+        Insert: {
+          cantidad: number
+          created_at?: string
+          factura_id: string
+          fecha_caducidad?: string | null
+          id?: string
+          linea_id: string
+          numero_lote?: string | null
+          orden_id: string
+          producto_id?: string | null
+          recibido_por?: string | null
+        }
+        Update: {
+          cantidad?: number
+          created_at?: string
+          factura_id?: string
+          fecha_caducidad?: string | null
+          id?: string
+          linea_id?: string
+          numero_lote?: string | null
+          orden_id?: string
+          producto_id?: string | null
+          recibido_por?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ordenes_compra_recepciones_factura_id_fkey"
+            columns: ["factura_id"]
+            isOneToOne: false
+            referencedRelation: "ordenes_compra_facturas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ordenes_compra_recepciones_linea_id_fkey"
+            columns: ["linea_id"]
+            isOneToOne: false
+            referencedRelation: "orden_compra_lineas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ordenes_compra_recepciones_orden_id_fkey"
+            columns: ["orden_id"]
+            isOneToOne: false
+            referencedRelation: "ordenes_compra"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ordenes_compra_recepciones_orden_id_fkey"
+            columns: ["orden_id"]
+            isOneToOne: false
+            referencedRelation: "v_ordenes_compra_trazabilidad"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ordenes_compra_recepciones_producto_id_fkey"
+            columns: ["producto_id"]
+            isOneToOne: false
+            referencedRelation: "productos"
+            referencedColumns: ["id"]
           },
         ]
       }
@@ -5273,6 +5415,15 @@ export type Database = {
       }
     }
     Functions: {
+      agregar_factura_oc: {
+        Args: {
+          p_fecha_factura?: string
+          p_folio: string
+          p_importe?: number
+          p_orden_id: string
+        }
+        Returns: string
+      }
       autorizar_oc_admin: {
         Args: { p_accion: string; p_oc_id: string; p_razon?: string }
         Returns: Json
@@ -5359,17 +5510,30 @@ export type Database = {
         Args: { p_grupo_id?: string; p_notas?: string; p_orden_id?: string }
         Returns: Json
       }
-      confirmar_envio_proveedor: {
-        Args: {
-          p_dias_credito?: number
-          p_fecha_pago_limite?: string
-          p_grupo_id?: string
-          p_metodo_pago?: string
-          p_notas?: string
-          p_orden_id?: string
-        }
-        Returns: Json
-      }
+      confirmar_envio_proveedor:
+        | {
+            Args: {
+              p_dias_credito?: number
+              p_fecha_estimada_entrega?: string
+              p_fecha_pago_limite?: string
+              p_grupo_id?: string
+              p_metodo_pago?: string
+              p_notas?: string
+              p_orden_id?: string
+            }
+            Returns: Json
+          }
+        | {
+            Args: {
+              p_dias_credito?: number
+              p_fecha_pago_limite?: string
+              p_grupo_id?: string
+              p_metodo_pago?: string
+              p_notas?: string
+              p_orden_id?: string
+            }
+            Returns: Json
+          }
       cotizador_generar_oc: { Args: { payload: Json }; Returns: Json }
       cotizador_historial_mensual: {
         Args: { p_producto_id: string }
@@ -5419,23 +5583,42 @@ export type Database = {
         }
         Returns: undefined
       }
-      crear_nota_credito_proveedor: {
-        Args: {
-          p_almacen_id?: string
-          p_cantidad_incidencia?: number
-          p_compra_id?: string
-          p_es_retroactiva?: boolean
-          p_lote_id?: string
-          p_monto: number
-          p_motivo?: string
-          p_periodo_fin?: string
-          p_periodo_inicio?: string
-          p_producto_id?: string
-          p_proveedor_id: string
-          p_tipo: string
-        }
-        Returns: Json
-      }
+      crear_nota_credito_proveedor:
+        | {
+            Args: {
+              p_almacen_id?: string
+              p_cantidad_incidencia?: number
+              p_compra_id?: string
+              p_es_retroactiva?: boolean
+              p_lote_id?: string
+              p_monto: number
+              p_motivo?: string
+              p_periodo_fin?: string
+              p_periodo_inicio?: string
+              p_producto_id?: string
+              p_proveedor_id: string
+              p_tipo: string
+            }
+            Returns: Json
+          }
+        | {
+            Args: {
+              p_almacen_id?: string
+              p_cantidad_incidencia?: number
+              p_compra_id?: string
+              p_es_retroactiva?: boolean
+              p_factura_id?: string
+              p_lote_id?: string
+              p_monto: number
+              p_motivo?: string
+              p_periodo_fin?: string
+              p_periodo_inicio?: string
+              p_producto_id?: string
+              p_proveedor_id: string
+              p_tipo: string
+            }
+            Returns: Json
+          }
       dispersar_nomina: {
         Args: {
           p_cuenta_bancaria_id: string
@@ -5595,10 +5778,24 @@ export type Database = {
         Returns: undefined
       }
       recalc_total_oc: { Args: { p_orden_id: string }; Returns: undefined }
-      recibir_oc: {
-        Args: { p_almacen_id: string; p_orden_id: string; p_recepciones: Json }
-        Returns: Json
-      }
+      recibir_oc:
+        | {
+            Args: {
+              p_almacen_id: string
+              p_orden_id: string
+              p_recepciones: Json
+            }
+            Returns: Json
+          }
+        | {
+            Args: {
+              p_almacen_id: string
+              p_factura_id: string
+              p_orden_id: string
+              p_recepciones: Json
+            }
+            Returns: Json
+          }
       recibir_traspaso: { Args: { p_traspaso_id: string }; Returns: Json }
       recibir_traspaso_confirmado: {
         Args: { p_lineas: Json; p_traspaso_id: string }
