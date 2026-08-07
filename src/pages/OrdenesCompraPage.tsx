@@ -1542,7 +1542,7 @@ function OrdenesCompraPageInner() {
                     <TableCell className="font-mono font-medium">{oc.folio}</TableCell>
                     <TableCell>{oc.proveedor?.nombre}</TableCell>
                     <TableCell>{oc.sucursal_destino?.codigo || '—'}</TableCell>
-                    <TableCell className="text-xs">{(oc as any).fecha_recepcion || oc.fecha_creacion}</TableCell>
+                    <TableCell className="text-xs">{(oc as any).fecha_recepcion_real || oc.fecha_creacion}</TableCell>
                     <TableCell className="text-right tabular-nums">${Number(oc.total).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</TableCell>
                     <TableCell className="text-right">
                       <Button size="sm" onClick={(e) => { e.stopPropagation(); abrirDetalle(oc); }}>Ligar factura</Button>
