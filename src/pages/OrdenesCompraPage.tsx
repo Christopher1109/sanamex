@@ -12,21 +12,28 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { Send, PackageCheck, X, ClipboardList, ArrowLeft, Check, ShieldCheck, Truck, RefreshCw, FileDown, ChevronDown, ChevronRight, Loader2, AlertTriangle } from 'lucide-react';
+import { Send, PackageCheck, X, ClipboardList, ArrowLeft, Check, ShieldCheck, Truck, RefreshCw, FileDown, ChevronDown, ChevronRight, Loader2, AlertTriangle, Receipt, FileUp, FileText, Plus, FileMinus } from 'lucide-react';
 import { toast } from 'sonner';
 import { generarOcProveedorExcel, descargarBlob } from '@/lib/generarOcProveedor';
 
 type OC = {
   id: string; folio: string; estado: string;
   fecha_creacion: string; fecha_envio: string | null; fecha_recepcion_real: string | null;
+  fecha_estimada_entrega?: string | null;
   subtotal: number; iva: number; total: number; notas: string | null;
   creada_por: string | null;
   cantidades_modificadas_gerente?: boolean;
   grupo_id?: string | null;
+  compra_real_id?: string | null;
   proveedor: { nombre: string; codigo: string | null } | null;
   sucursal_destino: { codigo: string; nombre: string } | null;
   sucursal_destino_id: string | null;
   comprador?: { nombre: string | null; username: string | null } | null;
+};
+type Factura = {
+  id: string; orden_id: string; folio: string; fecha_factura: string | null;
+  importe: number | null; pdf_path: string | null; xml_path: string | null;
+  created_at: string;
 };
 type Linea = {
   id: string; producto_id: string; cantidad_solicitada: number; cantidad_recibida: number;
@@ -263,7 +270,7 @@ function OrdenesCompraPageInner() {
   const [almacenSel, setAlmacenSel] = useState<string>('');
   // Paso 2 (marcar en ruta): puede ser sobre un grupo completo o una OC individual.
   const [enRutaOpen, setEnRutaOpen] = useState<{ grupo_id?: string | null; orden_id?: string | null; folio: string } | null>(null);
-  const [pagoProveedorForm, setPagoProveedorForm] = useState({ metodo_pago: 'credito' as 'credito' | 'contado', dias_credito: '30', fecha_pago_limite: '', notas: '' });
+  const [pagoProveedorForm, setPagoProveedorForm] = useState({ metodo_pago: 'credito' as 'credito' | 'contado', dias_credito: '30', fecha_pago_limite: '', fecha_estimada_entrega: '', notas: '' });
   const [confirmandoProveedor, setConfirmandoProveedor] = useState(false);
   const [tab, setTab] = useState<'grupos' | 'todas' | 'seguimiento' | 'revision_gerente' | 'autorizacion_admin'>('grupos');
   const [rechazoOpen, setRechazoOpen] = useState<{ oc: OC; tipo: 'gerente' | 'admin' } | null>(null);
@@ -284,6 +291,18 @@ function OrdenesCompraPageInner() {
   // Ajustes de cantidad (antes → después) que hizo el gerente, para mostrarlos
   // en el detalle de la OC cuando el administrador la está autorizando.
   const [ajustesLineas, setAjustesLineas] = useState<Record<string, { cantidad_anterior: number; cantidad_nueva: number }>>({});
+
+  // --- Facturas de la OC (folio obligatorio para recibir, varias por OC) ---
+  const [facturas, setFacturas] = useState<Factura[]>([]);
+  const [facturaSel, setFacturaSel] = useState<string>('');
+  const [nuevaFacturaOpen, setNuevaFacturaOpen] = useState(false);
+  const [nuevaFacturaForm, setNuevaFacturaForm] = useState({ folio: '', fecha_factura: '', importe: '' });
+  const [guardandoFactura, setGuardandoFactura] = useState(false);
+  const [subiendoDoc, setSubiendoDoc] = useState<string | null>(null); // `${facturaId}-pdf` | `${facturaId}-xml`
+  const [recepcionesPorFactura, setRecepcionesPorFactura] = useState<Record<string, { linea_id: string; cantidad: number; factura_folio: string }[]>>({});
+  const [notaOpen, setNotaOpen] = useState<Factura | null>(null);
+  const [notaForm, setNotaForm] = useState({ tipo: 'incidencia' as 'incidencia' | 'negociada' | 'objetivo_trimestral', monto: '', motivo: '', productoId: '', cantidad: '' });
+  const [guardandoNota, setGuardandoNota] = useState(false);
 
 
   useEffect(() => { load(); loadAlmacenes(); }, []);
@@ -500,8 +519,8 @@ function OrdenesCompraPageInner() {
     setLoading(true);
     const { data } = await supabase
       .from('ordenes_compra')
-      .select(`id, folio, estado, fecha_creacion, fecha_envio, fecha_recepcion_real, subtotal, iva, total, notas,
-               sucursal_destino_id, grupo_id, cantidades_modificadas_gerente,
+      .select(`id, folio, estado, fecha_creacion, fecha_envio, fecha_recepcion_real, fecha_estimada_entrega, subtotal, iva, total, notas,
+               sucursal_destino_id, grupo_id, cantidades_modificadas_gerente, compra_real_id,
                proveedor:proveedores(nombre, codigo),
                sucursal_destino:sucursales!sucursal_destino_id(codigo, nombre)`)
       .order('created_at', { ascending: false });
@@ -522,6 +541,7 @@ function OrdenesCompraPageInner() {
   async function abrirDetalle(oc: OC) {
     setSeleccionada(oc);
     setLineasEditadas({});
+    setFacturaSel('');
     const [{ data }, { data: ajustes }] = await Promise.all([
       supabase
         .from('orden_compra_lineas')
@@ -536,6 +556,116 @@ function OrdenesCompraPageInner() {
     const am: Record<string, { cantidad_anterior: number; cantidad_nueva: number }> = {};
     (ajustes || []).forEach((a: any) => { am[a.linea_id] = { cantidad_anterior: a.cantidad_anterior, cantidad_nueva: a.cantidad_nueva }; });
     setAjustesLineas(am);
+    await loadFacturas(oc.id);
+  }
+
+  async function loadFacturas(ordenId: string) {
+    const { data } = await (supabase as any)
+      .from('ordenes_compra_facturas')
+      .select('id, orden_id, folio, fecha_factura, importe, pdf_path, xml_path, created_at')
+      .eq('orden_id', ordenId)
+      .order('created_at', { ascending: false });
+    setFacturas((data || []) as Factura[]);
+    // Desglose de cuánto se ha recibido bajo cada factura, para mostrarlo junto a cada una.
+    const { data: recs } = await (supabase as any)
+      .from('ordenes_compra_recepciones')
+      .select('factura_id, linea_id, cantidad, ordenes_compra_facturas!inner(folio)')
+      .eq('orden_id', ordenId);
+    const map: Record<string, { linea_id: string; cantidad: number; factura_folio: string }[]> = {};
+    (recs || []).forEach((r: any) => {
+      (map[r.factura_id] ||= []).push({ linea_id: r.linea_id, cantidad: r.cantidad, factura_folio: r.ordenes_compra_facturas?.folio || '' });
+    });
+    setRecepcionesPorFactura(map);
+  }
+
+  async function crearFactura() {
+    if (!seleccionada) return;
+    if (!nuevaFacturaForm.folio.trim()) { toast.error('El folio de factura es obligatorio'); return; }
+    setGuardandoFactura(true);
+    try {
+      const { data, error } = await (supabase as any).rpc('agregar_factura_oc', {
+        p_orden_id: seleccionada.id,
+        p_folio: nuevaFacturaForm.folio.trim(),
+        p_fecha_factura: nuevaFacturaForm.fecha_factura || null,
+        p_importe: nuevaFacturaForm.importe ? Number(nuevaFacturaForm.importe) : null,
+      });
+      if (error) { toast.error(error.message); return; }
+      toast.success('Factura ligada a la orden de compra');
+      setNuevaFacturaOpen(false);
+      setNuevaFacturaForm({ folio: '', fecha_factura: '', importe: '' });
+      await loadFacturas(seleccionada.id);
+      setFacturaSel(data as string);
+    } catch (e: any) {
+      toast.error('No se pudo guardar la factura: ' + (e?.message || 'error desconocido'));
+    } finally {
+      setGuardandoFactura(false);
+    }
+  }
+
+  async function subirDocumentoFactura(factura: Factura, tipo: 'pdf' | 'xml', file: File) {
+    const key = `${factura.id}-${tipo}`;
+    setSubiendoDoc(key);
+    try {
+      const ext = file.name.split('.').pop() || tipo;
+      const path = `${factura.orden_id}/${factura.id}/${tipo}-${Date.now()}.${ext}`;
+      const { error: upErr } = await supabase.storage.from('facturas-compra').upload(path, file, { upsert: true });
+      if (upErr) throw upErr;
+      const campo = tipo === 'pdf' ? 'pdf_path' : 'xml_path';
+      const { error: updErr } = await (supabase as any).from('ordenes_compra_facturas').update({ [campo]: path }).eq('id', factura.id);
+      if (updErr) throw updErr;
+      toast.success(`${tipo.toUpperCase()} de la factura ${factura.folio} guardado`);
+      if (seleccionada) await loadFacturas(seleccionada.id);
+    } catch (e: any) {
+      toast.error(`No se pudo subir el ${tipo.toUpperCase()}: ` + (e?.message || 'error desconocido'));
+    } finally {
+      setSubiendoDoc(null);
+    }
+  }
+
+  async function verDocumentoFactura(path: string) {
+    const { data, error } = await supabase.storage.from('facturas-compra').createSignedUrl(path, 300);
+    if (error || !data) { toast.error('No se pudo abrir el documento'); return; }
+    window.open(data.signedUrl, '_blank');
+  }
+
+  function abrirNota(factura: Factura) {
+    setNotaOpen(factura);
+    setNotaForm({ tipo: 'incidencia', monto: '', motivo: '', productoId: '', cantidad: '' });
+  }
+
+  async function guardarNotaFactura() {
+    if (!notaOpen || !seleccionada) return;
+    const monto = Number(notaForm.monto);
+    if (!monto || monto <= 0) { toast.error('Captura un monto válido'); return; }
+    const requiereProducto = notaForm.tipo === 'incidencia' || notaForm.tipo === 'negociada';
+    if (requiereProducto && (!notaForm.productoId || !notaForm.cantidad)) {
+      toast.error('Selecciona el producto y la cantidad afectada'); return;
+    }
+    if (!seleccionada.compra_real_id) {
+      toast.error('Esta orden todavía no tiene una compra real ligada (debe estar en ruta o más adelante)'); return;
+    }
+    setGuardandoNota(true);
+    try {
+      // Proveedor de esta OC — necesario para crear_nota_credito_proveedor.
+      const { data: ocData } = await supabase.from('ordenes_compra').select('proveedor_id').eq('id', seleccionada.id).maybeSingle() as any;
+      const { data, error } = await (supabase as any).rpc('crear_nota_credito_proveedor', {
+        p_proveedor_id: (ocData as any)?.proveedor_id,
+        p_tipo: notaForm.tipo,
+        p_monto: monto,
+        p_motivo: notaForm.motivo || null,
+        p_compra_id: seleccionada.compra_real_id,
+        p_producto_id: requiereProducto ? notaForm.productoId : null,
+        p_cantidad_incidencia: requiereProducto ? Number(notaForm.cantidad) : null,
+        p_factura_id: notaOpen.id,
+      });
+      if (error) { toast.error(error.message); return; }
+      toast.success(`Nota de crédito ${data?.folio} ligada a la factura ${notaOpen.folio}`);
+      setNotaOpen(null);
+    } catch (e: any) {
+      toast.error('No se pudo crear la nota de crédito: ' + (e?.message || 'error desconocido'));
+    } finally {
+      setGuardandoNota(false);
+    }
   }
 
   async function cambiarEstado(oc: OC, nuevo: string) {
@@ -618,7 +748,7 @@ function OrdenesCompraPageInner() {
   // modificar caso por caso, pero ya no arranca siempre en 30 por default.
   async function abrirEnRuta(args: { grupo_id?: string | null; orden_id?: string | null; folio: string }) {
     setEnRutaOpen(args);
-    setPagoProveedorForm({ metodo_pago: 'credito', dias_credito: '30', fecha_pago_limite: '', notas: '' });
+    setPagoProveedorForm({ metodo_pago: 'credito', dias_credito: '30', fecha_pago_limite: '', fecha_estimada_entrega: '', notas: '' });
     try {
       let q = supabase.from('ordenes_compra').select('proveedor:proveedores(plazo_pago_dias)').limit(1);
       q = args.grupo_id ? q.eq('grupo_id', args.grupo_id) : q.eq('id', args.orden_id as string);
@@ -643,6 +773,7 @@ function OrdenesCompraPageInner() {
         p_metodo_pago: pagoProveedorForm.metodo_pago,
         p_dias_credito: pagoProveedorForm.metodo_pago === 'credito' ? Number(pagoProveedorForm.dias_credito) : null,
         p_fecha_pago_limite: pagoProveedorForm.fecha_pago_limite || null,
+        p_fecha_estimada_entrega: pagoProveedorForm.fecha_estimada_entrega || null,
         p_notas: pagoProveedorForm.notas || null,
       });
       if (error) { toast.error(error.message); return; }
@@ -664,6 +795,7 @@ function OrdenesCompraPageInner() {
 
   async function ejecutarRecepcion() {
     if (!seleccionada || !almacenSel) { toast.error('Selecciona almacén'); return; }
+    if (!facturaSel) { toast.error('Liga el folio de factura antes de recibir la mercancía'); return; }
     const items = Object.entries(recepciones)
       .filter(([, r]) => r.cantidad > 0)
       .map(([linea_id, r]) => ({
@@ -675,7 +807,7 @@ function OrdenesCompraPageInner() {
     const sinCaducidad = items.filter(i => !i.fecha_caducidad);
     if (sinCaducidad.length) { toast.error('Captura la fecha de caducidad de cada producto recibido'); return; }
     const { data, error } = await (supabase as any).rpc('recibir_oc', {
-      p_orden_id: seleccionada.id, p_recepciones: items, p_almacen_id: almacenSel,
+      p_orden_id: seleccionada.id, p_recepciones: items, p_almacen_id: almacenSel, p_factura_id: facturaSel,
     });
     if (error) return toast.error(error.message);
     toast.success(`Recepción registrada: ${data?.estado}`);
@@ -833,19 +965,160 @@ function OrdenesCompraPageInner() {
           </div>
         </Card>
 
+        {['en_ruta', 'enviada', 'confirmada', 'parcial', 'recibida'].includes(seleccionada.estado) && (
+          <Card className="p-4">
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <Receipt className="h-5 w-5 text-primary" />
+                <h3 className="font-semibold">Facturas de esta orden</h3>
+                <Badge variant="outline">{facturas.length}</Badge>
+              </div>
+              <Button size="sm" variant="outline" className="gap-1" onClick={() => { setNuevaFacturaForm({ folio: '', fecha_factura: '', importe: '' }); setNuevaFacturaOpen(true); }}>
+                <Plus className="h-4 w-4" /> Agregar factura
+              </Button>
+            </div>
+            {!facturas.length ? (
+              <p className="text-sm text-muted-foreground">
+                Todavía no se ha ligado ningún folio de factura a esta orden. Se necesita al menos uno antes de poder recibir la mercancía.
+              </p>
+            ) : (
+              <div className="space-y-2">
+                {facturas.map(f => {
+                  const recibidoEnEstaFactura = (recepcionesPorFactura[f.id] || []).reduce((s, r) => s + r.cantidad, 0);
+                  return (
+                    <div key={f.id} className="border rounded-md p-3 flex flex-wrap items-center justify-between gap-2">
+                      <div>
+                        <div className="font-medium text-sm">{f.folio}</div>
+                        <div className="text-xs text-muted-foreground">
+                          {f.fecha_factura || 'sin fecha'} {f.importe ? `· $${Number(f.importe).toLocaleString('es-MX', { minimumFractionDigits: 2 })}` : ''}
+                          {recibidoEnEstaFactura > 0 && <> · {recibidoEnEstaFactura.toLocaleString('es-MX')} pieza{recibidoEnEstaFactura === 1 ? '' : 's'} recibidas con este folio</>}
+                        </div>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-1">
+                        <input type="file" accept=".pdf" className="hidden" id={`pdf-${f.id}`}
+                          onChange={e => e.target.files?.[0] && subirDocumentoFactura(f, 'pdf', e.target.files[0])} />
+                        <Button size="sm" variant={f.pdf_path ? 'outline' : 'secondary'} className="gap-1"
+                          disabled={subiendoDoc === `${f.id}-pdf`}
+                          onClick={() => f.pdf_path ? verDocumentoFactura(f.pdf_path) : document.getElementById(`pdf-${f.id}`)?.click()}>
+                          {subiendoDoc === `${f.id}-pdf` ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FileText className="h-3.5 w-3.5" />}
+                          {f.pdf_path ? 'Ver PDF' : 'Subir PDF'}
+                        </Button>
+                        <input type="file" accept=".xml" className="hidden" id={`xml-${f.id}`}
+                          onChange={e => e.target.files?.[0] && subirDocumentoFactura(f, 'xml', e.target.files[0])} />
+                        <Button size="sm" variant={f.xml_path ? 'outline' : 'secondary'} className="gap-1"
+                          disabled={subiendoDoc === `${f.id}-xml`}
+                          onClick={() => f.xml_path ? verDocumentoFactura(f.xml_path) : document.getElementById(`xml-${f.id}`)?.click()}>
+                          {subiendoDoc === `${f.id}-xml` ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FileUp className="h-3.5 w-3.5" />}
+                          {f.xml_path ? 'Ver XML' : 'Subir XML'}
+                        </Button>
+                        <Button size="sm" variant="outline" className="gap-1" onClick={() => abrirNota(f)}>
+                          <FileMinus className="h-3.5 w-3.5" /> Nota de crédito
+                        </Button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </Card>
+        )}
+
+        {/* Nota de crédito ligada a una factura de esta OC */}
+        <Dialog open={!!notaOpen} onOpenChange={o => !o && setNotaOpen(null)}>
+          <DialogContent>
+            <DialogHeader><DialogTitle>Nota de crédito — factura {notaOpen?.folio}</DialogTitle></DialogHeader>
+            <div className="space-y-3">
+              <div>
+                <Label>Tipo de nota</Label>
+                <Select value={notaForm.tipo} onValueChange={(v: any) => setNotaForm({ ...notaForm, tipo: v })}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="incidencia">Incidencia (faltante de piezas) — ajusta inventario</SelectItem>
+                    <SelectItem value="negociada">Negociada / descuento — impacta el costo</SelectItem>
+                    <SelectItem value="objetivo_trimestral">Objetivo trimestral — beneficio financiero</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              {(notaForm.tipo === 'incidencia' || notaForm.tipo === 'negociada') && (
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <Label>Producto (de esta orden)</Label>
+                    <Select value={notaForm.productoId} onValueChange={v => setNotaForm({ ...notaForm, productoId: v })}>
+                      <SelectTrigger><SelectValue placeholder="Selecciona…" /></SelectTrigger>
+                      <SelectContent>
+                        {lineas.map(l => (
+                          <SelectItem key={l.producto_id} value={l.producto_id}>{l.producto?.sku} — {l.producto?.nombre}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label>{notaForm.tipo === 'incidencia' ? 'Piezas faltantes' : 'Piezas con descuento'}</Label>
+                    <Input type="number" value={notaForm.cantidad} onChange={e => setNotaForm({ ...notaForm, cantidad: e.target.value })} />
+                  </div>
+                </div>
+              )}
+              <div>
+                <Label>Monto total de la nota</Label>
+                <Input type="number" step="0.01" value={notaForm.monto} onChange={e => setNotaForm({ ...notaForm, monto: e.target.value })} />
+              </div>
+              <div>
+                <Label>Motivo (opcional)</Label>
+                <Textarea rows={2} value={notaForm.motivo} onChange={e => setNotaForm({ ...notaForm, motivo: e.target.value })} />
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Esta nota queda ligada a la factura {notaOpen?.folio} de {seleccionada?.folio} y se aplica de inmediato contra el saldo de esta compra.
+              </p>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setNotaOpen(null)}>Cancelar</Button>
+              <Button onClick={guardarNotaFactura} disabled={guardandoNota}>
+                {guardandoNota ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : null}Aplicar nota de crédito
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
         <Dialog open={recibirOpen} onOpenChange={setRecibirOpen}>
           <DialogContent className="max-w-3xl">
             <DialogHeader><DialogTitle>Recibir mercancía — {seleccionada.folio}</DialogTitle></DialogHeader>
             <div className="space-y-3">
-              <div>
-                <Label className="text-xs">Almacén de recepción</Label>
-                <Select value={almacenSel} onValueChange={setAlmacenSel}>
-                  <SelectTrigger><SelectValue placeholder="Selecciona almacén…" /></SelectTrigger>
-                  <SelectContent>
-                    {almacenes.map(a => <SelectItem key={a.id} value={a.id}>{a.sucursal} · {a.nombre}</SelectItem>)}
-                  </SelectContent>
-                </Select>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label className="text-xs">Almacén de recepción</Label>
+                  <Select value={almacenSel} onValueChange={setAlmacenSel}>
+                    <SelectTrigger><SelectValue placeholder="Selecciona almacén…" /></SelectTrigger>
+                    <SelectContent>
+                      {almacenes.map(a => <SelectItem key={a.id} value={a.id}>{a.sucursal} · {a.nombre}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label className="text-xs">Folio de factura (obligatorio)</Label>
+                  <div className="flex gap-1">
+                    <Select value={facturaSel} onValueChange={setFacturaSel}>
+                      <SelectTrigger><SelectValue placeholder="Selecciona la factura…" /></SelectTrigger>
+                      <SelectContent>
+                        {facturas.map(f => (
+                          <SelectItem key={f.id} value={f.id}>
+                            {f.folio}{f.fecha_factura ? ` · ${f.fecha_factura}` : ''}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Button type="button" size="icon" variant="outline" onClick={() => setNuevaFacturaOpen(true)} title="Agregar nueva factura">
+                      <Plus className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
               </div>
+              {!facturas.length && (
+                <div className="text-xs rounded-md border border-amber-300 bg-amber-50 text-amber-900 px-3 py-2">
+                  Esta orden todavía no tiene ninguna factura ligada. No se puede recibir mercancía sin antes agregar
+                  el folio (botón "+"). Si el proveedor mandó varias facturas para esta misma orden, agrega cada una
+                  por separado — vas a poder elegir cuál corresponde a lo que estás recibiendo ahora.
+                </div>
+              )}
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -889,7 +1162,41 @@ function OrdenesCompraPageInner() {
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => setRecibirOpen(false)}>Cancelar</Button>
-              <Button onClick={ejecutarRecepcion}>Confirmar recepción</Button>
+              <Button onClick={ejecutarRecepcion} disabled={!facturaSel} title={!facturaSel ? 'Liga primero el folio de factura' : undefined}>
+                Confirmar recepción
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Alta rápida de factura — se puede abrir desde "Recibir mercancía" o desde la sección Facturas del detalle. */}
+        <Dialog open={nuevaFacturaOpen} onOpenChange={setNuevaFacturaOpen}>
+          <DialogContent>
+            <DialogHeader><DialogTitle>Agregar folio de factura — {seleccionada.folio}</DialogTitle></DialogHeader>
+            <div className="space-y-3">
+              <div>
+                <Label className="text-xs">Folio de factura *</Label>
+                <Input value={nuevaFacturaForm.folio} onChange={e => setNuevaFacturaForm({ ...nuevaFacturaForm, folio: e.target.value })} placeholder="Ej. A-4521" />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label className="text-xs">Fecha de factura</Label>
+                  <Input type="date" value={nuevaFacturaForm.fecha_factura} onChange={e => setNuevaFacturaForm({ ...nuevaFacturaForm, fecha_factura: e.target.value })} />
+                </div>
+                <div>
+                  <Label className="text-xs">Importe</Label>
+                  <Input type="number" step="0.01" value={nuevaFacturaForm.importe} onChange={e => setNuevaFacturaForm({ ...nuevaFacturaForm, importe: e.target.value })} />
+                </div>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Si el proveedor separó esta orden en varias facturas (por empaque o por IVA), agrégalas todas aquí — cada una queda ligada a esta misma orden de compra.
+              </p>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setNuevaFacturaOpen(false)}>Cancelar</Button>
+              <Button onClick={crearFactura} disabled={guardandoFactura}>
+                {guardandoFactura ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : null}Guardar factura
+              </Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
@@ -927,6 +1234,14 @@ function OrdenesCompraPageInner() {
                   </div>
                 </div>
               )}
+              <div>
+                <Label className="text-xs">Fecha estimada de entrega</Label>
+                <Input type="date" value={pagoProveedorForm.fecha_estimada_entrega}
+                  onChange={e => setPagoProveedorForm({ ...pagoProveedorForm, fecha_estimada_entrega: e.target.value })} />
+                <p className="text-xs text-muted-foreground mt-1">
+                  Se le avisa a la sucursal y le sirve para ordenar sus pedidos por cuándo les llega.
+                </p>
+              </div>
               <div>
                 <Label className="text-xs">Notas (opcional)</Label>
                 <Textarea rows={2} value={pagoProveedorForm.notas}
@@ -1171,6 +1486,27 @@ function OrdenesCompraPageInner() {
             const activas = misOcs.filter(o => o.estado !== 'cancelada' && o.estado !== 'recibida');
             const porRecibir = misOcs.filter(o => ['en_ruta', 'enviada', 'confirmada', 'parcial'].includes(o.estado));
             const porAutorizar = misOcs.filter(o => ['pendiente_aprobacion', 'confirmada_gerente'].includes(o.estado));
+            // Orden cronológico: primero las que ya van en camino, ordenadas por
+            // cuándo llegan (las sin fecha estimada quedan al final del grupo);
+            // después el resto en el orden que ya traían.
+            const enCaminoIds = new Set(porRecibir.map(o => o.id));
+            const enCaminoOrdenado = [...porRecibir].sort((a, b) => {
+              if (!a.fecha_estimada_entrega && !b.fecha_estimada_entrega) return 0;
+              if (!a.fecha_estimada_entrega) return 1;
+              if (!b.fecha_estimada_entrega) return -1;
+              return a.fecha_estimada_entrega.localeCompare(b.fecha_estimada_entrega);
+            });
+            const misOcsOrdenadas = [...enCaminoOrdenado, ...misOcs.filter(o => !enCaminoIds.has(o.id))];
+            const etaLabel = (fecha?: string | null) => {
+              if (!fecha) return null;
+              const hoy = new Date(); hoy.setHours(0, 0, 0, 0);
+              const d = new Date(fecha + 'T00:00:00');
+              const dias = Math.round((d.getTime() - hoy.getTime()) / 86400000);
+              if (dias < 0) return { texto: `Atrasado ${Math.abs(dias)}d`, color: 'text-destructive' };
+              if (dias === 0) return { texto: 'Llega hoy', color: 'text-emerald-600 font-semibold' };
+              if (dias === 1) return { texto: 'Llega mañana', color: 'text-blue-600 font-semibold' };
+              return { texto: `Llega en ${dias}d (${fecha})`, color: 'text-muted-foreground' };
+            };
             return (
               <>
                 <div className="grid gap-3 sm:grid-cols-3">
@@ -1200,29 +1536,32 @@ function OrdenesCompraPageInner() {
                       <TableRow>
                         <TableHead>Folio</TableHead><TableHead>Proveedor</TableHead>
                         <TableHead>Sucursal</TableHead><TableHead>En qué va</TableHead>
+                        <TableHead>Llega</TableHead>
                         <TableHead>Fecha</TableHead>
                         <TableHead className="text-right">Monto</TableHead>
                         <TableHead className="text-right">Acción</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {!misOcs.length && (
+                      {!misOcsOrdenadas.length && (
                         <TableRow>
-                          <TableCell colSpan={7} className="text-center p-6 text-muted-foreground">
+                          <TableCell colSpan={8} className="text-center p-6 text-muted-foreground">
                             {misSucursales.length || esAdmin || esCompras
                               ? 'No hay órdenes de compra para tu sucursal por ahora.'
                               : 'Sin sucursal asignada — ver aviso arriba.'}
                           </TableCell>
                         </TableRow>
                       )}
-                      {misOcs.map(oc => {
+                      {misOcsOrdenadas.map(oc => {
                         const listaParaRecibir = ['en_ruta', 'enviada', 'confirmada', 'parcial'].includes(oc.estado);
+                        const eta = listaParaRecibir ? etaLabel(oc.fecha_estimada_entrega) : null;
                         return (
                           <TableRow key={oc.id} className="cursor-pointer hover:bg-accent" onClick={() => abrirDetalle(oc)}>
                             <TableCell className="font-mono font-medium">{oc.folio}</TableCell>
                             <TableCell>{oc.proveedor?.nombre}</TableCell>
                             <TableCell>{oc.sucursal_destino?.codigo || '—'}</TableCell>
                             <TableCell><PipelineOC estado={oc.estado} /></TableCell>
+                            <TableCell className={`text-xs ${eta?.color || 'text-muted-foreground'}`}>{eta?.texto || (listaParaRecibir ? 'Sin fecha estimada' : '—')}</TableCell>
                             <TableCell className="text-xs">{oc.fecha_creacion}</TableCell>
                             <TableCell className="text-right tabular-nums">${Number(oc.total).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</TableCell>
                             <TableCell className="text-right">
