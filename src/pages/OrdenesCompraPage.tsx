@@ -1852,17 +1852,27 @@ function OrdenesCompraPageInner() {
                       <SucursalDots hijas={hijasPorGrupo[g.id]} />
                     </TableCell>
                     <TableCell>
-                      <Badge className={
-                        g.estado === 'enviada' ? 'bg-emerald-600' :
-                        g.estado === 'confirmada_proveedor' ? 'bg-teal-600' :
-                        g.estado === 'lista_para_enviar' ? 'bg-blue-600' :
-                        g.estado === 'cancelada' ? 'bg-rose-600' : 'bg-amber-600'
-                      }>
-                        {g.estado === 'en_revision' ? 'En revisión de sucursales' :
-                         g.estado === 'lista_para_enviar' ? 'Lista para confirmar' :
-                         g.estado === 'confirmada_proveedor' ? 'Confirmada con proveedor' :
-                         g.estado === 'enviada' ? 'En ruta / enviada al proveedor' : 'Cancelada'}
-                      </Badge>
+                      {/* Punto 4: cuando todas las sucursales del grupo ya recibieron,
+                          el grupo se muestra como Terminada (aunque la RPC siga en "enviada"). */}
+                      {(() => {
+                        const hijas = hijasPorGrupo[g.id] || [];
+                        const vivas = hijas.filter(h => h.estado !== 'cancelada');
+                        const terminada = vivas.length > 0 && vivas.every(h => h.estado === 'recibida');
+                        if (terminada) return <Badge className="bg-blue-600">Terminada — todas recibieron</Badge>;
+                        return (
+                          <Badge className={
+                            g.estado === 'enviada' ? 'bg-emerald-600' :
+                            g.estado === 'confirmada_proveedor' ? 'bg-teal-600' :
+                            g.estado === 'lista_para_enviar' ? 'bg-blue-600' :
+                            g.estado === 'cancelada' ? 'bg-rose-600' : 'bg-amber-600'
+                          }>
+                            {g.estado === 'en_revision' ? 'En revisión de sucursales' :
+                             g.estado === 'lista_para_enviar' ? 'Lista para confirmar' :
+                             g.estado === 'confirmada_proveedor' ? 'Confirmada con proveedor' :
+                             g.estado === 'enviada' ? 'En ruta / enviada al proveedor' : 'Cancelada'}
+                          </Badge>
+                        );
+                      })()}
                     </TableCell>
                     <TableCell className="text-right tabular-nums font-semibold">
                       ${Number(g.total_consolidado).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
