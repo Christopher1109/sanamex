@@ -823,6 +823,27 @@ function OrdenesCompraPageInner() {
     return true;
   }), [ocs, filtroEstado, busqueda, filtroGrupo]);
 
+  const pendientesRevisionGerente = ocs.filter(o => o.estado === 'pendiente_aprobacion' && puedeRevisarComoGerente(o));
+  const pendientesAutorizacionAdmin = esAdmin ? ocs.filter(o => o.estado === 'confirmada_gerente') : [];
+
+  // Rediseño: "Por revisar (gerente)" y "Por autorizar (admin)" mostraban una
+  // fila plana por cada OC individual — con varias sucursales del mismo
+  // proveedor, eso se veía como una lista larga y repetitiva. Se agrupan por
+  // grupo_id (o por sí misma si es una OC suelta, sin grupo) para que primero
+  // se vea "Proveedor X — 4 sucursales" y solo al expandir aparezcan las OC
+  // individuales de cada sucursal (que sí son órdenes distintas entre sí).
+  function agruparPorProveedor(lista: OC[]) {
+    const mapa = new Map<string, { key: string; proveedor: string; ocs: OC[] }>();
+    for (const oc of lista) {
+      const key = oc.grupo_id || oc.id;
+      if (!mapa.has(key)) mapa.set(key, { key, proveedor: oc.proveedor?.nombre || 'Sin proveedor', ocs: [] });
+      mapa.get(key)!.ocs.push(oc);
+    }
+    return Array.from(mapa.values());
+  }
+  const gruposRevisionGerente = useMemo(() => agruparPorProveedor(pendientesRevisionGerente), [pendientesRevisionGerente]);
+  const gruposAutorizacionAdmin = useMemo(() => agruparPorProveedor(pendientesAutorizacionAdmin), [pendientesAutorizacionAdmin]);
+
   if (seleccionada) {
     return (
       <div className="space-y-4">
@@ -1261,26 +1282,6 @@ function OrdenesCompraPageInner() {
     );
   }
 
-  const pendientesRevisionGerente = ocs.filter(o => o.estado === 'pendiente_aprobacion' && puedeRevisarComoGerente(o));
-  const pendientesAutorizacionAdmin = esAdmin ? ocs.filter(o => o.estado === 'confirmada_gerente') : [];
-
-  // Rediseño: "Por revisar (gerente)" y "Por autorizar (admin)" mostraban una
-  // fila plana por cada OC individual — con varias sucursales del mismo
-  // proveedor, eso se veía como una lista larga y repetitiva. Se agrupan por
-  // grupo_id (o por sí misma si es una OC suelta, sin grupo) para que primero
-  // se vea "Proveedor X — 4 sucursales" y solo al expandir aparezcan las OC
-  // individuales de cada sucursal (que sí son órdenes distintas entre sí).
-  function agruparPorProveedor(lista: OC[]) {
-    const mapa = new Map<string, { key: string; proveedor: string; ocs: OC[] }>();
-    for (const oc of lista) {
-      const key = oc.grupo_id || oc.id;
-      if (!mapa.has(key)) mapa.set(key, { key, proveedor: oc.proveedor?.nombre || 'Sin proveedor', ocs: [] });
-      mapa.get(key)!.ocs.push(oc);
-    }
-    return Array.from(mapa.values());
-  }
-  const gruposRevisionGerente = useMemo(() => agruparPorProveedor(pendientesRevisionGerente), [pendientesRevisionGerente]);
-  const gruposAutorizacionAdmin = useMemo(() => agruparPorProveedor(pendientesAutorizacionAdmin), [pendientesAutorizacionAdmin]);
 
   return (
     <div className="space-y-4">
