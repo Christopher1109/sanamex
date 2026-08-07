@@ -5510,30 +5510,19 @@ export type Database = {
         Args: { p_grupo_id?: string; p_notas?: string; p_orden_id?: string }
         Returns: Json
       }
-      confirmar_envio_proveedor:
-        | {
-            Args: {
-              p_dias_credito?: number
-              p_fecha_estimada_entrega?: string
-              p_fecha_pago_limite?: string
-              p_grupo_id?: string
-              p_metodo_pago?: string
-              p_notas?: string
-              p_orden_id?: string
-            }
-            Returns: Json
-          }
-        | {
-            Args: {
-              p_dias_credito?: number
-              p_fecha_pago_limite?: string
-              p_grupo_id?: string
-              p_metodo_pago?: string
-              p_notas?: string
-              p_orden_id?: string
-            }
-            Returns: Json
-          }
+      confirmar_envio_proveedor: {
+        Args: {
+          p_dias_credito?: number
+          p_fecha_estimada_entrega?: string
+          p_fecha_pago_limite?: string
+          p_grupo_id?: string
+          p_metodo_pago?: string
+          p_monto_a_pagar?: number
+          p_notas?: string
+          p_orden_id?: string
+        }
+        Returns: Json
+      }
       cotizador_generar_oc: { Args: { payload: Json }; Returns: Json }
       cotizador_historial_mensual: {
         Args: { p_producto_id: string }

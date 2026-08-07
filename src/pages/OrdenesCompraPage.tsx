@@ -270,7 +270,9 @@ function OrdenesCompraPageInner() {
   const [almacenSel, setAlmacenSel] = useState<string>('');
   // Paso 2 (marcar en ruta): puede ser sobre un grupo completo o una OC individual.
   const [enRutaOpen, setEnRutaOpen] = useState<{ grupo_id?: string | null; orden_id?: string | null; folio: string } | null>(null);
-  const [pagoProveedorForm, setPagoProveedorForm] = useState({ metodo_pago: 'credito' as 'credito' | 'contado', dias_credito: '30', fecha_pago_limite: '', fecha_estimada_entrega: '', notas: '' });
+  const [pagoProveedorForm, setPagoProveedorForm] = useState({ metodo_pago: 'credito' as 'credito' | 'contado', dias_credito: '30', fecha_pago_limite: '', fecha_estimada_entrega: '', monto_a_pagar: '', notas: '' });
+  // Total de la OC/grupo que se está marcando en ruta, para precargar "se va a pagar".
+  const [totalEnRuta, setTotalEnRuta] = useState<number>(0);
   const [confirmandoProveedor, setConfirmandoProveedor] = useState(false);
   const [tab, setTab] = useState<'grupos' | 'todas' | 'seguimiento' | 'revision_gerente' | 'autorizacion_admin'>('grupos');
   const [rechazoOpen, setRechazoOpen] = useState<{ oc: OC; tipo: 'gerente' | 'admin' } | null>(null);
@@ -748,15 +750,23 @@ function OrdenesCompraPageInner() {
   // modificar caso por caso, pero ya no arranca siempre en 30 por default.
   async function abrirEnRuta(args: { grupo_id?: string | null; orden_id?: string | null; folio: string }) {
     setEnRutaOpen(args);
-    setPagoProveedorForm({ metodo_pago: 'credito', dias_credito: '30', fecha_pago_limite: '', fecha_estimada_entrega: '', notas: '' });
+    setTotalEnRuta(0);
+    setPagoProveedorForm({ metodo_pago: 'credito', dias_credito: '30', fecha_pago_limite: '', fecha_estimada_entrega: '', monto_a_pagar: '', notas: '' });
     try {
-      let q = supabase.from('ordenes_compra').select('proveedor:proveedores(plazo_pago_dias)').limit(1);
+      let q = supabase.from('ordenes_compra').select('total, estado, proveedor:proveedores(plazo_pago_dias)');
       q = args.grupo_id ? q.eq('grupo_id', args.grupo_id) : q.eq('id', args.orden_id as string);
-      const { data } = await q.maybeSingle();
-      const dias = (data as any)?.proveedor?.plazo_pago_dias;
-      if (dias !== null && dias !== undefined) {
-        setPagoProveedorForm(prev => ({ ...prev, dias_credito: String(dias), metodo_pago: Number(dias) === 0 ? 'contado' : 'credito' }));
-      }
+      const { data } = await q;
+      const filas = (data || []).filter((r: any) => r.estado !== 'cancelada');
+      const total = filas.reduce((s: number, r: any) => s + Number(r.total || 0), 0);
+      setTotalEnRuta(total);
+      const dias = (filas[0] as any)?.proveedor?.plazo_pago_dias;
+      setPagoProveedorForm(prev => ({
+        ...prev,
+        monto_a_pagar: total ? total.toFixed(2) : '',
+        ...(dias !== null && dias !== undefined
+          ? { dias_credito: String(dias), metodo_pago: (Number(dias) === 0 ? 'contado' : 'credito') as 'credito' | 'contado' }
+          : {}),
+      }));
     } catch {
       // Si falla la consulta del default, se queda con 30 y el usuario lo ajusta a mano.
     }
@@ -775,6 +785,7 @@ function OrdenesCompraPageInner() {
         p_fecha_pago_limite: pagoProveedorForm.fecha_pago_limite || null,
         p_fecha_estimada_entrega: pagoProveedorForm.fecha_estimada_entrega || null,
         p_notas: pagoProveedorForm.notas || null,
+        p_monto_a_pagar: pagoProveedorForm.monto_a_pagar ? Number(pagoProveedorForm.monto_a_pagar) : null,
       });
       if (error) { toast.error(error.message); return; }
       toast.success(`Marcada en ruta — compra ${data?.numero_compra} creada en Cuentas por Pagar`);
@@ -881,6 +892,18 @@ function OrdenesCompraPageInner() {
                   </div>
                 </div>
               )}
+              <div>
+                <Label className="text-xs">Se va a pagar (monto)</Label>
+                <Input type="number" step="0.01" min="0" value={pagoProveedorForm.monto_a_pagar}
+                  onChange={e => setPagoProveedorForm({ ...pagoProveedorForm, monto_a_pagar: e.target.value })} />
+                <p className="text-xs text-muted-foreground mt-1">
+                  Total de la orden: ${totalEnRuta.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}.
+                  Este monto es el que se registra en Cuentas por Pagar.
+                  {pagoProveedorForm.monto_a_pagar && Math.abs(Number(pagoProveedorForm.monto_a_pagar) - totalEnRuta) > 0.5 && (
+                    <span className="text-amber-600"> Distinto al total de la orden.</span>
+                  )}
+                </p>
+              </div>
               <div>
                 <Label className="text-xs">Fecha estimada de entrega</Label>
                 <Input type="date" value={pagoProveedorForm.fecha_estimada_entrega}
