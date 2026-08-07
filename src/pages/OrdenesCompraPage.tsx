@@ -750,15 +750,23 @@ function OrdenesCompraPageInner() {
   // modificar caso por caso, pero ya no arranca siempre en 30 por default.
   async function abrirEnRuta(args: { grupo_id?: string | null; orden_id?: string | null; folio: string }) {
     setEnRutaOpen(args);
-    setPagoProveedorForm({ metodo_pago: 'credito', dias_credito: '30', fecha_pago_limite: '', fecha_estimada_entrega: '', notas: '' });
+    setTotalEnRuta(0);
+    setPagoProveedorForm({ metodo_pago: 'credito', dias_credito: '30', fecha_pago_limite: '', fecha_estimada_entrega: '', monto_a_pagar: '', notas: '' });
     try {
-      let q = supabase.from('ordenes_compra').select('proveedor:proveedores(plazo_pago_dias)').limit(1);
+      let q = supabase.from('ordenes_compra').select('total, estado, proveedor:proveedores(plazo_pago_dias)');
       q = args.grupo_id ? q.eq('grupo_id', args.grupo_id) : q.eq('id', args.orden_id as string);
-      const { data } = await q.maybeSingle();
-      const dias = (data as any)?.proveedor?.plazo_pago_dias;
-      if (dias !== null && dias !== undefined) {
-        setPagoProveedorForm(prev => ({ ...prev, dias_credito: String(dias), metodo_pago: Number(dias) === 0 ? 'contado' : 'credito' }));
-      }
+      const { data } = await q;
+      const filas = (data || []).filter((r: any) => r.estado !== 'cancelada');
+      const total = filas.reduce((s: number, r: any) => s + Number(r.total || 0), 0);
+      setTotalEnRuta(total);
+      const dias = (filas[0] as any)?.proveedor?.plazo_pago_dias;
+      setPagoProveedorForm(prev => ({
+        ...prev,
+        monto_a_pagar: total ? total.toFixed(2) : '',
+        ...(dias !== null && dias !== undefined
+          ? { dias_credito: String(dias), metodo_pago: (Number(dias) === 0 ? 'contado' : 'credito') as 'credito' | 'contado' }
+          : {}),
+      }));
     } catch {
       // Si falla la consulta del default, se queda con 30 y el usuario lo ajusta a mano.
     }
