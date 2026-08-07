@@ -1139,7 +1139,38 @@ function OrdenesCompraPageInner() {
           </div>
         </Card>
 
-        {['en_ruta', 'enviada', 'confirmada', 'parcial', 'recibida'].includes(seleccionada.estado) && (
+        {seleccionada.estado === 'recibida_pend_factura' && (
+          <Card className="p-4 border-orange-300 bg-orange-50/60">
+            <div className="flex items-center gap-2 mb-2">
+              <AlertTriangle className="h-5 w-5 text-orange-600" />
+              <h3 className="font-semibold">Recepción en stand by — falta ligar la factura</h3>
+            </div>
+            <p className="text-sm text-orange-800 mb-3">
+              La mercancía ya se recibió (lote, caducidad, costo e incidencias quedaron registrados) pero
+              todavía <strong>no entra al inventario</strong>. Da de alta la factura del proveedor y lígala aquí.
+            </p>
+            <div className="flex flex-wrap items-end gap-2">
+              <div className="min-w-[220px]">
+                <Label className="text-xs">Factura del proveedor</Label>
+                <Select value={facturaSel || ''} onValueChange={setFacturaSel}>
+                  <SelectTrigger className="h-9"><SelectValue placeholder={facturas.length ? 'Selecciona la factura…' : 'Sin facturas dadas de alta'} /></SelectTrigger>
+                  <SelectContent>
+                    {facturas.map(f => <SelectItem key={f.id} value={f.id}>{f.folio}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <Button variant="outline" className="gap-1" onClick={() => { setNuevaFacturaForm({ folio: '', fecha_factura: '', importe: '' }); setNuevaFacturaOpen(true); }}>
+                <Plus className="h-4 w-4" /> Agregar factura
+              </Button>
+              <Button disabled={!facturaSel || ligandoFactura} onClick={() => ligarFacturaRecepcion(seleccionada.id, facturaSel as string)}>
+                {ligandoFactura ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Check className="h-4 w-4 mr-1" />}
+                Ligar factura y aceptar en inventario
+              </Button>
+            </div>
+          </Card>
+        )}
+
+        {['en_ruta', 'enviada', 'confirmada', 'parcial', 'recibida', 'recibida_pend_factura'].includes(seleccionada.estado) && (
           <Card className="p-4">
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-2">
@@ -1153,7 +1184,8 @@ function OrdenesCompraPageInner() {
             </div>
             {!facturas.length ? (
               <p className="text-sm text-muted-foreground">
-                Todavía no se ha ligado ningún folio de factura a esta orden. Se necesita al menos uno antes de poder recibir la mercancía.
+                Todavía no se ha ligado ningún folio de factura a esta orden. Se puede recibir sin factura
+                (queda en stand by), pero la mercancía solo entra al inventario cuando se liga la factura.
               </p>
             ) : (
               <div className="space-y-2">
