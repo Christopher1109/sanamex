@@ -304,6 +304,8 @@ function OrdenesCompraPageInner() {
   // Bitácora de recepción.
   const [bitacora, setBitacora] = useState<any[]>([]);
   const [reportandoBitacora, setReportandoBitacora] = useState(false);
+  // OCs que ya tienen un reporte en la bitácora: el reporte es definitivo, una sola vez.
+  const [ordenesReportadas, setOrdenesReportadas] = useState<Set<string>>(new Set());
   const [bitacoraManualOpen, setBitacoraManualOpen] = useState(false);
   const [bitacoraManualForm, setBitacoraManualForm] = useState({
     sucursal_id: '', fecha: new Date().toISOString().slice(0, 10), proveedor_nombre: '',
@@ -581,6 +583,13 @@ function OrdenesCompraPageInner() {
       .order('created_at', { ascending: false });
     setOcs((data || []) as any);
     setLoading(false);
+    loadOrdenesReportadas();
+  }
+
+  async function loadOrdenesReportadas() {
+    const { data } = await (supabase as any)
+      .from('bitacora_recepcion').select('orden_id').not('orden_id', 'is', null);
+    setOrdenesReportadas(new Set((data || []).map((b: any) => b.orden_id)));
   }
 
   async function loadAlmacenes() {
@@ -984,11 +993,16 @@ function OrdenesCompraPageInner() {
 
   // Bitácora de recepción — reporte automático con todo lo ya capturado.
   async function reportarBitacora(oc: OC) {
+    if (ordenesReportadas.has(oc.id)) {
+      toast.info('Esta orden ya fue reportada en la bitácora. El reporte es definitivo.');
+      return;
+    }
     setReportandoBitacora(true);
     try {
       const { error } = await (supabase as any).rpc('reportar_bitacora_recepcion', { p_orden_id: oc.id, p_notas: null });
       if (error) { toast.error(error.message); return; }
       toast.success('Reportado en la bitácora de recepción');
+      setOrdenesReportadas(prev => new Set(prev).add(oc.id));
       await loadBitacora();
     } catch (e: any) {
       toast.error('No se pudo reportar en la bitácora: ' + (e?.message || 'error desconocido'));
@@ -1002,6 +1016,7 @@ function OrdenesCompraPageInner() {
     if (!(esAdmin || esCompras) && misSucursales.length) q = q.in('sucursal_id', misSucursales);
     const { data } = await q;
     setBitacora(data || []);
+    await loadOrdenesReportadas();
   }
 
   async function guardarBitacoraManual() {
@@ -1267,10 +1282,17 @@ function OrdenesCompraPageInner() {
                 <Button onClick={abrirRecibir} className="gap-2"><PackageCheck className="h-4 w-4" />Recibir mercancía</Button>
               )}
               {['parcial', 'recibida'].includes(seleccionada.estado) && (
-                <Button variant="outline" className="gap-2" disabled={reportandoBitacora} onClick={() => reportarBitacora(seleccionada)}>
-                  {reportandoBitacora ? <Loader2 className="h-4 w-4 animate-spin" /> : <ClipboardList className="h-4 w-4" />}
-                  Reportar en bitácora de recepción
-                </Button>
+                ordenesReportadas.has(seleccionada.id) ? (
+                  <Button variant="secondary" className="gap-2" disabled
+                    title="El reporte en bitácora es definitivo y ya fue generado para esta orden">
+                    <ClipboardList className="h-4 w-4" />Ya reportada en bitácora
+                  </Button>
+                ) : (
+                  <Button variant="outline" className="gap-2" disabled={reportandoBitacora} onClick={() => reportarBitacora(seleccionada)}>
+                    {reportandoBitacora ? <Loader2 className="h-4 w-4 animate-spin" /> : <ClipboardList className="h-4 w-4" />}
+                    Reportar en bitácora de recepción
+                  </Button>
+                )
               )}
             </div>
           </div>

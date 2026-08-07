@@ -22,7 +22,9 @@ type Compra = {
   fecha_factura: string | null; fecha_pago_limite: string | null; fecha_pago_real: string | null;
   fecha_programada: string | null; prioridad: string | null; cfdi_proveedor_uuid: string | null;
   notas_pago: string | null;
+  sucursal_id: string | null;
   proveedores?: { nombre: string; plazo_pago_dias: number } | null;
+  sucursales?: { nombre: string; codigo: string } | null;
 };
 type Pago = { id: string; fecha: string; monto: number; forma_pago: string; referencia: string | null; banco_cuenta_id: string | null; notas: string | null };
 
@@ -52,6 +54,8 @@ const CuentasPorPagarPage = () => {
   const [filtro, setFiltro] = useState<'pendientes' | 'vencidas' | 'pagadas' | 'todas'>('pendientes');
   const [filtroProv, setFiltroProv] = useState<string>('all');
   const [filtroAnt, setFiltroAnt] = useState<string>('all');
+  const [filtroSuc, setFiltroSuc] = useState<string>('all');
+  const [sucursales, setSucursales] = useState<any[]>([]);
   const [showPago, setShowPago] = useState<Compra | null>(null);
   const [showDetalle, setShowDetalle] = useState<Compra | null>(null);
   const [showImport, setShowImport] = useState(false);
@@ -67,14 +71,14 @@ const CuentasPorPagarPage = () => {
   const [pagoForm, setPagoForm] = useState({ fecha: new Date().toISOString().slice(0, 10), monto: '', forma_pago: 'transferencia', referencia: '', banco_cuenta_id: '', notas: '' });
   const fileImportRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => { if (selectedSucursal) load(); }, [selectedSucursal]);
+  // Cuentas por Pagar es deliberadamente global: no se filtra por la sucursal
+  // activa del sistema. El filtro por sucursal es manual y opcional.
+  useEffect(() => { load(); }, []);
 
   const load = async () => {
-    if (!selectedSucursal) return;
     setLoading(true);
     const { data } = await supabase.from('compras')
-      .select('*, proveedores(nombre, plazo_pago_dias)')
-      .eq('sucursal_id', selectedSucursal.id)
+      .select('*, proveedores(nombre, plazo_pago_dias), sucursales(nombre, codigo)')
       .neq('estado', 'cancelada')
       .not('fecha_factura', 'is', null)
       .order('fecha_pago_limite', { ascending: true, nullsFirst: false });
@@ -88,14 +92,16 @@ const CuentasPorPagarPage = () => {
       setPagosByCompra(grp);
     } else setPagosByCompra({});
 
-    const [{ data: provs }, { data: ctas }, { data: alms }] = await Promise.all([
+    const [{ data: provs }, { data: ctas }, { data: alms }, { data: sucs }] = await Promise.all([
       supabase.from('proveedores').select('id, nombre').eq('activo', true).order('nombre'),
       supabase.from('cuentas_bancarias').select('id, alias').eq('activo', true).order('alias'),
-      supabase.from('almacenes').select('id, nombre').eq('sucursal_id', selectedSucursal.id).eq('activo', true).order('nombre'),
+      supabase.from('almacenes').select('id, nombre, sucursal_id').eq('activo', true).order('nombre'),
+      supabase.from('sucursales').select('id, nombre, codigo').eq('activo', true).order('codigo'),
     ]);
     setProveedores(provs || []);
     setCuentasBan(ctas || []);
     setAlmacenes(alms || []);
+    setSucursales(sucs || []);
 
     if (ids.length) {
       const { data: notas } = await (supabase as any).from('notas_credito_proveedor').select('*').in('compra_id', ids).order('created_at', { ascending: false });
@@ -115,9 +121,12 @@ const CuentasPorPagarPage = () => {
     setPagoForm({ fecha: new Date().toISOString().slice(0, 10), monto: saldo(c).toFixed(2), forma_pago: 'transferencia', referencia: '', banco_cuenta_id: '', notas: '' });
   };
 
+  const almacenesDe = (c: Compra | null) =>
+    almacenes.filter((a: any) => !c?.sucursal_id || a.sucursal_id === c.sucursal_id);
+
   const openNota = async (c: Compra) => {
     setShowNota(c);
-    setNotaForm({ tipo: 'incidencia', monto: '', motivo: '', productoId: '', cantidad: '', almacenId: almacenes[0]?.id || '' });
+    setNotaForm({ tipo: 'incidencia', monto: '', motivo: '', productoId: '', cantidad: '', almacenId: almacenesDe(c)[0]?.id || '' });
     const { data } = await supabase.from('compra_lineas')
       .select('id, producto_id, cantidad_recibida, precio_unitario_real, precio_unitario_estimado, productos(sku, nombre)')
       .eq('compra_id', c.id);
@@ -240,6 +249,7 @@ const CuentasPorPagarPage = () => {
 
   // Filtros
   const filtradas = compras.filter(c => {
+    if (filtroSuc !== 'all' && c.sucursal_id !== filtroSuc) return false;
     if (filtroProv !== 'all' && c.proveedor_id !== filtroProv) return false;
     if (filtroAnt !== 'all' && bucketAntiguedad(diasEntre(c.fecha_pago_limite)) !== filtroAnt) return false;
     if (filtro === 'todas') return true;
@@ -280,7 +290,7 @@ const CuentasPorPagarPage = () => {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold">Cuentas por Pagar</h1>
-          <p className="text-muted-foreground">{selectedSucursal?.nombre} — pagos a proveedores</p>
+          <p className="text-muted-foreground">Todas las sucursales — pagos a proveedores</p>
         </div>
         <Button variant="outline" onClick={() => setShowImport(true)}><FileUp className="h-4 w-4 mr-2" />Importar saldos iniciales</Button>
       </div>
@@ -350,6 +360,16 @@ const CuentasPorPagarPage = () => {
             <TabsTrigger value="todas">Todas</TabsTrigger>
           </TabsList>
         </Tabs>
+        <div className="min-w-[180px]">
+          <Label className="text-xs">Sucursal</Label>
+          <Select value={filtroSuc} onValueChange={setFiltroSuc}>
+            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todas las sucursales</SelectItem>
+              {sucursales.map(s => <SelectItem key={s.id} value={s.id}>{s.codigo} — {s.nombre}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        </div>
         <div className="min-w-[200px]">
           <Label className="text-xs">Proveedor</Label>
           <Select value={filtroProv} onValueChange={setFiltroProv}>
@@ -381,7 +401,7 @@ const CuentasPorPagarPage = () => {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Folio</TableHead><TableHead>Proveedor</TableHead>
+                <TableHead>Folio</TableHead><TableHead>Sucursal</TableHead><TableHead>Proveedor</TableHead>
                 <TableHead>Vencimiento</TableHead><TableHead>Programado</TableHead>
                 <TableHead>Prioridad</TableHead><TableHead className="text-center">Estado</TableHead>
                 <TableHead className="text-right">Total</TableHead><TableHead className="text-right">Saldo</TableHead>
@@ -389,8 +409,8 @@ const CuentasPorPagarPage = () => {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {loading ? <TableRow><TableCell colSpan={9} className="text-center py-8">Cargando...</TableCell></TableRow> :
-                filtradas.length === 0 ? <TableRow><TableCell colSpan={9} className="text-center py-8 text-muted-foreground">Sin compras en este filtro</TableCell></TableRow> :
+              {loading ? <TableRow><TableCell colSpan={10} className="text-center py-8">Cargando...</TableCell></TableRow> :
+                filtradas.length === 0 ? <TableRow><TableCell colSpan={10} className="text-center py-8 text-muted-foreground">Sin compras en este filtro</TableCell></TableRow> :
                   filtradas.map(c => {
                     const dias = diasEntre(c.fecha_pago_limite);
                     const sal = saldo(c);
@@ -405,6 +425,10 @@ const CuentasPorPagarPage = () => {
                     return (
                       <TableRow key={c.id}>
                         <TableCell className="font-mono text-xs">{c.numero_compra}</TableCell>
+                        <TableCell className="text-xs">
+                          <Badge variant="outline">{c.sucursales?.codigo || '—'}</Badge>
+                          <div className="text-[10px] text-muted-foreground">{c.sucursales?.nombre || ''}</div>
+                        </TableCell>
                         <TableCell className="text-sm">{c.proveedores?.nombre || '—'}</TableCell>
                         <TableCell className="text-xs">{c.fecha_pago_limite || '—'}</TableCell>
                         <TableCell className="text-xs">{c.fecha_programada || '—'}</TableCell>
@@ -483,7 +507,7 @@ const CuentasPorPagarPage = () => {
                       <Select value={notaForm.almacenId} onValueChange={v => setNotaForm({ ...notaForm, almacenId: v })}>
                         <SelectTrigger><SelectValue placeholder="Selecciona..." /></SelectTrigger>
                         <SelectContent>
-                          {almacenes.map((a: any) => <SelectItem key={a.id} value={a.id}>{a.nombre}</SelectItem>)}
+                          {almacenesDe(showNota).map((a: any) => <SelectItem key={a.id} value={a.id}>{a.nombre}</SelectItem>)}
                         </SelectContent>
                       </Select>
                     </div>
