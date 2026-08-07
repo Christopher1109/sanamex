@@ -53,7 +53,9 @@ export default function CotizadorSanamex() {
   const [snap, setSnap] = useState<Snapshot | null>(null);
   const [search, setSearch] = useState('');
   // Opciones de cálculo (afectan el RPC) — se manejan como multi-select.
-  const [opciones, setOpciones] = useState<string[]>(['faltantes', 'excluirE']);
+  // Sin preselección: se pidió que al entrar no haya ninguna opción marcada,
+  // para que se vea todo el catálogo limpio y el usuario decida qué activar.
+  const [opciones, setOpciones] = useState<string[]>([]);
   const incluirSinLista = opciones.includes('sinLista');
   const excluirE = opciones.includes('excluirE');
   const soloFaltantes = opciones.includes('faltantes');
@@ -63,6 +65,10 @@ export default function CotizadorSanamex() {
   const [filtroClasif, setFiltroClasif] = useState<string[]>([]);
   const [filtroProveedor, setFiltroProveedor] = useState<string[]>([]);
   const [filtroSucursal, setFiltroSucursal] = useState<string[]>([]);
+  // Asignación manual de proveedor por producto (para generar la OC).
+  // Por default se usa el "ganador" del sistema; el usuario puede reasignarlo
+  // aunque no sea el mejor precio (ej. por urgencia / tiempo de entrega conocido).
+  const [proveedorOverride, setProveedorOverride] = useState<Record<string, string>>({});
 
   const [ocultas, setOcultas] = useState<Set<string>>(() => {
     try { return new Set(JSON.parse(localStorage.getItem(HIDDEN_KEY) || '[]')); } catch { return new Set(); }
@@ -80,6 +86,28 @@ export default function CotizadorSanamex() {
   useEffect(() => {
     try { localStorage.setItem(HIDDEN_KEY, JSON.stringify(Array.from(ocultas))); } catch {}
   }, [ocultas]);
+
+  // Catálogo completo de estatus (no solo los que aparecen en el snapshot actual):
+  // antes el filtro solo mostraba las opciones presentes en los productos ya
+  // cargados, y si en la práctica casi todo estaba en "A" solo salía esa una
+  // opción. Con el catálogo fijo siempre se pueden elegir los 8 estatus.
+  const [estatusCatalogo, setEstatusCatalogo] = useState<{ codigo: string; nombre: string }[]>([]);
+  useEffect(() => {
+    supabase.from('productos_status').select('codigo, nombre, orden').order('orden', { ascending: true })
+      .then(({ data }) => { if (data && data.length) setEstatusCatalogo(data as any); });
+  }, []);
+
+  // Flag "entrega_por_sucursal" de cada proveedor, para usarlo también cuando
+  // el proveedor asignado a una línea no es el ganador (el objeto de postor_2/
+  // postor_3/todos_proveedores no siempre trae este campo).
+  const [entregaPorSucursalMap, setEntregaPorSucursalMap] = useState<Record<string, boolean>>({});
+  useEffect(() => {
+    supabase.from('proveedores').select('id, entrega_por_sucursal').then(({ data }) => {
+      const m: Record<string, boolean> = {};
+      (data || []).forEach((p: any) => { m[p.id] = !!p.entrega_por_sucursal; });
+      setEntregaPorSucursalMap(m);
+    });
+  }, []);
 
   const folioRun = useMemo(() => 'COT-' + new Date().toISOString().slice(0, 10).replace(/-/g, '') + '-' + Math.random().toString(36).slice(2, 6).toUpperCase(), []);
 
@@ -109,6 +137,14 @@ export default function CotizadorSanamex() {
   useEffect(() => { cargar(); /* eslint-disable-next-line */ }, [opciones]);
 
   const sucursales = snap?.sucursales?.filter(s => !s.es_cedis) || [];
+  // Columnas de sucursal a mostrar: si no hay nada seleccionado, todas; si
+  // hay 1 o más seleccionadas, solo esas (las demás dejan de mostrarse).
+  // La generación de la OC (grupoPorProv) sigue usando `sucursales` completo,
+  // porque ocultar columnas es solo una preferencia visual, no debe cambiar
+  // qué se está pidiendo.
+  const sucursalesVisibles = filtroSucursal.length > 0
+    ? sucursales.filter(s => filtroSucursal.includes(s.codigo))
+    : sucursales;
 
   function sugeridoCalc(f: Fila, sCodigo: string) {
     const c = f.sucursales?.[sCodigo];
@@ -169,6 +205,48 @@ export default function CotizadorSanamex() {
     } catch (e: any) { toast.error('No se pudo restaurar: ' + e.message); }
   }
 
+  // Todos los proveedores que ofrecen este producto (ganador + 2º + 3º + resto
+  // de todos_proveedores), deduplicados por proveedor_id. El primero de la
+  // lista es siempre el ganador del sistema (mejor precio con existencia
+  // suficiente), cuando existe.
+  type CandidatoProveedor = {
+    proveedor_id: string; proveedor_nombre: string; precio: number; existencia: number;
+    dias_entrega: number; con_oferta?: boolean; entrega_por_sucursal?: boolean; sin_lista_regular?: boolean;
+  };
+  function candidatosProveedor(f: Fila): CandidatoProveedor[] {
+    const list: CandidatoProveedor[] = [];
+    const push = (p: any) => {
+      if (!p) return;
+      if (list.some(c => c.proveedor_id === p.proveedor_id)) return;
+      list.push({
+        proveedor_id: p.proveedor_id, proveedor_nombre: p.proveedor_nombre, precio: p.precio,
+        existencia: p.existencia, dias_entrega: p.dias_entrega, con_oferta: p.con_oferta,
+        entrega_por_sucursal: p.entrega_por_sucursal, sin_lista_regular: p.sin_lista_regular,
+      });
+    };
+    push(f.ganador); push(f.postor_2); push(f.postor_3);
+    (f.todos_proveedores || []).forEach(push);
+    return list;
+  }
+  // Proveedor efectivamente asignado a esta línea: el que el usuario haya
+  // elegido manualmente (proveedorOverride) o, por default, el ganador.
+  function proveedorEfectivo(f: Fila): CandidatoProveedor | null {
+    const list = candidatosProveedor(f);
+    if (!list.length) return null;
+    const ov = proveedorOverride[f.producto_id];
+    if (ov) { const m = list.find(c => c.proveedor_id === ov); if (m) return m; }
+    return list[0];
+  }
+  // De los proveedores seleccionados en el filtro "Proveedor", cuál es el más
+  // barato que sí ofrece este producto — para poder avisar cuando el filtro
+  // no coincide con el proveedor actualmente asignado a la línea.
+  function mejorCoincidenciaFiltro(f: Fila): CandidatoProveedor | null {
+    if (!filtroProveedor.length) return null;
+    const match = candidatosProveedor(f).filter(c => filtroProveedor.includes(c.proveedor_id));
+    if (!match.length) return null;
+    return match.reduce((a, b) => (a.precio <= b.precio ? a : b));
+  }
+
   const filasFiltradas = useMemo(() => {
     if (!snap) return [];
     return snap.productos.filter(f => {
@@ -177,27 +255,20 @@ export default function CotizadorSanamex() {
       if (filtroClasif.length > 0 && !filtroClasif.includes(f.clasificacion || '')) return false;
       if (soloConOferta && !f.alerta_oferta) return false;
       if (filtroProveedor.length > 0) {
+        // Se muestra el producto si el proveedor filtrado lo ofrece, aunque
+        // no sea el ganador — el "no es la mejor opción" se marca visualmente
+        // en la columna de proveedor, no se oculta la fila.
         const ids = new Set<string>();
         if (f.ganador) ids.add(f.ganador.proveedor_id);
         (f.todos_proveedores || []).forEach(p => ids.add(p.proveedor_id));
         if (!filtroProveedor.some(p => ids.has(p))) return false;
       }
-      if (filtroSucursal.length > 0) {
-        // Muestra el producto solo si tiene faltante en alguna sucursal seleccionada.
-        const hay = filtroSucursal.some(cod => {
-          const c = f.sucursales?.[cod];
-          return !!c && (c.dif - (c.transito || 0)) > 0;
-        });
-        if (!hay) return false;
-      }
       return true;
     });
-  }, [snap, ocultas, filtroEstatus, filtroClasif, filtroProveedor, filtroSucursal, soloConOferta]);
+  }, [snap, ocultas, filtroEstatus, filtroClasif, filtroProveedor, soloConOferta]);
 
-  const estatusPresentes = useMemo(() => {
-    return Array.from(new Set((snap?.productos || []).map(f => f.estatus).filter(Boolean))) as string[];
-  }, [snap]);
-
+  // Sucursal ya NO filtra qué productos se muestran — solo controla qué
+  // columnas de sucursal se muestran en la tabla (ver sucursalesVisibles).
   const clasifPresentes = useMemo(() => {
     return Array.from(new Set((snap?.productos || []).map(f => f.clasificacion).filter(Boolean))).sort() as string[];
   }, [snap]);
@@ -220,13 +291,18 @@ export default function CotizadorSanamex() {
   const grupoPorProv = useMemo(() => {
     const g: Record<string, { proveedor_nombre: string; entrega_por_sucursal: boolean; lineas: any[]; total: number }> = {};
     filasFiltradas.forEach(f => {
-      if (!seleccion.has(f.producto_id) || !f.ganador) return;
-      const pid = f.ganador.proveedor_id;
-      if (!g[pid]) g[pid] = { proveedor_nombre: f.ganador.proveedor_nombre, entrega_por_sucursal: !!f.ganador.entrega_por_sucursal, lineas: [], total: 0 };
+      if (!seleccion.has(f.producto_id)) return;
+      // Usa el proveedor efectivamente asignado a esta línea: el que el
+      // usuario haya elegido manualmente, o si no, el ganador del sistema.
+      const prov = proveedorEfectivo(f);
+      if (!prov) return;
+      const pid = prov.proveedor_id;
+      const entregaSuc = entregaPorSucursalMap[pid] ?? !!prov.entrega_por_sucursal;
+      if (!g[pid]) g[pid] = { proveedor_nombre: prov.proveedor_nombre, entrega_por_sucursal: entregaSuc, lineas: [], total: 0 };
       sucursales.forEach(s => {
         const q = sugeridoValor(f, s.codigo);
         if (q > 0) {
-          const conIva = f.ganador!.precio;
+          const conIva = prov.precio;
           const iva = f.iva_tasa || 0;
           const sinIva = iva > 0 ? conIva / (1 + iva / 100) : conIva;
           g[pid].lineas.push({
@@ -239,7 +315,7 @@ export default function CotizadorSanamex() {
       });
     });
     return g;
-  }, [filasFiltradas, seleccion, edits, sucursales]);
+  }, [filasFiltradas, seleccion, edits, sucursales, proveedorOverride, entregaPorSucursalMap]);
 
   async function generarOC(proveedorId: string) {
     setGenerando(true);
@@ -281,15 +357,16 @@ export default function CotizadorSanamex() {
   function exportarCSV() {
     if (!snap) return;
     const headers = ['clave', 'SKU', 'Descripción', 'Clasif', 'Estatus', 'CEDIS', 'Exist total', 'Suma suc.', 'Tránsito', 'DDI', 'Vta día ant.', 'Últ30 total', 'Δ 30d %'];
-    sucursales.forEach(s => headers.push(`${s.codigo} exist`, `${s.codigo} ult30`, `${s.codigo} nec.`, `${s.codigo} DIF`, `${s.codigo} estatus`, `${s.codigo} sugerido`));
-    headers.push('Últ. precio', 'Mejor precio', 'Δ$', 'Δ%', 'Ganador', 'Existencia ganador', '2º postor', '3º postor', 'Pzas/corrug.');
+    sucursalesVisibles.forEach(s => headers.push(`${s.codigo} exist`, `${s.codigo} ult30`, `${s.codigo} nec.`, `${s.codigo} DIF`, `${s.codigo} estatus`, `${s.codigo} sugerido`));
+    headers.push('Últ. precio', 'Mejor precio', 'Δ$', 'Δ%', 'Proveedor asignado', 'Existencia', 'Ganador del sistema', '2º postor', '3º postor', 'Pzas/corrug.');
     const rows = filasFiltradas.map(f => {
       const r: any[] = [f.codigo_barras || '', f.sku, f.nombre, f.clasificacion || '', f.estatus || '', f.exist_cedis, f.exist_total, f.exist_sucursales, f.transito_global, f.ddi ?? '', f.venta_dia_anterior, f.ult30_total, f.tendencia_pct ?? ''];
-      sucursales.forEach(s => {
+      sucursalesVisibles.forEach(s => {
         const c = f.sucursales?.[s.codigo];
         r.push(c?.existencia ?? 0, c?.ult30 ?? 0, c?.necesidad ?? 0, c?.dif ?? 0, c?.estatus ?? '', sugeridoValor(f, s.codigo));
       });
-      r.push(f.ultimo_precio_compra ?? '', f.mejor_precio ?? '', f.variacion_precio_abs, f.variacion_precio_pct ?? '', f.ganador?.proveedor_nombre ?? '', f.ganador?.existencia ?? '', f.postor_2?.proveedor_nombre ?? '', f.postor_3?.proveedor_nombre ?? '', f.piezas_corrugado ?? '');
+      const asignado = proveedorEfectivo(f);
+      r.push(f.ultimo_precio_compra ?? '', f.mejor_precio ?? '', f.variacion_precio_abs, f.variacion_precio_pct ?? '', asignado?.proveedor_nombre ?? '', asignado?.existencia ?? '', f.ganador?.proveedor_nombre ?? '', f.postor_2?.proveedor_nombre ?? '', f.postor_3?.proveedor_nombre ?? '', f.piezas_corrugado ?? '');
       return r;
     });
     const csv = [headers, ...rows].map(r => r.map(c => `"${String(c ?? '').replace(/"/g, '""')}"`).join(',')).join('\n');
@@ -312,7 +389,7 @@ export default function CotizadorSanamex() {
           </div>
 
           <MultiSelectFilter
-            label="Sucursal (con faltante)"
+            label="Sucursal (columnas a mostrar)"
             placeholder="Todas"
             options={sucursales.map(s => ({ value: s.codigo, label: s.nombre, hint: s.codigo }))}
             selected={filtroSucursal}
@@ -322,8 +399,9 @@ export default function CotizadorSanamex() {
           <MultiSelectFilter
             label="Estatus del producto"
             placeholder="Todos"
-            options={(estatusPresentes.length ? estatusPresentes : ['A','I','C','S','N','K','G','E'])
-              .map(e => ({ value: e, label: e }))}
+            options={(estatusCatalogo.length
+              ? estatusCatalogo.map(e => ({ value: e.codigo, label: `${e.codigo} — ${e.nombre}` }))
+              : ['A','I','C','S','N','K','G','E'].map(e => ({ value: e, label: e })))}
             selected={filtroEstatus}
             onChange={setFiltroEstatus}
           />
@@ -415,13 +493,13 @@ export default function CotizadorSanamex() {
                 <TableHead className={`${TH1} text-right`}>Vta ayer</TableHead>
                 <TableHead className={`${TH1} text-right`}>Últ30</TableHead>
                 <TableHead className={`${TH1} text-right`}>Δ 30d</TableHead>
-                {sucursales.map(s => (
+                {sucursalesVisibles.map(s => (
                   <TableHead key={s.id} className={`${TH1} text-center border-l bg-muted`} colSpan={5}>{s.codigo}</TableHead>
                 ))}
                 <TableHead className={`${TH1} text-right border-l`}>Últ. $</TableHead>
                 <TableHead className={`${TH1} text-right`}>Mejor $</TableHead>
                 <TableHead className={`${TH1} text-right`}>Δ%</TableHead>
-                <TableHead className={TH1}>Ganador</TableHead>
+                <TableHead className={TH1}>Proveedor asignado</TableHead>
                 <TableHead className={TH1}>2º</TableHead>
                 <TableHead className={TH1}>3º</TableHead>
                 <TableHead className={`${TH1} text-right`}>P/Corrug</TableHead>
@@ -433,7 +511,7 @@ export default function CotizadorSanamex() {
                 <TableHead className="sticky z-40 bg-background h-9 border-b" style={{ top: 48, left: 36, width: 110, minWidth: 110 }}></TableHead>
                 <TableHead className="sticky z-40 bg-background border-r shadow-[2px_0_4px_-2px_rgba(0,0,0,0.25)] h-9 border-b" style={{ top: 48, left: 146, width: 220, minWidth: 220 }}></TableHead>
                 <TableHead colSpan={10} className={`${TH2} h-9`}></TableHead>
-                {sucursales.flatMap(s => [
+                {sucursalesVisibles.flatMap(s => [
                   <TableHead key={s.id + '-e'} className={`${TH2} text-right border-l`}>Exist</TableHead>,
                   <TableHead key={s.id + '-u'} className={`${TH2} text-right`}>Últ30</TableHead>,
                   <TableHead key={s.id + '-n'} className={`${TH2} text-right`}>Nec.</TableHead>,
@@ -487,7 +565,7 @@ export default function CotizadorSanamex() {
                     <TableCell className={`text-right text-xs ${tend != null && tend > 0 ? 'text-green-600' : tend != null && tend < 0 ? 'text-red-600' : ''}`}>
                       {tend != null ? <span className="inline-flex items-center gap-0.5">{tend > 0 ? <TrendingUp className="h-3 w-3" /> : tend < 0 ? <TrendingDown className="h-3 w-3" /> : null}{tend.toFixed(0)}%</span> : '—'}
                     </TableCell>
-                    {sucursales.flatMap(s => {
+                    {sucursalesVisibles.flatMap(s => {
                       const c = f.sucursales?.[s.codigo];
                       const sug = sugeridoValor(f, s.codigo);
                       const ov = hasOverride(f, s.codigo);
@@ -532,11 +610,43 @@ export default function CotizadorSanamex() {
                     <TableCell className={`text-right text-xs ${varPct != null && varPct > 15 ? 'bg-red-100 text-red-700 font-semibold' : varPct != null && varPct > 5 ? 'bg-amber-100 text-amber-700' : varPct != null && varPct < 0 ? 'text-green-600' : ''}`}>
                       {varPct != null ? (<span className="inline-flex items-center gap-0.5">{varPct > 0 ? <TrendingUp className="h-3 w-3" /> : varPct < 0 ? <TrendingDown className="h-3 w-3" /> : null}{varPct.toFixed(1)}%{f.variacion_precio_abs ? <span className="ml-1 text-[10px] opacity-70">({f.variacion_precio_abs > 0 ? '+' : ''}${Number(f.variacion_precio_abs).toFixed(2)})</span> : null}</span>) : '—'}
                     </TableCell>
-                    <TableCell className="text-xs">
-                      {f.ganador ? <>
-                        <div className="font-medium leading-tight">{f.ganador.proveedor_nombre}</div>
-                        <div className="text-muted-foreground leading-tight">exist {f.ganador.existencia} · {f.ganador.dias_entrega}d {f.ganador.con_oferta && '· 🏷'}</div>
-                      </> : <Badge variant="destructive" className="text-[10px]">Sin proveedor</Badge>}
+                    <TableCell className="text-xs align-top">
+                      {(() => {
+                        const candidatos = candidatosProveedor(f);
+                        if (!candidatos.length) return <Badge variant="destructive" className="text-[10px]">Sin proveedor</Badge>;
+                        const efectivo = proveedorEfectivo(f)!;
+                        const manual = !!proveedorOverride[f.producto_id] && proveedorOverride[f.producto_id] !== f.ganador?.proveedor_id;
+                        const filtroMatch = mejorCoincidenciaFiltro(f);
+                        const filtroNoCoincide = !!filtroMatch && filtroMatch.proveedor_id !== efectivo.proveedor_id;
+                        return (
+                          <div className="space-y-0.5 min-w-[160px]">
+                            <Select value={efectivo.proveedor_id} onValueChange={v => setProveedorOverride(prev => ({ ...prev, [f.producto_id]: v }))}>
+                              <SelectTrigger className="h-7 text-[11px] px-2"><SelectValue /></SelectTrigger>
+                              <SelectContent>
+                                {candidatos.map(c => (
+                                  <SelectItem key={c.proveedor_id} value={c.proveedor_id} className="text-xs">
+                                    {c.proveedor_nombre} — ${Number(c.precio).toFixed(2)} · exist {c.existencia}
+                                    {c.proveedor_id === f.ganador?.proveedor_id ? ' · mejor precio' : ''}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            <div className="text-muted-foreground leading-tight text-[10px]">
+                              exist {efectivo.existencia} · {efectivo.dias_entrega}d {efectivo.con_oferta && '· 🏷'}
+                            </div>
+                            {manual && (
+                              <Badge variant="outline" className="text-[9px] border-amber-500 text-amber-700 px-1 py-0">
+                                Asignado manualmente
+                              </Badge>
+                            )}
+                            {filtroNoCoincide && (
+                              <div className="text-[9px] text-amber-700 leading-tight">
+                                ⚠ Tu filtro: {filtroMatch!.proveedor_nombre} ${Number(filtroMatch!.precio).toFixed(2)} — no es el asignado
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })()}
                     </TableCell>
                     <TableCell className="text-xs text-muted-foreground leading-tight">
                       {f.postor_2 ? <>{f.postor_2.proveedor_nombre}<br />${Number(f.postor_2.precio).toFixed(2)} · {f.postor_2.existencia}</> : '—'}
