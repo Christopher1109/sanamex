@@ -48,7 +48,9 @@ const ESTADO_COLOR: Record<string, string> = {
   confirmada_proveedor: 'bg-teal-600',
   en_ruta: 'bg-blue-600',
   enviada: 'bg-blue-600', confirmada: 'bg-indigo-600',
-  parcial: 'bg-amber-600', recibida: 'bg-emerald-600', cancelada: 'bg-rose-600',
+  parcial: 'bg-amber-600', recibida: 'bg-emerald-600',
+  recibida_pend_factura: 'bg-orange-600',
+  cancelada: 'bg-rose-600',
 };
 
 const ESTADO_LABEL: Record<string, string> = {
@@ -58,7 +60,9 @@ const ESTADO_LABEL: Record<string, string> = {
   confirmada_proveedor: 'Confirmada con proveedor',
   en_ruta: 'En ruta',
   enviada: 'Enviada', confirmada: 'Confirmada por proveedor',
-  parcial: 'Recepción parcial', recibida: 'Recibida', cancelada: 'Cancelada',
+  parcial: 'Recepción parcial', recibida: 'Recibida',
+  recibida_pend_factura: 'Recibida — pendiente de ligar factura',
+  cancelada: 'Cancelada',
 };
 
 
@@ -77,6 +81,7 @@ function pipelineIndice(estado: string): number {
     case 'enviada': return 3;
     case 'confirmada':
     case 'parcial':
+    case 'recibida_pend_factura':
     case 'recibida': return 4;
     default: return -1; // cancelada u otro estado terminal negativo
   }
@@ -265,7 +270,9 @@ function OrdenesCompraPageInner() {
   const [lineas, setLineas] = useState<Linea[]>([]);
   const [lineasEditadas, setLineasEditadas] = useState<Record<string, number>>({});
   const [recibirOpen, setRecibirOpen] = useState(false);
-  const [recepciones, setRecepciones] = useState<Record<string, { cantidad: number; numero_lote: string; fecha_caducidad: string }>>({});
+  type RecepcionLinea = { cantidad: number; numero_lote: string; fecha_caducidad: string; costo_unitario: string; incidencia_tipo: string; incidencia_notas: string };
+  const [recepciones, setRecepciones] = useState<Record<string, RecepcionLinea>>({});
+  const [ligandoFactura, setLigandoFactura] = useState(false);
   const [almacenes, setAlmacenes] = useState<{ id: string; nombre: string; sucursal: string }[]>([]);
   const [almacenSel, setAlmacenSel] = useState<string>('');
   // Paso 2 (marcar en ruta): puede ser sobre un grupo completo o una OC individual.
@@ -274,7 +281,9 @@ function OrdenesCompraPageInner() {
   // Total de la OC/grupo que se está marcando en ruta, para precargar "se va a pagar".
   const [totalEnRuta, setTotalEnRuta] = useState<number>(0);
   const [confirmandoProveedor, setConfirmandoProveedor] = useState(false);
-  const [tab, setTab] = useState<'grupos' | 'todas' | 'seguimiento' | 'revision_gerente' | 'autorizacion_admin'>('grupos');
+  const [tab, setTab] = useState<'grupos' | 'todas' | 'seguimiento' | 'revision_gerente' | 'autorizacion_admin' | 'pend_factura'>('grupos');
+  // Filtros de la vista "Por proveedor" (grupos de OC).
+  const [filtroGrupos, setFiltroGrupos] = useState({ folio: '', proveedor: '', desde: '', hasta: '', sucursal: 'all' });
   const [rechazoOpen, setRechazoOpen] = useState<{ oc: OC; tipo: 'gerente' | 'admin' } | null>(null);
   const [razonRechazo, setRazonRechazo] = useState('');
   const [filtroGrupo, setFiltroGrupo] = useState<string | null>(null);
@@ -806,24 +815,50 @@ function OrdenesCompraPageInner() {
 
   async function ejecutarRecepcion() {
     if (!seleccionada || !almacenSel) { toast.error('Selecciona almacén'); return; }
-    if (!facturaSel) { toast.error('Liga el folio de factura antes de recibir la mercancía'); return; }
     const items = Object.entries(recepciones)
       .filter(([, r]) => r.cantidad > 0)
       .map(([linea_id, r]) => ({
         linea_id, cantidad: r.cantidad,
         numero_lote: r.numero_lote || undefined,
         fecha_caducidad: r.fecha_caducidad || undefined,
+        costo_unitario: r.costo_unitario ? Number(r.costo_unitario) : undefined,
+        incidencia_tipo: r.incidencia_tipo || undefined,
+        incidencia_notas: r.incidencia_notas || undefined,
       }));
     if (!items.length) { toast.error('Captura al menos una cantidad'); return; }
     const sinCaducidad = items.filter(i => !i.fecha_caducidad);
     if (sinCaducidad.length) { toast.error('Captura la fecha de caducidad de cada producto recibido'); return; }
+    const conIncidenciaSinNota = items.filter(i => i.incidencia_tipo && !i.incidencia_notas);
+    if (conIncidenciaSinNota.length) { toast.error('Describe cada incidencia reportada'); return; }
     const { data, error } = await (supabase as any).rpc('recibir_oc', {
-      p_orden_id: seleccionada.id, p_recepciones: items, p_almacen_id: almacenSel, p_factura_id: facturaSel,
+      p_orden_id: seleccionada.id, p_recepciones: items, p_almacen_id: almacenSel,
+      p_factura_id: facturaSel || null,
     });
     if (error) return toast.error(error.message);
-    toast.success(`Recepción registrada: ${data?.estado}`);
+    toast.success(facturaSel
+      ? `Recepción registrada y aceptada en inventario: ${data?.estado}`
+      : 'Recepción registrada en stand by — liga la factura para que entre a inventario');
     setRecibirOpen(false); setRecepciones({});
-    await load(); abrirDetalle(seleccionada);
+    await load(); await loadGrupos(); abrirDetalle(seleccionada);
+  }
+
+  // Ligar factura a una recepción que quedó en stand by: es lo que mete el
+  // lote al inventario. Se usa desde el detalle y desde la pestaña
+  // "Pendientes de factura".
+  async function ligarFacturaRecepcion(ordenId: string, facturaId: string) {
+    if (!facturaId) { toast.error('Selecciona la factura'); return; }
+    setLigandoFactura(true);
+    try {
+      const { error } = await (supabase as any).rpc('ligar_factura_recepcion', {
+        p_orden_id: ordenId, p_factura_id: facturaId,
+      });
+      if (error) { toast.error(error.message); return; }
+      toast.success('Factura ligada — mercancía aceptada en inventario');
+      await load(); await loadGrupos();
+      if (seleccionada) abrirDetalle(seleccionada);
+    } finally {
+      setLigandoFactura(false);
+    }
   }
 
   const filtradas = useMemo(() => ocs.filter(o => {
@@ -834,8 +869,41 @@ function OrdenesCompraPageInner() {
     return true;
   }), [ocs, filtroEstado, busqueda, filtroGrupo]);
 
+
+  // Filtros de "Por proveedor": folio, nombre de proveedor, rango de fechas y
+  // sucursal aplicada (usando las OC hijas de cada grupo).
+  const gruposFiltrados = useMemo(() => grupos.filter(g => {
+    const f = filtroGrupos;
+    if (f.folio && !(g.folio || '').toLowerCase().includes(f.folio.toLowerCase())) return false;
+    if (f.proveedor && !(g.proveedor_nombre || '').toLowerCase().includes(f.proveedor.toLowerCase())) return false;
+    if (f.desde && (g.fecha_creacion || '') < f.desde) return false;
+    if (f.hasta && (g.fecha_creacion || '') > f.hasta) return false;
+    if (f.sucursal !== 'all') {
+      const hijas = hijasPorGrupo[g.id] || [];
+      if (!hijas.some(h => h.sucursal_codigo === f.sucursal)) return false;
+    }
+    return true;
+  }), [grupos, filtroGrupos, hijasPorGrupo]);
+
+  const sucursalesEnGrupos = useMemo(() => {
+    const set = new Set<string>();
+    Object.values(hijasPorGrupo).forEach(hijas => (hijas || []).forEach(h => {
+      if (h.sucursal_codigo) set.add(h.sucursal_codigo);
+    }));
+    return [...set].sort((a, b) => a.localeCompare(b));
+  }, [hijasPorGrupo]);
+
   const pendientesRevisionGerente = ocs.filter(o => o.estado === 'pendiente_aprobacion' && puedeRevisarComoGerente(o));
   const pendientesAutorizacionAdmin = esAdmin ? ocs.filter(o => o.estado === 'confirmada_gerente') : [];
+
+  // Recibidas físicamente pero sin factura ligada — no están en inventario aún.
+  const pendientesFactura = useMemo(() => {
+    const base = ocs.filter(o => o.estado === 'recibida_pend_factura');
+    if (esAdmin || esCompras) return base;
+    return misSucursales.length
+      ? base.filter(o => o.sucursal_destino_id && misSucursales.includes(o.sucursal_destino_id))
+      : [];
+  }, [ocs, esAdmin, esCompras, misSucursales]);
 
   // Rediseño: "Por revisar (gerente)" y "Por autorizar (admin)" mostraban una
   // fila plana por cada OC individual — con varias sucursales del mismo
@@ -1071,7 +1139,38 @@ function OrdenesCompraPageInner() {
           </div>
         </Card>
 
-        {['en_ruta', 'enviada', 'confirmada', 'parcial', 'recibida'].includes(seleccionada.estado) && (
+        {seleccionada.estado === 'recibida_pend_factura' && (
+          <Card className="p-4 border-orange-300 bg-orange-50/60">
+            <div className="flex items-center gap-2 mb-2">
+              <AlertTriangle className="h-5 w-5 text-orange-600" />
+              <h3 className="font-semibold">Recepción en stand by — falta ligar la factura</h3>
+            </div>
+            <p className="text-sm text-orange-800 mb-3">
+              La mercancía ya se recibió (lote, caducidad, costo e incidencias quedaron registrados) pero
+              todavía <strong>no entra al inventario</strong>. Da de alta la factura del proveedor y lígala aquí.
+            </p>
+            <div className="flex flex-wrap items-end gap-2">
+              <div className="min-w-[220px]">
+                <Label className="text-xs">Factura del proveedor</Label>
+                <Select value={facturaSel || ''} onValueChange={setFacturaSel}>
+                  <SelectTrigger className="h-9"><SelectValue placeholder={facturas.length ? 'Selecciona la factura…' : 'Sin facturas dadas de alta'} /></SelectTrigger>
+                  <SelectContent>
+                    {facturas.map(f => <SelectItem key={f.id} value={f.id}>{f.folio}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <Button variant="outline" className="gap-1" onClick={() => { setNuevaFacturaForm({ folio: '', fecha_factura: '', importe: '' }); setNuevaFacturaOpen(true); }}>
+                <Plus className="h-4 w-4" /> Agregar factura
+              </Button>
+              <Button disabled={!facturaSel || ligandoFactura} onClick={() => ligarFacturaRecepcion(seleccionada.id, facturaSel as string)}>
+                {ligandoFactura ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Check className="h-4 w-4 mr-1" />}
+                Ligar factura y aceptar en inventario
+              </Button>
+            </div>
+          </Card>
+        )}
+
+        {['en_ruta', 'enviada', 'confirmada', 'parcial', 'recibida', 'recibida_pend_factura'].includes(seleccionada.estado) && (
           <Card className="p-4">
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-2">
@@ -1085,7 +1184,8 @@ function OrdenesCompraPageInner() {
             </div>
             {!facturas.length ? (
               <p className="text-sm text-muted-foreground">
-                Todavía no se ha ligado ningún folio de factura a esta orden. Se necesita al menos uno antes de poder recibir la mercancía.
+                Todavía no se ha ligado ningún folio de factura a esta orden. Se puede recibir sin factura
+                (queda en stand by), pero la mercancía solo entra al inventario cuando se liga la factura.
               </p>
             ) : (
               <div className="space-y-2">
@@ -1200,10 +1300,10 @@ function OrdenesCompraPageInner() {
                   </Select>
                 </div>
                 <div>
-                  <Label className="text-xs">Folio de factura (obligatorio)</Label>
+                  <Label className="text-xs">Folio de factura (opcional — sin factura queda en stand by)</Label>
                   <div className="flex gap-1">
                     <Select value={facturaSel} onValueChange={setFacturaSel}>
-                      <SelectTrigger><SelectValue placeholder="Selecciona la factura…" /></SelectTrigger>
+                      <SelectTrigger><SelectValue placeholder="Sin factura por ahora" /></SelectTrigger>
                       <SelectContent>
                         {facturas.map(f => (
                           <SelectItem key={f.id} value={f.id}>
@@ -1218,11 +1318,12 @@ function OrdenesCompraPageInner() {
                   </div>
                 </div>
               </div>
-              {!facturas.length && (
-                <div className="text-xs rounded-md border border-amber-300 bg-amber-50 text-amber-900 px-3 py-2">
-                  Esta orden todavía no tiene ninguna factura ligada. No se puede recibir mercancía sin antes agregar
-                  el folio (botón "+"). Si el proveedor mandó varias facturas para esta misma orden, agrega cada una
-                  por separado — vas a poder elegir cuál corresponde a lo que estás recibiendo ahora.
+              {!facturaSel && (
+                <div className="text-xs rounded-md border border-orange-300 bg-orange-50 text-orange-900 px-3 py-2">
+                  Sin factura ligada la recepción queda <strong>en stand by</strong>: se guardan lote, caducidad,
+                  costo e incidencias, pero la mercancía <strong>no entra al inventario</strong> hasta que se ligue
+                  el folio de la factura (pestaña "Pendientes de factura"). Si el proveedor mandó varias facturas
+                  para esta orden, agrega cada una por separado con el botón "+".
                 </div>
               )}
               <Table>
@@ -1234,33 +1335,72 @@ function OrdenesCompraPageInner() {
                     <TableHead className="text-right">Recibir ahora</TableHead>
                     <TableHead>No. de lote</TableHead>
                     <TableHead>Caducidad</TableHead>
+                    <TableHead className="text-right">Costo unitario</TableHead>
+                    <TableHead>Incidencia</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {lineas.map(l => {
                     const pend = l.cantidad_solicitada - l.cantidad_recibida;
-                    const r = recepciones[l.id] || { cantidad: 0, numero_lote: '', fecha_caducidad: '' };
+                    const r: RecepcionLinea = recepciones[l.id] || {
+                      cantidad: 0, numero_lote: '', fecha_caducidad: '',
+                      costo_unitario: String(Number(l.precio_unitario ?? 0)), incidencia_tipo: '', incidencia_notas: '',
+                    };
+                    const set = (patch: Partial<RecepcionLinea>) =>
+                      setRecepciones(p => ({ ...p, [l.id]: { ...r, ...patch } }));
+                    const faltante = r.cantidad > 0 && r.cantidad < pend;
                     return (
-                      <TableRow key={l.id}>
+                      <Fragment key={l.id}>
+                      <TableRow>
                         <TableCell className="text-xs">{l.producto?.sku} · {l.producto?.nombre}</TableCell>
                         <TableCell className="text-right">{l.cantidad_solicitada}</TableCell>
                         <TableCell className="text-right">{l.cantidad_recibida}</TableCell>
                         <TableCell className="text-right">
                           <Input type="number" min={0} max={pend} className="h-8 w-20 text-right ml-auto"
                             value={r.cantidad || ''}
-                            onChange={e => setRecepciones(p => ({ ...p, [l.id]: { ...r, cantidad: parseInt(e.target.value || '0') } }))} />
+                            onChange={e => set({ cantidad: parseInt(e.target.value || '0') })} />
+                          {faltante && (
+                            <div className="text-[10px] text-amber-600 whitespace-nowrap">faltan {pend - r.cantidad}</div>
+                          )}
                         </TableCell>
                         <TableCell>
                           <Input className="h-8 w-32" placeholder="Lote"
                             value={r.numero_lote}
-                            onChange={e => setRecepciones(p => ({ ...p, [l.id]: { ...r, numero_lote: e.target.value } }))} />
+                            onChange={e => set({ numero_lote: e.target.value })} />
                         </TableCell>
                         <TableCell>
                           <Input type="date" className="h-8 w-36"
                             value={r.fecha_caducidad}
-                            onChange={e => setRecepciones(p => ({ ...p, [l.id]: { ...r, fecha_caducidad: e.target.value } }))} />
+                            onChange={e => set({ fecha_caducidad: e.target.value })} />
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <Input type="number" step="0.01" min={0} className="h-8 w-24 text-right ml-auto"
+                            value={r.costo_unitario}
+                            onChange={e => set({ costo_unitario: e.target.value })} />
+                        </TableCell>
+                        <TableCell>
+                          <Select value={r.incidencia_tipo || 'ninguna'} onValueChange={v => set({ incidencia_tipo: v === 'ninguna' ? '' : v })}>
+                            <SelectTrigger className="h-8 w-40 text-xs"><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="ninguna">Sin incidencia</SelectItem>
+                              <SelectItem value="faltante">Llegó menos cantidad</SelectItem>
+                              <SelectItem value="producto_equivocado">Producto equivocado</SelectItem>
+                              <SelectItem value="dañado">Producto dañado</SelectItem>
+                              <SelectItem value="otro">Otra incidencia</SelectItem>
+                            </SelectContent>
+                          </Select>
                         </TableCell>
                       </TableRow>
+                      {r.incidencia_tipo && (
+                        <TableRow className="hover:bg-transparent">
+                          <TableCell colSpan={8} className="pt-0">
+                            <Input className="h-8" placeholder="Describe la incidencia (qué pasó, cuántas piezas, etc.)"
+                              value={r.incidencia_notas}
+                              onChange={e => set({ incidencia_notas: e.target.value })} />
+                          </TableCell>
+                        </TableRow>
+                      )}
+                      </Fragment>
                     );
                   })}
                 </TableBody>
@@ -1268,8 +1408,8 @@ function OrdenesCompraPageInner() {
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => setRecibirOpen(false)}>Cancelar</Button>
-              <Button onClick={ejecutarRecepcion} disabled={!facturaSel} title={!facturaSel ? 'Liga primero el folio de factura' : undefined}>
-                Confirmar recepción
+              <Button onClick={ejecutarRecepcion} className={facturaSel ? '' : 'bg-orange-600 hover:bg-orange-700'}>
+                {facturaSel ? 'Confirmar recepción y aceptar en inventario' : 'Registrar recepción sin factura (stand by)'}
               </Button>
             </DialogFooter>
           </DialogContent>
@@ -1363,10 +1503,103 @@ function OrdenesCompraPageInner() {
               {pendientesAutorizacionAdmin.length > 0 && <Badge variant="destructive" className="ml-1">{pendientesAutorizacionAdmin.length}</Badge>}
             </TabsTrigger>
           )}
+          {(esGerencia || esAlmacen || esAdmin || esCompras) && (
+            <TabsTrigger value="pend_factura" className="gap-2">
+              <Receipt className="h-4 w-4" /> Pendientes de factura
+              {pendientesFactura.length > 0 && <Badge variant="destructive" className="ml-1">{pendientesFactura.length}</Badge>}
+            </TabsTrigger>
+          )}
         </TabsList>
 
+        {/* Recibidas físicamente pero sin factura ligada: la mercancía todavía
+            NO entró al inventario. Visible para gerencia/almacén (su sucursal)
+            y para administración/compras (todas). */}
+        {(esGerencia || esAlmacen || esAdmin || esCompras) && (
+        <TabsContent value="pend_factura" className="space-y-3">
+          <div className="rounded-md border border-orange-300 bg-orange-50 text-orange-800 text-sm px-3 py-2">
+            Estas órdenes ya se recibieron físicamente (con lote, caducidad, costo e incidencias reportadas),
+            pero <strong>no entran al inventario hasta que se ligue el folio de la factura</strong>. Entra al detalle,
+            da de alta la factura con su PDF/XML y liga la recepción.
+          </div>
+          <Card className="p-0 overflow-hidden">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Folio</TableHead><TableHead>Proveedor</TableHead>
+                  <TableHead>Sucursal</TableHead><TableHead>Recibida</TableHead>
+                  <TableHead className="text-right">Monto</TableHead>
+                  <TableHead className="text-right">Acción</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {!pendientesFactura.length && (
+                  <TableRow><TableCell colSpan={6} className="text-center p-6 text-muted-foreground">
+                    Nada pendiente: todas las recepciones ya tienen factura ligada.
+                  </TableCell></TableRow>
+                )}
+                {pendientesFactura.map(oc => (
+                  <TableRow key={oc.id} className="cursor-pointer hover:bg-accent" onClick={() => abrirDetalle(oc)}>
+                    <TableCell className="font-mono font-medium">{oc.folio}</TableCell>
+                    <TableCell>{oc.proveedor?.nombre}</TableCell>
+                    <TableCell>{oc.sucursal_destino?.codigo || '—'}</TableCell>
+                    <TableCell className="text-xs">{(oc as any).fecha_recepcion_real || oc.fecha_creacion}</TableCell>
+                    <TableCell className="text-right tabular-nums">${Number(oc.total).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</TableCell>
+                    <TableCell className="text-right">
+                      <Button size="sm" onClick={(e) => { e.stopPropagation(); abrirDetalle(oc); }}>Ligar factura</Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </Card>
+        </TabsContent>
+        )}
+
         {(esAdmin || esCompras) && (
-        <TabsContent value="grupos">
+        <TabsContent value="grupos" className="space-y-3">
+          <Card className="p-3">
+            <div className="grid gap-2 sm:grid-cols-5">
+              <div>
+                <Label className="text-xs">Folio</Label>
+                <Input className="h-8" placeholder="OC-…" value={filtroGrupos.folio}
+                  onChange={e => setFiltroGrupos({ ...filtroGrupos, folio: e.target.value })} />
+              </div>
+              <div>
+                <Label className="text-xs">Proveedor</Label>
+                <Input className="h-8" placeholder="Nombre" value={filtroGrupos.proveedor}
+                  onChange={e => setFiltroGrupos({ ...filtroGrupos, proveedor: e.target.value })} />
+              </div>
+              <div>
+                <Label className="text-xs">Desde</Label>
+                <Input type="date" className="h-8" value={filtroGrupos.desde}
+                  onChange={e => setFiltroGrupos({ ...filtroGrupos, desde: e.target.value })} />
+              </div>
+              <div>
+                <Label className="text-xs">Hasta</Label>
+                <Input type="date" className="h-8" value={filtroGrupos.hasta}
+                  onChange={e => setFiltroGrupos({ ...filtroGrupos, hasta: e.target.value })} />
+              </div>
+              <div>
+                <Label className="text-xs">Sucursal</Label>
+                <Select value={filtroGrupos.sucursal} onValueChange={v => setFiltroGrupos({ ...filtroGrupos, sucursal: v })}>
+                  <SelectTrigger className="h-8"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todas</SelectItem>
+                    {sucursalesEnGrupos.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            {(filtroGrupos.folio || filtroGrupos.proveedor || filtroGrupos.desde || filtroGrupos.hasta || filtroGrupos.sucursal !== 'all') && (
+              <div className="flex items-center gap-2 mt-2 text-xs text-muted-foreground">
+                <span>{gruposFiltrados.length} de {grupos.length} órdenes</span>
+                <Button variant="ghost" size="sm" className="h-6 text-xs"
+                  onClick={() => setFiltroGrupos({ folio: '', proveedor: '', desde: '', hasta: '', sucursal: 'all' })}>
+                  Limpiar filtros
+                </Button>
+              </div>
+            )}
+          </Card>
           <Card className="p-0 overflow-hidden">
             <Table>
               <TableHeader>
@@ -1380,8 +1613,8 @@ function OrdenesCompraPageInner() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {!grupos.length && <TableRow><TableCell colSpan={7} className="text-center p-6 text-muted-foreground">No hay órdenes generadas desde el Cotizador todavía.</TableCell></TableRow>}
-                {grupos.map(g => (
+                {!gruposFiltrados.length && <TableRow><TableCell colSpan={7} className="text-center p-6 text-muted-foreground">{grupos.length ? 'Ninguna orden coincide con los filtros.' : 'No hay órdenes generadas desde el Cotizador todavía.'}</TableCell></TableRow>}
+                {gruposFiltrados.map(g => (
                   <TableRow key={g.id}>
                     <TableCell className="font-mono font-medium">{g.folio}</TableCell>
                     <TableCell>{g.proveedor_nombre}</TableCell>
