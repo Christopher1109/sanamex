@@ -41,6 +41,12 @@ type Fila = {
 type Snapshot = { sucursales: Sucursal[]; productos: Fila[] };
 type EditMap = Record<string, Record<string, number>>;
 type OverrideKey = string; // `${producto_id}|${sucursal_id}`
+// Piezas en ruta (pendientes de recibir) con el desglose de quién las trae.
+type RutaItem = { producto_id: string; sucursal_id: string; cantidad: number; proveedor_nombre: string; folio: string | null };
+// Cantidad propuesta por el gerente/almacenista de la sucursal: es independiente
+// del sugerido del sistema y del que edita Compras (solo informativa aquí).
+type SugGerenteItem = { producto_id: string; sucursal_id: string; cantidad: number; nota: string | null; usuario: string | null; fecha: string | null };
+
 
 const ESTATUS_COLORS: Record<string, string> = {
   A: 'bg-green-100 text-green-800', I: 'bg-blue-100 text-blue-800', C: 'bg-yellow-100 text-yellow-800',
