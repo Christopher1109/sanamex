@@ -125,16 +125,25 @@ export default function PromocionesPage() {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold flex items-center gap-2"><Tag className="h-6 w-6" /> Promociones automáticas</h1>
+          <h1 className="text-2xl font-bold flex items-center gap-2"><Tag className="h-6 w-6" /> Promociones</h1>
           <p className="text-sm text-muted-foreground">
-            Descuentos recurrentes por día de la semana (ej. "Día Sanamex" cada martes). Se activan y desactivan
-            solos según el día — no hay que hacer nada manualmente.
+            Descuentos recurrentes por día de la semana y campañas por lista de productos cargadas desde Excel.
           </p>
         </div>
-        <Button onClick={abrirNueva} className="gap-2"><Plus className="h-4 w-4" /> Nueva promoción</Button>
       </div>
 
+      <Tabs defaultValue="recurrentes">
+        <TabsList>
+          <TabsTrigger value="recurrentes">Recurrentes</TabsTrigger>
+          <TabsTrigger value="masiva">Carga masiva (Excel)</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="recurrentes" className="space-y-4 mt-4">
+          <div className="flex justify-end">
+            <Button onClick={abrirNueva} className="gap-2"><Plus className="h-4 w-4" /> Nueva promoción</Button>
+          </div>
       <Card className="p-0 overflow-hidden">
+
         <Table>
           <TableHeader>
             <TableRow>
