@@ -357,7 +357,7 @@ function OrdenesCompraPageInner() {
   const totalFacturado = facturas.reduce((s, f) => s + Number(f.importe || 0), 0);
   const saldoPorFacturar = Math.max(totalOcSel - totalFacturado, 0);
   const importeNuevo = nuevaFacturaForm.importe ? Number(nuevaFacturaForm.importe) : 0;
-  const excedeTotalOc = totalOcSel > 0 && importeNuevo > 0 && (totalFacturadoOtras + importeNuevo) > totalOcSel * 1.005;
+  const excedeTotalOc = totalOcSel > 0 && importeNuevo > 0 && (totalFacturadoOtras + importeNuevo) > totalOcSel + 1;
   const fechaLimiteCalculada = (() => {
     if (!nuevaFacturaForm.fecha_factura) return '';
     const dias = nuevaFacturaForm.dias_credito ? Number(nuevaFacturaForm.dias_credito) : null;
