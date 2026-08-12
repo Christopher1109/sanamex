@@ -4270,6 +4270,118 @@ export type Database = {
         }
         Relationships: []
       }
+      promociones_lista: {
+        Row: {
+          creado_por: string | null
+          created_at: string
+          estado: string
+          fecha_fin: string | null
+          fecha_inicio: string
+          id: string
+          margen_minimo: number
+          nombre: string
+          notas: string | null
+          updated_at: string
+        }
+        Insert: {
+          creado_por?: string | null
+          created_at?: string
+          estado?: string
+          fecha_fin?: string | null
+          fecha_inicio?: string
+          id?: string
+          margen_minimo?: number
+          nombre: string
+          notas?: string | null
+          updated_at?: string
+        }
+        Update: {
+          creado_por?: string | null
+          created_at?: string
+          estado?: string
+          fecha_fin?: string | null
+          fecha_inicio?: string
+          id?: string
+          margen_minimo?: number
+          nombre?: string
+          notas?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      promociones_lista_lineas: {
+        Row: {
+          costo: number | null
+          created_at: string
+          descripcion: string | null
+          descuento_aprobado: number | null
+          descuento_propuesto: number | null
+          id: string
+          margen_resultante: number | null
+          observacion: string | null
+          precio_base: number | null
+          precio_promo: number | null
+          producto_id: string | null
+          promocion_id: string
+          sku: string
+          updated_at: string
+        }
+        Insert: {
+          costo?: number | null
+          created_at?: string
+          descripcion?: string | null
+          descuento_aprobado?: number | null
+          descuento_propuesto?: number | null
+          id?: string
+          margen_resultante?: number | null
+          observacion?: string | null
+          precio_base?: number | null
+          precio_promo?: number | null
+          producto_id?: string | null
+          promocion_id: string
+          sku: string
+          updated_at?: string
+        }
+        Update: {
+          costo?: number | null
+          created_at?: string
+          descripcion?: string | null
+          descuento_aprobado?: number | null
+          descuento_propuesto?: number | null
+          id?: string
+          margen_resultante?: number | null
+          observacion?: string | null
+          precio_base?: number | null
+          precio_promo?: number | null
+          producto_id?: string | null
+          promocion_id?: string
+          sku?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "promociones_lista_lineas_producto_id_fkey"
+            columns: ["producto_id"]
+            isOneToOne: false
+            referencedRelation: "productos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "promociones_lista_lineas_producto_id_fkey"
+            columns: ["producto_id"]
+            isOneToOne: false
+            referencedRelation: "v_promociones_vigentes_hoy"
+            referencedColumns: ["producto_id"]
+          },
+          {
+            foreignKeyName: "promociones_lista_lineas_promocion_id_fkey"
+            columns: ["promocion_id"]
+            isOneToOne: false
+            referencedRelation: "promociones_lista"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       promociones_precio: {
         Row: {
           activo: boolean
@@ -6228,6 +6340,30 @@ export type Database = {
           proveedores_disponibles: number
           total_estimado: number
           ventas_periodo: number
+        }[]
+      }
+      promociones_lista_precio_vigente: {
+        Args: { p_producto_id: string }
+        Returns: number
+      }
+      promociones_propuesta_margen: {
+        Args: {
+          p_descuento_deseado?: number
+          p_margen_minimo?: number
+          p_skus: string[]
+        }
+        Returns: {
+          costo: number
+          descripcion: string
+          descuento_maximo: number
+          descuento_propuesto: number
+          margen_actual: number
+          margen_resultante: number
+          observacion: string
+          precio_base: number
+          precio_propuesto: number
+          producto_id: string
+          sku: string
         }[]
       }
       recalc_costo_promedio: {
