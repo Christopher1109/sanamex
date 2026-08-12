@@ -65,6 +65,7 @@ const FacturasPorPagar = () => {
   const [filtroAnt, setFiltroAnt] = useState('all');
   const [busqueda, setBusqueda] = useState('');
   const [pagar, setPagar] = useState<FacturaCxP | null>(null);
+  const [archivo, setArchivo] = useState<File | null>(null);
   const [guardando, setGuardando] = useState(false);
   const [form, setForm] = useState({
     fecha: new Date().toISOString().slice(0, 10),
