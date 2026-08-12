@@ -373,9 +373,30 @@ const FacturasPorPagar = () => {
                 </div>
               </div>
               <div>
+                <Label className="text-xs">Comprobante de pago (PDF o imagen)</Label>
+                <label className="mt-1 flex items-center gap-2 rounded-md border border-dashed p-3 cursor-pointer hover:bg-muted/50">
+                  {archivo ? <Paperclip className="h-4 w-4 text-primary" /> : <Upload className="h-4 w-4 text-muted-foreground" />}
+                  <span className="text-xs truncate">
+                    {archivo ? archivo.name : 'Adjuntar comprobante (transferencia, cheque, ficha)'}
+                  </span>
+                  <input
+                    type="file"
+                    accept="application/pdf,image/*"
+                    className="hidden"
+                    onChange={e => setArchivo(e.target.files?.[0] || null)}
+                  />
+                </label>
+                {archivo && (
+                  <button type="button" className="text-[11px] text-muted-foreground underline mt-1" onClick={() => setArchivo(null)}>
+                    Quitar archivo
+                  </button>
+                )}
+              </div>
+              <div>
                 <Label className="text-xs">Notas</Label>
                 <Textarea value={form.notas} onChange={e => setForm({ ...form, notas: e.target.value })} rows={2} />
               </div>
+
             </div>
           )}
           <DialogFooter>
