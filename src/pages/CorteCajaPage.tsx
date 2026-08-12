@@ -42,6 +42,19 @@ const CorteCajaPage = () => {
   const [expandidas, setExpandidas] = useState<Set<string>>(new Set());
   const [lineas, setLineas] = useState<Record<string, any[]>>({});
 
+  // Corrección auditada de método de pago / estatus de venta (concluida / en ruta)
+  const [ventasInfo, setVentasInfo] = useState<Record<string, { estatus_entrega: string }>>({});
+  const [correccionesCount, setCorreccionesCount] = useState<Record<string, number>>({});
+  const [metodosPago, setMetodosPago] = useState<any[]>([]);
+  const [corrigiendo, setCorrigiendo] = useState<Movimiento | null>(null);
+  const [historialCorr, setHistorialCorr] = useState<any[]>([]);
+  const [corrForm, setCorrForm] = useState({ metodo: '', estatus: 'concluida', motivo: '' });
+  const [guardandoCorr, setGuardandoCorr] = useState(false);
+
+  useEffect(() => {
+    supabase.from('metodos_pago').select('id, nombre').eq('activo', true).order('nombre').then(({ data }) => setMetodosPago(data || []));
+  }, []);
+
 
   const sucursalIds = useMemo(
     () => (alcance === 'todas' ? availableSucursales.map(s => s.id) : selectedSucursal ? [selectedSucursal.id] : []),
@@ -56,7 +69,7 @@ const CorteCajaPage = () => {
     setLoading(true);
 
     const [{ data: ventasDia }, { data: comprasDia }, { data: hist }] = await Promise.all([
-      supabase.from('ventas').select('id, numero_venta, total, fecha, sucursal_id').in('sucursal_id', sucursalIds).eq('estado', 'completada').gte('fecha', `${fecha}T00:00:00`).lte('fecha', `${fecha}T23:59:59`).order('fecha', { ascending: false }).limit(500),
+      (supabase as any).from('ventas').select('id, numero_venta, total, fecha, sucursal_id, estatus_entrega').in('sucursal_id', sucursalIds).eq('estado', 'completada').gte('fecha', `${fecha}T00:00:00`).lte('fecha', `${fecha}T23:59:59`).order('fecha', { ascending: false }).limit(500),
       supabase.from('compras').select('id, numero_compra, total, created_at, sucursal_id').in('sucursal_id', sucursalIds).neq('estado', 'cancelada').gte('created_at', `${fecha}T00:00:00`).lte('created_at', `${fecha}T23:59:59`).order('created_at', { ascending: false }).limit(500),
       supabase.from('cortes_caja').select('*').in('sucursal_id', sucursalIds).order('fecha', { ascending: false }).limit(esGeneral ? 120 : 30),
     ]);
@@ -66,6 +79,17 @@ const CorteCajaPage = () => {
       ...(comprasDia || []).map((c: any) => ({ tipo: 'compra' as const, id: c.id, folio: c.numero_compra || c.id.slice(0, 8), monto: Number(c.total), hora: c.created_at, sucursal_id: c.sucursal_id })),
     ].sort((a, b) => new Date(b.hora).getTime() - new Date(a.hora).getTime());
     setMovimientos(movs);
+
+    const infoVentas: Record<string, { estatus_entrega: string }> = {};
+    (ventasDia || []).forEach((v: any) => { infoVentas[v.id] = { estatus_entrega: v.estatus_entrega || 'concluida' }; });
+    setVentasInfo(infoVentas);
+    const idsVenta = (ventasDia || []).map((v: any) => v.id);
+    if (idsVenta.length) {
+      const { data: corrs } = await (supabase as any).from('venta_correcciones').select('venta_id').in('venta_id', idsVenta);
+      const cnt: Record<string, number> = {};
+      (corrs || []).forEach((c: any) => { cnt[c.venta_id] = (cnt[c.venta_id] || 0) + 1; });
+      setCorreccionesCount(cnt);
+    } else setCorreccionesCount({});
 
     // Totales por RPC (suma de todas las sucursales del alcance)
     const rpcs = await Promise.all(
@@ -121,6 +145,30 @@ const CorteCajaPage = () => {
       .select('id, cantidad, precio_unitario, subtotal, productos:producto_id ( sku, nombre, descripcion, unidad )')
       .eq('venta_id', ventaId);
     setLineas(prev => ({ ...prev, [ventaId]: data || [] }));
+  }
+
+  async function abrirCorreccion(m: Movimiento) {
+    setCorrigiendo(m);
+    setCorrForm({ metodo: '', estatus: ventasInfo[m.id]?.estatus_entrega || 'concluida', motivo: '' });
+    const { data } = await (supabase as any).from('venta_correcciones').select('*').eq('venta_id', m.id).order('corregido_at', { ascending: false });
+    setHistorialCorr(data || []);
+  }
+
+  async function guardarCorreccion() {
+    if (!corrigiendo) return;
+    if (!corrForm.metodo.trim()) { toast.error('Indica el método de pago real'); return; }
+    setGuardandoCorr(true);
+    const { error } = await (supabase as any).rpc('corregir_venta_pago_estatus', {
+      p_venta_id: corrigiendo.id,
+      p_metodo_pago_corregido: corrForm.metodo.trim(),
+      p_estatus_corregido: corrForm.estatus,
+      p_motivo: corrForm.motivo.trim() || null,
+    });
+    setGuardandoCorr(false);
+    if (error) { toast.error(error.message); return; }
+    toast.success('Corrección registrada — queda el histórico de lo que se reportó y lo real');
+    setCorrigiendo(null);
+    load();
   }
 
   async function abrirDetalle(corte: any) {
@@ -328,10 +376,30 @@ const CorteCajaPage = () => {
                               : <Badge variant="secondary" className="gap-1"><ShoppingCart className="h-3 w-3" />Compra</Badge>}
                           </TableCell>
                         )}
-                        <TableCell className="font-mono text-xs">{m.folio}</TableCell>
+                        <TableCell className="font-mono text-xs">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span>{m.folio}</span>
+                            {m.tipo === 'venta' && (
+                              <>
+                                {ventasInfo[m.id]?.estatus_entrega === 'en_ruta' && (
+                                  <Badge variant="outline" className="text-[10px] px-1.5 py-0">En ruta</Badge>
+                                )}
+                                {correccionesCount[m.id] > 0 && (
+                                  <Badge variant="secondary" className="text-[10px] px-1.5 py-0">Corregida ({correccionesCount[m.id]})</Badge>
+                                )}
+                              </>
+                            )}
+                          </div>
+                        </TableCell>
                         {esGeneral && <TableCell className="text-xs">{nombreSucursal(m.sucursal_id)}</TableCell>}
                         <TableCell className={`text-right font-medium ${m.tipo === 'compra' ? 'text-orange-600' : ''}`}>
                           {m.tipo === 'compra' ? '-' : ''}{money(m.monto)}
+                          {m.tipo === 'venta' && (
+                            <Button size="sm" variant="ghost" className="h-6 ml-2 px-2 text-xs"
+                              onClick={(ev) => { ev.stopPropagation(); abrirCorreccion(m); }}>
+                              Corregir
+                            </Button>
+                          )}
                         </TableCell>
                       </TableRow>
                       {m.tipo === 'venta' && abierta && renderLineas(m.id, cols)}
@@ -486,6 +554,59 @@ const CorteCajaPage = () => {
               </Table>
             </TabsContent>
           </Tabs>
+        </DialogContent>
+      </Dialog>
+
+      {/* Corrección de método de pago / estatus de venta */}
+      <Dialog open={!!corrigiendo} onOpenChange={(o) => !o && setCorrigiendo(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Corregir venta {corrigiendo?.folio}</DialogTitle>
+            <DialogDescription>
+              El cliente reportó una forma de pago al hacer el pedido, pero pagó distinto al llegar. Esto no cambia el ticket original — se registra la corrección con quién y cuándo la hizo, y queda visible el histórico.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div>
+              <Label>Estatus de la venta</Label>
+              <Select value={corrForm.estatus} onValueChange={(v) => setCorrForm({ ...corrForm, estatus: v })}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="concluida">Concluida</SelectItem>
+                  <SelectItem value="en_ruta">En ruta</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>Método de pago real</Label>
+              <Select value={corrForm.metodo} onValueChange={(v) => setCorrForm({ ...corrForm, metodo: v })}>
+                <SelectTrigger><SelectValue placeholder="Selecciona el método real..." /></SelectTrigger>
+                <SelectContent>
+                  {metodosPago.map((m) => <SelectItem key={m.id} value={m.nombre}>{m.nombre}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>Motivo (opcional)</Label>
+              <Input value={corrForm.motivo} onChange={(e) => setCorrForm({ ...corrForm, motivo: e.target.value })} placeholder="Ej. Cliente dijo efectivo, pagó con transferencia al recibir" />
+            </div>
+            {historialCorr.length > 0 && (
+              <div className="border rounded p-2 bg-muted/30">
+                <p className="text-xs font-semibold mb-1">Historial de correcciones</p>
+                {historialCorr.map((h: any) => (
+                  <div key={h.id} className="text-xs text-muted-foreground border-b last:border-0 py-1">
+                    {new Date(h.corregido_at).toLocaleString('es-MX')} — {h.metodo_pago_anterior || '(sin dato)'} → <strong>{h.metodo_pago_corregido}</strong>
+                    {h.estatus_anterior !== h.estatus_corregido && <> · {h.estatus_anterior || '—'} → <strong>{h.estatus_corregido}</strong></>}
+                    {h.motivo && <div>Motivo: {h.motivo}</div>}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCorrigiendo(null)}>Cancelar</Button>
+            <Button onClick={guardarCorreccion} disabled={guardandoCorr}>{guardandoCorr ? 'Guardando...' : 'Guardar corrección'}</Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 

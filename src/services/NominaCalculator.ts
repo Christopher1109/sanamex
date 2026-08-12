@@ -59,7 +59,14 @@ export const NominaCalculator = {
     const conceptos: ConceptoCalculado[] = [];
     conceptos.push({ clave: '001', descripcion: 'Sueldo', tipo: 'percepcion', importe_gravado: sueldo, importe_exento: 0, importe_total: sueldo });
     if (retardos === 0 && faltas === 0) {
-      const punt = sd * 1;
+      // Confirmado por Contabilidad Sanamex (27-jul-2026): el premio de
+      // puntualidad es 10% del sueldo mensual; como el pago es quincenal,
+      // se aplica el 5% sobre el sueldo del periodo. Si en el futuro
+      // manejan otra periodicidad, se ajusta el mismo % mensual proporcional.
+      const factorPuntualidad = periodicidad === 'quincenal' ? 0.05
+        : periodicidad === 'semanal' ? 0.10 / 4.345
+        : 0.10; // mensual
+      const punt = Math.round(sueldo * factorPuntualidad * 100) / 100;
       conceptos.push({ clave: '010', descripcion: 'Premio por puntualidad', tipo: 'percepcion', importe_gravado: punt, importe_exento: 0, importe_total: punt });
     }
     if (festivos > 0) {

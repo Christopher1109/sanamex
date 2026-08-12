@@ -14,10 +14,13 @@ import { UserCog, Plus } from 'lucide-react';
 import { toast } from 'sonner';
 
 // Reportar incidencias que afectan nómina (falta, retardo, permiso, etc.).
-// No requiere el módulo completo de Nómina — solo gerente/subgerente (de su
-// propia sucursal), auditoría o administración. Pedido Alejandro, sesión
-// 20-jul-2026, roles confirmados el 22-jul-2026.
-const ROLES_PERMITIDOS = ['gerente', 'subgerente', 'auditoria', 'auditor', 'admin', 'super_admin'];
+// Pedido original de Alejandro (sesión 20-jul-2026) daba acceso a
+// gerente/subgerente. Contabilidad Sanamex pidió lo contrario en la
+// sesión del 27-jul-2026: no darles esa libertad a los gerentes, que
+// sigan mandando el Excel quincenal como hasta ahora y que sea
+// Contabilidad quien lo cargue e interprete. Confirmado por Christopher
+// el 12-ago-2026 — se retira el acceso de gerente/subgerente.
+const ROLES_PERMITIDOS = ['auditoria', 'auditor', 'admin', 'super_admin'];
 
 const INCIDENCIA_OPCIONES = [
   { value: 'falta', label: 'Falta' },
@@ -109,7 +112,8 @@ const IncidenciasNominaPage = () => {
   if (!puedeReportar) {
     return (
       <Card><CardContent className="p-8 text-center text-muted-foreground">
-        No tienes permiso para reportar incidencias de nómina. Disponible para gerencia, auditoría o administración.
+        No tienes permiso para reportar incidencias de nómina. Las incidencias se manejan por el Excel quincenal
+        que envía cada sucursal a Contabilidad; este módulo es solo para administración y auditoría.
       </CardContent></Card>
     );
   }
