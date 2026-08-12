@@ -3351,6 +3351,7 @@ export type Database = {
           comprobante_url: string | null
           creado_por: string | null
           created_at: string
+          factura_oc_id: string | null
           fecha: string
           forma_pago: string
           id: string
@@ -3365,6 +3366,7 @@ export type Database = {
           comprobante_url?: string | null
           creado_por?: string | null
           created_at?: string
+          factura_oc_id?: string | null
           fecha?: string
           forma_pago?: string
           id?: string
@@ -3379,6 +3381,7 @@ export type Database = {
           comprobante_url?: string | null
           creado_por?: string | null
           created_at?: string
+          factura_oc_id?: string | null
           fecha?: string
           forma_pago?: string
           id?: string
@@ -3400,6 +3403,13 @@ export type Database = {
             columns: ["compra_id"]
             isOneToOne: false
             referencedRelation: "compras"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pagos_cxp_factura_oc_id_fkey"
+            columns: ["factura_oc_id"]
+            isOneToOne: false
+            referencedRelation: "ordenes_compra_facturas"
             referencedColumns: ["id"]
           },
         ]
@@ -5995,6 +6005,33 @@ export type Database = {
         }
         Returns: Json
       }
+      cxp_facturas_pendientes: {
+        Args: never
+        Returns: {
+          compra_id: string
+          dias_credito: number
+          dias_para_vencer: number
+          factura_id: string
+          fecha_factura: string
+          fecha_limite_pago: string
+          folio_factura: string
+          importe: number
+          importe_neto: number
+          notas_credito: number
+          orden_folio: string
+          orden_id: string
+          orden_total: number
+          pagada: boolean
+          pagado: number
+          pdf_path: string
+          proveedor_id: string
+          proveedor_nombre: string
+          saldo: number
+          sucursal_codigo: string
+          sucursal_id: string
+          xml_path: string
+        }[]
+      }
       dispersar_nomina: {
         Args: {
           p_cuenta_bancaria_id: string
@@ -6109,6 +6146,17 @@ export type Database = {
           total_facturado: number
           total_orden: number
         }[]
+      }
+      pagar_factura_oc: {
+        Args: {
+          p_banco_cuenta_id?: string
+          p_factura_id: string
+          p_fecha?: string
+          p_forma_pago?: string
+          p_notas?: string
+          p_referencia?: string
+        }
+        Returns: Json
       }
       precio_vigente_proveedor: {
         Args: {
