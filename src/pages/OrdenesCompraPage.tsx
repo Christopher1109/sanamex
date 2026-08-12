@@ -347,6 +347,26 @@ function OrdenesCompraPageInner() {
   const [nuevaFacturaOpen, setNuevaFacturaOpen] = useState(false);
   const [nuevaFacturaForm, setNuevaFacturaForm] = useState({ folio: '', fecha_factura: '', importe: '', dias_credito: '' });
   const [guardandoFactura, setGuardandoFactura] = useState(false);
+
+  // Control financiero de facturación: la suma de las facturas de una OC no
+  // puede exceder su total (0.5% de tolerancia por redondeos del proveedor).
+  const totalOcSel = Number(seleccionada?.total || 0);
+  const totalFacturadoOtras = facturas
+    .filter(f => f.folio !== nuevaFacturaForm.folio.trim())
+    .reduce((s, f) => s + Number(f.importe || 0), 0);
+  const totalFacturado = facturas.reduce((s, f) => s + Number(f.importe || 0), 0);
+  const saldoPorFacturar = Math.max(totalOcSel - totalFacturado, 0);
+  const importeNuevo = nuevaFacturaForm.importe ? Number(nuevaFacturaForm.importe) : 0;
+  const excedeTotalOc = totalOcSel > 0 && importeNuevo > 0 && (totalFacturadoOtras + importeNuevo) > totalOcSel * 1.005;
+  const fechaLimiteCalculada = (() => {
+    if (!nuevaFacturaForm.fecha_factura) return '';
+    const dias = nuevaFacturaForm.dias_credito ? Number(nuevaFacturaForm.dias_credito) : null;
+    if (dias === null || Number.isNaN(dias)) return '';
+    const d = new Date(nuevaFacturaForm.fecha_factura + 'T00:00:00');
+    d.setDate(d.getDate() + dias);
+    return d.toISOString().slice(0, 10);
+  })();
+
   const [subiendoDoc, setSubiendoDoc] = useState<string | null>(null); // `${facturaId}-pdf` | `${facturaId}-xml`
   const [recepcionesPorFactura, setRecepcionesPorFactura] = useState<Record<string, { linea_id: string; cantidad: number; factura_folio: string }[]>>({});
   const [notaOpen, setNotaOpen] = useState<Factura | null>(null);
