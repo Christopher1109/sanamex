@@ -141,6 +141,20 @@ export default function CotizadorSanamex() {
       ((ovs as any[]) || []).forEach(o => { ovMap[`${o.producto_id}|${o.sucursal_id}`] = o.cantidad; });
       setOverrides(ovMap);
       setEdits({});
+      // Extras: piezas en ruta con proveedor y sugerido propuesto por la sucursal.
+      const ids = ((data as any)?.productos || []).map((p: any) => p.producto_id);
+      if (ids.length) {
+        const { data: ex } = await supabase.rpc('cotizador_extras' as any, { p_producto_ids: ids });
+        const rm: Record<string, RutaItem[]> = {};
+        ((ex as any)?.en_ruta || []).forEach((r: RutaItem) => {
+          const k = `${r.producto_id}|${r.sucursal_id}`;
+          (rm[k] = rm[k] || []).push(r);
+        });
+        const sm: Record<string, SugGerenteItem> = {};
+        ((ex as any)?.sug_gerente || []).forEach((s: SugGerenteItem) => { sm[`${s.producto_id}|${s.sucursal_id}`] = s; });
+        setRutaMap(rm); setSugGerMap(sm);
+      } else { setRutaMap({}); setSugGerMap({}); }
+
     } catch (e: any) { toast.error('Error al cargar cotizador: ' + e.message); }
     finally { setLoading(false); }
   }
