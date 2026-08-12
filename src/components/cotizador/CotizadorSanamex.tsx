@@ -380,14 +380,14 @@ export default function CotizadorSanamex() {
   function exportarCSV() {
     if (!snap) return;
     const headers = ['clave', 'SKU', 'Descripción', 'Clasif', 'Estatus', 'CEDIS', 'Exist total', 'Suma suc.', 'Tránsito', 'DDI', 'Vta día ant.', 'Últ30 total', 'Δ 30d %'];
-    sucursalesVisibles.forEach(s => headers.push(`${s.codigo} exist`, `${s.codigo} ult30`, `${s.codigo} nec.`, `${s.codigo} DIF`, `${s.codigo} estatus`, `${s.codigo} en ruta`, `${s.codigo} sug. gerente`, `${s.codigo} sugerido`));
+    sucursalesVisibles.forEach(s => headers.push(`${s.codigo} exist`, `${s.codigo} en ruta`, `${s.codigo} ult30`, `${s.codigo} nec.`, `${s.codigo} DIF`, `${s.codigo} estatus`, `${s.codigo} sug. gerente`, `${s.codigo} sugerido`));
     headers.push('Últ. precio', 'Mejor precio', 'Δ$', 'Δ%', 'Proveedor asignado', 'Existencia', 'Ganador del sistema', '2º postor', '3º postor', 'Pzas/corrug.');
     const rows = filasFiltradas.map(f => {
       const r: any[] = [f.codigo_barras || '', f.sku, f.nombre, f.clasificacion || '', f.estatus || '', f.exist_cedis, f.exist_total, f.exist_sucursales, f.transito_global, f.ddi ?? '', f.venta_dia_anterior, f.ult30_total, f.tendencia_pct ?? ''];
       sucursalesVisibles.forEach(s => {
         const c = f.sucursales?.[s.codigo];
         const sg = c ? sugGerMap[`${f.producto_id}|${c.sucursal_id}`] : undefined;
-        r.push(c?.existencia ?? 0, c?.ult30 ?? 0, c?.necesidad ?? 0, c?.dif ?? 0, c?.estatus ?? '', c?.transito ?? 0, sg?.cantidad ?? '', sugeridoValor(f, s.codigo));
+        r.push(c?.existencia ?? 0, c?.transito ?? 0, c?.ult30 ?? 0, c?.necesidad ?? 0, c?.dif ?? 0, c?.estatus ?? '', sg?.cantidad ?? '', sugeridoValor(f, s.codigo));
       });
       const asignado = proveedorEfectivo(f);
       r.push(f.ultimo_precio_compra ?? '', f.mejor_precio ?? '', f.variacion_precio_abs, f.variacion_precio_pct ?? '', asignado?.proveedor_nombre ?? '', asignado?.existencia ?? '', f.ganador?.proveedor_nombre ?? '', f.postor_2?.proveedor_nombre ?? '', f.postor_3?.proveedor_nombre ?? '', f.piezas_corrugado ?? '');
@@ -518,7 +518,7 @@ export default function CotizadorSanamex() {
                 <TableHead className={`${TH1} text-right`}>Últ30</TableHead>
                 <TableHead className={`${TH1} text-right`}>Δ 30d</TableHead>
                 {sucursalesVisibles.map(s => (
-                  <TableHead key={s.id} className={`${TH1} text-center border-l bg-muted`} colSpan={6}>{s.codigo}</TableHead>
+                  <TableHead key={s.id} className={`${TH1} text-center border-l bg-muted`} colSpan={7}>{s.codigo}</TableHead>
                 ))}
                 <TableHead className={`${TH1} text-right border-l`}>Últ. $</TableHead>
                 <TableHead className={`${TH1} text-right`}>Mejor $</TableHead>
@@ -537,6 +537,7 @@ export default function CotizadorSanamex() {
                 <TableHead colSpan={10} className={`${TH2} h-9`}></TableHead>
                 {sucursalesVisibles.flatMap(s => [
                   <TableHead key={s.id + '-e'} className={`${TH2} text-right border-l`}>Exist</TableHead>,
+                  <TableHead key={s.id + '-r'} className={`${TH2} text-right`}>En ruta</TableHead>,
                   <TableHead key={s.id + '-u'} className={`${TH2} text-right`}>Últ30</TableHead>,
                   <TableHead key={s.id + '-n'} className={`${TH2} text-right`}>Nec.</TableHead>,
                   <TableHead key={s.id + '-d'} className={`${TH2} text-right`}>DIF</TableHead>,
@@ -606,26 +607,27 @@ export default function CotizadorSanamex() {
                       const existCell = (
                         <span className="inline-flex items-center gap-0.5">
                           {c?.existencia ?? 0}
-                          {transito > 0 && (
-                            <Tooltip><TooltipTrigger asChild>
-                              <span className="inline-flex items-center gap-0.5 text-blue-700 cursor-default">
-                                <Truck className="h-3 w-3" /><span className="text-[9px]">{transito}</span>
-                              </span>
-                            </TooltipTrigger>
-                              <TooltipContent>
-                                <div className="text-xs space-y-0.5">
-                                  <p className="font-medium">En ruta a {s.codigo}: {transito} pzas (no están en piso)</p>
-                                  {rutaDet.map((r, i) => (
-                                    <p key={i}>{r.proveedor_nombre}: {r.cantidad} pzas{r.folio ? ` · ${r.folio}` : ''}</p>
-                                  ))}
-                                </div>
-                              </TooltipContent></Tooltip>
-                          )}
                           {estBadge}
                         </span>
                       );
+                      const rutaCell = transito > 0 ? (
+                        <Tooltip><TooltipTrigger asChild>
+                          <span className="inline-flex items-center gap-0.5 text-blue-700 cursor-default">
+                            <Truck className="h-3 w-3" />{transito}
+                          </span>
+                        </TooltipTrigger>
+                          <TooltipContent>
+                            <div className="text-xs space-y-0.5">
+                              <p className="font-medium">En ruta a {s.codigo}: {transito} pzas (no están en piso)</p>
+                              {rutaDet.map((r, i) => (
+                                <p key={i}>{r.proveedor_nombre}: {r.cantidad} pzas{r.folio ? ` · ${r.folio}` : ''}</p>
+                              ))}
+                            </div>
+                          </TooltipContent></Tooltip>
+                      ) : <span className="text-muted-foreground">—</span>;
                       return [
                         <TableCell key={f.producto_id + s.id + '-e'} className="text-right text-xs border-l">{existCell}</TableCell>,
+                        <TableCell key={f.producto_id + s.id + '-r'} className="text-right text-xs">{rutaCell}</TableCell>,
                         <TableCell key={f.producto_id + s.id + '-u'} className="text-right text-xs">{Number(c?.ult30 ?? 0).toFixed(0)}</TableCell>,
                         <TableCell key={f.producto_id + s.id + '-n'} className="text-right text-xs">{Number(c?.necesidad ?? 0).toFixed(0)}</TableCell>,
                         <TableCell key={f.producto_id + s.id + '-d'} className={`text-right text-xs ${(c?.dif ?? 0) > 0 ? 'text-red-600 font-medium' : ''}`}>{Number(c?.dif ?? 0).toFixed(0)}</TableCell>,
