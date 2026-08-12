@@ -281,17 +281,33 @@ const FacturasPorPagar = () => {
                     {r.fecha_limite_pago || '—'}
                     {r.dias_credito != null && <div className="text-[10px] text-muted-foreground">{r.dias_credito} días crédito</div>}
                   </TableCell>
-                  <TableCell className="text-center">{badgeVenc(r)}</TableCell>
+                  <TableCell className="text-center">
+                    {badgeVenc(r)}
+                    {r.pagada && (r.pago_forma || r.pago_cuenta || r.pago_referencia) && (
+                      <div className="text-[10px] text-muted-foreground mt-1 leading-tight">
+                        {r.pago_fecha || ''} {r.pago_forma ? `· ${r.pago_forma}` : ''}
+                        {r.pago_cuenta ? <div>{r.pago_cuenta}</div> : null}
+                        {r.pago_referencia ? <div>Ref. {r.pago_referencia}</div> : null}
+                      </div>
+                    )}
+                  </TableCell>
                   <TableCell className="text-right tabular-nums">{r.importe ? money(r.importe) : <span className="text-xs text-muted-foreground">sin importe</span>}</TableCell>
                   <TableCell className="text-right tabular-nums text-muted-foreground">{r.notas_credito ? `- ${money(r.notas_credito)}` : '—'}</TableCell>
                   <TableCell className="text-right tabular-nums font-bold">{money(r.pagada ? r.pagado : r.saldo)}</TableCell>
                   <TableCell>
-                    {!r.pagada && (
+                    {!r.pagada ? (
                       <Button size="sm" disabled={!r.importe || !r.compra_id} onClick={() => abrirPago(r)}>
                         <Wallet className="h-3 w-3 mr-1" /> Pagar completa
                       </Button>
+                    ) : r.pago_comprobante_url ? (
+                      <Button size="sm" variant="outline" onClick={() => verComprobante(r.pago_comprobante_url!)}>
+                        <FileText className="h-3 w-3 mr-1" /> Comprobante
+                      </Button>
+                    ) : (
+                      <span className="text-[10px] text-muted-foreground">sin comprobante</span>
                     )}
                   </TableCell>
+
                 </TableRow>
               ))}
             </TableBody>
