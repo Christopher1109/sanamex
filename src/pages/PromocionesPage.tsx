@@ -9,8 +9,11 @@ import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import PromocionesMasivas from '@/components/promociones/PromocionesMasivas';
 import { Tag, Plus, Loader2, Trash2, Pencil } from 'lucide-react';
 import { toast } from 'sonner';
+
 
 // Promociones automáticas recurrentes (ej. "Día Sanamex" cada martes):
 // se configura una vez (día de la semana + clasificación/estatus + % de
