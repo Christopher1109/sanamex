@@ -1326,7 +1326,7 @@ function OrdenesCompraPageInner() {
             <TableHeader>
               <TableRow>
                 <TableHead>SKU</TableHead><TableHead>Producto</TableHead>
-                <TableHead className="text-right">Solicitado</TableHead>
+                <TableHead className="text-right">Solicitado{Object.keys(ajustesLineas).length > 0 && <span className="block text-[10px] font-normal text-amber-600">original → gerente</span>}</TableHead>
                 <TableHead className="text-right">Recibido</TableHead>
                 <TableHead className="text-right">Precio</TableHead>
                 <TableHead className="text-right">Subtotal</TableHead>
@@ -1348,8 +1348,10 @@ function OrdenesCompraPageInner() {
                         <div>
                           {l.cantidad_solicitada}
                           {ajustesLineas[l.id] && (
-                            <div className="text-[10px] font-normal text-amber-600 whitespace-nowrap">
-                              antes: {ajustesLineas[l.id].cantidad_anterior} → {ajustesLineas[l.id].cantidad_nueva}
+                            <div className="text-[10px] font-normal text-amber-600 whitespace-nowrap leading-tight">
+                              original {ajustesLineas[l.id].cantidad_anterior} → gerente {ajustesLineas[l.id].cantidad_nueva}
+                              {' '}({ajustesLineas[l.id].cantidad_nueva - ajustesLineas[l.id].cantidad_anterior > 0 ? '+' : ''}
+                              {ajustesLineas[l.id].cantidad_nueva - ajustesLineas[l.id].cantidad_anterior})
                             </div>
                           )}
                         </div>
