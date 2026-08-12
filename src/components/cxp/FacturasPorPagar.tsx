@@ -10,7 +10,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Wallet, Loader2, Receipt, Lock, RefreshCw } from 'lucide-react';
+import { Wallet, Loader2, Receipt, Lock, RefreshCw, Paperclip, FileText, Upload } from 'lucide-react';
 import { toast } from 'sonner';
 
 // Unidad de pago = FOLIO DE FACTURA. Los estados de cuenta del proveedor
@@ -37,6 +37,11 @@ export type FacturaCxP = {
   proveedor_nombre: string | null;
   sucursal_id: string | null;
   sucursal_codigo: string | null;
+  pago_fecha?: string | null;
+  pago_forma?: string | null;
+  pago_referencia?: string | null;
+  pago_cuenta?: string | null;
+  pago_comprobante_url?: string | null;
 };
 
 const money = (n: number) => `$${Number(n || 0).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
