@@ -4940,6 +4940,64 @@ export type Database = {
           },
         ]
       }
+      sugeridos_sucursal: {
+        Row: {
+          cantidad: number
+          created_at: string
+          id: string
+          nota: string | null
+          producto_id: string
+          sucursal_id: string
+          updated_at: string
+          usuario_id: string | null
+          usuario_nombre: string | null
+        }
+        Insert: {
+          cantidad: number
+          created_at?: string
+          id?: string
+          nota?: string | null
+          producto_id: string
+          sucursal_id: string
+          updated_at?: string
+          usuario_id?: string | null
+          usuario_nombre?: string | null
+        }
+        Update: {
+          cantidad?: number
+          created_at?: string
+          id?: string
+          nota?: string | null
+          producto_id?: string
+          sucursal_id?: string
+          updated_at?: string
+          usuario_id?: string | null
+          usuario_nombre?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sugeridos_sucursal_producto_id_fkey"
+            columns: ["producto_id"]
+            isOneToOne: false
+            referencedRelation: "productos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sugeridos_sucursal_producto_id_fkey"
+            columns: ["producto_id"]
+            isOneToOne: false
+            referencedRelation: "v_promociones_vigentes_hoy"
+            referencedColumns: ["producto_id"]
+          },
+          {
+            foreignKeyName: "sugeridos_sucursal_sucursal_id_fkey"
+            columns: ["sucursal_id"]
+            isOneToOne: false
+            referencedRelation: "sucursales"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       tablas_isr: {
         Row: {
           activo: boolean
@@ -5852,6 +5910,7 @@ export type Database = {
         }
         Returns: Json
       }
+      cotizador_extras: { Args: { p_producto_ids: string[] }; Returns: Json }
       cotizador_generar_oc: { Args: { payload: Json }; Returns: Json }
       cotizador_historial_mensual: {
         Args: { p_producto_id: string }
@@ -6418,6 +6477,16 @@ export type Database = {
           venta_sem_ant: number
         }[]
       }
+      reposicion_sucursal_vista: {
+        Args: {
+          p_limit?: number
+          p_offset?: number
+          p_search?: string
+          p_solo_faltantes?: boolean
+          p_sucursal_id: string
+        }
+        Returns: Json
+      }
       resolver_incidencia_traspaso: {
         Args: { p_accion: string; p_incidencia_id: string; p_notas?: string }
         Returns: Json
@@ -6440,6 +6509,26 @@ export type Database = {
         Returns: {
           max_dias: number
           min_dias: number
+        }[]
+      }
+      sugerido_sucursal_upsert: {
+        Args: {
+          p_cantidad: number
+          p_nota?: string
+          p_producto_id: string
+          p_sucursal_id: string
+        }
+        Returns: undefined
+      }
+      sugeridos_sucursal_list: {
+        Args: { p_sucursal_id?: string }
+        Returns: {
+          cantidad: number
+          nota: string
+          producto_id: string
+          sucursal_id: string
+          updated_at: string
+          usuario_nombre: string
         }[]
       }
       ventas_por_lote: {

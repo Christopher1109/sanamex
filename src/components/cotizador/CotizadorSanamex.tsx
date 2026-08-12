@@ -41,6 +41,12 @@ type Fila = {
 type Snapshot = { sucursales: Sucursal[]; productos: Fila[] };
 type EditMap = Record<string, Record<string, number>>;
 type OverrideKey = string; // `${producto_id}|${sucursal_id}`
+// Piezas en ruta (pendientes de recibir) con el desglose de quién las trae.
+type RutaItem = { producto_id: string; sucursal_id: string; cantidad: number; proveedor_nombre: string; folio: string | null };
+// Cantidad propuesta por el gerente/almacenista de la sucursal: es independiente
+// del sugerido del sistema y del que edita Compras (solo informativa aquí).
+type SugGerenteItem = { producto_id: string; sucursal_id: string; cantidad: number; nota: string | null; usuario: string | null; fecha: string | null };
+
 
 const ESTATUS_COLORS: Record<string, string> = {
   A: 'bg-green-100 text-green-800', I: 'bg-blue-100 text-blue-800', C: 'bg-yellow-100 text-yellow-800',
@@ -82,10 +88,14 @@ export default function CotizadorSanamex() {
   const [detalle, setDetalle] = useState<Fila | null>(null);
   const [histData, setHistData] = useState<any[]>([]);
   const [ocAbiertas, setOcAbiertas] = useState<any[]>([]);
+  // Extras del cotizador: en ruta por sucursal (con proveedor) y sugerido del gerente.
+  const [rutaMap, setRutaMap] = useState<Record<string, RutaItem[]>>({});
+  const [sugGerMap, setSugGerMap] = useState<Record<string, SugGerenteItem>>({});
 
   useEffect(() => {
     try { localStorage.setItem(HIDDEN_KEY, JSON.stringify(Array.from(ocultas))); } catch {}
   }, [ocultas]);
+
 
   // Catálogo completo de estatus (no solo los que aparecen en el snapshot actual):
   // antes el filtro solo mostraba las opciones presentes en los productos ya
@@ -131,6 +141,20 @@ export default function CotizadorSanamex() {
       ((ovs as any[]) || []).forEach(o => { ovMap[`${o.producto_id}|${o.sucursal_id}`] = o.cantidad; });
       setOverrides(ovMap);
       setEdits({});
+      // Extras: piezas en ruta con proveedor y sugerido propuesto por la sucursal.
+      const ids = ((data as any)?.productos || []).map((p: any) => p.producto_id);
+      if (ids.length) {
+        const { data: ex } = await supabase.rpc('cotizador_extras' as any, { p_producto_ids: ids });
+        const rm: Record<string, RutaItem[]> = {};
+        ((ex as any)?.en_ruta || []).forEach((r: RutaItem) => {
+          const k = `${r.producto_id}|${r.sucursal_id}`;
+          (rm[k] = rm[k] || []).push(r);
+        });
+        const sm: Record<string, SugGerenteItem> = {};
+        ((ex as any)?.sug_gerente || []).forEach((s: SugGerenteItem) => { sm[`${s.producto_id}|${s.sucursal_id}`] = s; });
+        setRutaMap(rm); setSugGerMap(sm);
+      } else { setRutaMap({}); setSugGerMap({}); }
+
     } catch (e: any) { toast.error('Error al cargar cotizador: ' + e.message); }
     finally { setLoading(false); }
   }
@@ -255,14 +279,13 @@ export default function CotizadorSanamex() {
       if (filtroClasif.length > 0 && !filtroClasif.includes(f.clasificacion || '')) return false;
       if (soloConOferta && !f.alerta_oferta) return false;
       if (filtroProveedor.length > 0) {
-        // Se muestra el producto si el proveedor filtrado lo ofrece, aunque
-        // no sea el ganador — el "no es la mejor opción" se marca visualmente
-        // en la columna de proveedor, no se oculta la fila.
-        const ids = new Set<string>();
-        if (f.ganador) ids.add(f.ganador.proveedor_id);
-        (f.todos_proveedores || []).forEach(p => ids.add(p.proveedor_id));
-        if (!filtroProveedor.some(p => ids.has(p))) return false;
+        // Al filtrar por proveedor solo se muestran los productos donde ese
+        // proveedor es el GANADOR del sistema (mejor opción con existencia).
+        // Antes se mostraba cualquier producto que el proveedor ofreciera,
+        // lo que llenaba la pantalla de renglones que no le iban a comprar.
+        if (!f.ganador || !filtroProveedor.includes(f.ganador.proveedor_id)) return false;
       }
+
       return true;
     });
   }, [snap, ocultas, filtroEstatus, filtroClasif, filtroProveedor, soloConOferta]);
@@ -329,7 +352,7 @@ export default function CotizadorSanamex() {
       });
       if (error) throw error;
       const ordenes = (data as any)?.ordenes || [];
-      toast.success(`${ordenes.length} orden(es) generada(s) para ${g.proveedor_nombre}`);
+      toast.success(`${ordenes.length} orden(es) generada(s) para ${g.proveedor_nombre} — listas para confirmar con el proveedor`);
       const idsAfectados = new Set(g.lineas.map(l => l.producto_id));
       setSeleccion(prev => new Set([...prev].filter(id => !idsAfectados.has(id))));
       setGenOpen(false);
@@ -357,13 +380,14 @@ export default function CotizadorSanamex() {
   function exportarCSV() {
     if (!snap) return;
     const headers = ['clave', 'SKU', 'Descripción', 'Clasif', 'Estatus', 'CEDIS', 'Exist total', 'Suma suc.', 'Tránsito', 'DDI', 'Vta día ant.', 'Últ30 total', 'Δ 30d %'];
-    sucursalesVisibles.forEach(s => headers.push(`${s.codigo} exist`, `${s.codigo} ult30`, `${s.codigo} nec.`, `${s.codigo} DIF`, `${s.codigo} estatus`, `${s.codigo} sugerido`));
+    sucursalesVisibles.forEach(s => headers.push(`${s.codigo} exist`, `${s.codigo} ult30`, `${s.codigo} nec.`, `${s.codigo} DIF`, `${s.codigo} estatus`, `${s.codigo} en ruta`, `${s.codigo} sug. gerente`, `${s.codigo} sugerido`));
     headers.push('Últ. precio', 'Mejor precio', 'Δ$', 'Δ%', 'Proveedor asignado', 'Existencia', 'Ganador del sistema', '2º postor', '3º postor', 'Pzas/corrug.');
     const rows = filasFiltradas.map(f => {
       const r: any[] = [f.codigo_barras || '', f.sku, f.nombre, f.clasificacion || '', f.estatus || '', f.exist_cedis, f.exist_total, f.exist_sucursales, f.transito_global, f.ddi ?? '', f.venta_dia_anterior, f.ult30_total, f.tendencia_pct ?? ''];
       sucursalesVisibles.forEach(s => {
         const c = f.sucursales?.[s.codigo];
-        r.push(c?.existencia ?? 0, c?.ult30 ?? 0, c?.necesidad ?? 0, c?.dif ?? 0, c?.estatus ?? '', sugeridoValor(f, s.codigo));
+        const sg = c ? sugGerMap[`${f.producto_id}|${c.sucursal_id}`] : undefined;
+        r.push(c?.existencia ?? 0, c?.ult30 ?? 0, c?.necesidad ?? 0, c?.dif ?? 0, c?.estatus ?? '', c?.transito ?? 0, sg?.cantidad ?? '', sugeridoValor(f, s.codigo));
       });
       const asignado = proveedorEfectivo(f);
       r.push(f.ultimo_precio_compra ?? '', f.mejor_precio ?? '', f.variacion_precio_abs, f.variacion_precio_pct ?? '', asignado?.proveedor_nombre ?? '', asignado?.existencia ?? '', f.ganador?.proveedor_nombre ?? '', f.postor_2?.proveedor_nombre ?? '', f.postor_3?.proveedor_nombre ?? '', f.piezas_corrugado ?? '');
@@ -494,7 +518,7 @@ export default function CotizadorSanamex() {
                 <TableHead className={`${TH1} text-right`}>Últ30</TableHead>
                 <TableHead className={`${TH1} text-right`}>Δ 30d</TableHead>
                 {sucursalesVisibles.map(s => (
-                  <TableHead key={s.id} className={`${TH1} text-center border-l bg-muted`} colSpan={5}>{s.codigo}</TableHead>
+                  <TableHead key={s.id} className={`${TH1} text-center border-l bg-muted`} colSpan={6}>{s.codigo}</TableHead>
                 ))}
                 <TableHead className={`${TH1} text-right border-l`}>Últ. $</TableHead>
                 <TableHead className={`${TH1} text-right`}>Mejor $</TableHead>
@@ -516,6 +540,7 @@ export default function CotizadorSanamex() {
                   <TableHead key={s.id + '-u'} className={`${TH2} text-right`}>Últ30</TableHead>,
                   <TableHead key={s.id + '-n'} className={`${TH2} text-right`}>Nec.</TableHead>,
                   <TableHead key={s.id + '-d'} className={`${TH2} text-right`}>DIF</TableHead>,
+                  <TableHead key={s.id + '-g'} className={`${TH2} text-right bg-amber-50`}>Sug. ger.</TableHead>,
                   <TableHead key={s.id + '-s'} className={`${TH2} text-right bg-primary/10`}>Sug.</TableHead>,
                 ])}
                 <TableHead colSpan={8} className={TH2}></TableHead>
@@ -572,13 +597,29 @@ export default function CotizadorSanamex() {
                       const savKey = c ? ovKey(f.producto_id, c.sucursal_id) : '';
                       const saving = savingOv.has(savKey);
                       const transito = c?.transito ?? 0;
+                      const rutaDet = c ? (rutaMap[`${f.producto_id}|${c.sucursal_id}`] || []) : [];
+                      const sugGer = c ? sugGerMap[`${f.producto_id}|${c.sucursal_id}`] : undefined;
                       const estBadge = c?.estatus ? <span className={`ml-0.5 text-[8px] px-0.5 rounded ${ESTATUS_COLORS[c.estatus] || 'bg-gray-100'}`}>{c.estatus}</span> : null;
+                      // Existencia = piezas físicas en piso. Las piezas en ruta
+                      // (pendientes de recibir) se muestran aparte, con el
+                      // desglose de qué proveedor las trae.
                       const existCell = (
                         <span className="inline-flex items-center gap-0.5">
                           {c?.existencia ?? 0}
                           {transito > 0 && (
-                            <Tooltip><TooltipTrigger asChild><Truck className="h-3 w-3 text-blue-600" /></TooltipTrigger>
-                              <TooltipContent>Tránsito abierto: {transito} pzas hacia {s.codigo}</TooltipContent></Tooltip>
+                            <Tooltip><TooltipTrigger asChild>
+                              <span className="inline-flex items-center gap-0.5 text-blue-700 cursor-default">
+                                <Truck className="h-3 w-3" /><span className="text-[9px]">{transito}</span>
+                              </span>
+                            </TooltipTrigger>
+                              <TooltipContent>
+                                <div className="text-xs space-y-0.5">
+                                  <p className="font-medium">En ruta a {s.codigo}: {transito} pzas (no están en piso)</p>
+                                  {rutaDet.map((r, i) => (
+                                    <p key={i}>{r.proveedor_nombre}: {r.cantidad} pzas{r.folio ? ` · ${r.folio}` : ''}</p>
+                                  ))}
+                                </div>
+                              </TooltipContent></Tooltip>
                           )}
                           {estBadge}
                         </span>
@@ -588,6 +629,16 @@ export default function CotizadorSanamex() {
                         <TableCell key={f.producto_id + s.id + '-u'} className="text-right text-xs">{Number(c?.ult30 ?? 0).toFixed(0)}</TableCell>,
                         <TableCell key={f.producto_id + s.id + '-n'} className="text-right text-xs">{Number(c?.necesidad ?? 0).toFixed(0)}</TableCell>,
                         <TableCell key={f.producto_id + s.id + '-d'} className={`text-right text-xs ${(c?.dif ?? 0) > 0 ? 'text-red-600 font-medium' : ''}`}>{Number(c?.dif ?? 0).toFixed(0)}</TableCell>,
+                        <TableCell key={f.producto_id + s.id + '-g'} className="text-right text-xs bg-amber-50">
+                          {sugGer ? (
+                            <Tooltip><TooltipTrigger asChild>
+                              <span className="font-medium text-amber-800 cursor-default">{sugGer.cantidad}</span>
+                            </TooltipTrigger><TooltipContent className="text-xs">
+                              Propuesto por {sugGer.usuario || 'la sucursal'}
+                              {sugGer.fecha ? ` · ${new Date(sugGer.fecha).toLocaleDateString('es-MX')}` : ''}
+                            </TooltipContent></Tooltip>
+                          ) : <span className="text-muted-foreground">—</span>}
+                        </TableCell>,
                         <TableCell key={f.producto_id + s.id + '-s'} className={`text-right text-xs p-1 ${ov ? 'bg-amber-100' : 'bg-primary/5'}`}>
                           <div className="flex items-center gap-0.5">
                             <Input
@@ -604,6 +655,7 @@ export default function CotizadorSanamex() {
                           </div>
                         </TableCell>,
                       ];
+
                     })}
                     <TableCell className="text-right text-xs border-l">{f.ultimo_precio_compra ? '$' + Number(f.ultimo_precio_compra).toFixed(2) : '—'}</TableCell>
                     <TableCell className="text-right text-xs font-semibold">{f.mejor_precio ? '$' + Number(f.mejor_precio).toFixed(2) : '—'}</TableCell>
