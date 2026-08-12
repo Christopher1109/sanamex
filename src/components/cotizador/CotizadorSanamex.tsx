@@ -380,7 +380,7 @@ export default function CotizadorSanamex() {
   function exportarCSV() {
     if (!snap) return;
     const headers = ['clave', 'SKU', 'Descripción', 'Clasif', 'Estatus', 'CEDIS', 'Exist total', 'Suma suc.', 'Tránsito', 'DDI', 'Vta día ant.', 'Últ30 total', 'Δ 30d %'];
-    sucursalesVisibles.forEach(s => headers.push(`${s.codigo} exist`, `${s.codigo} ult30`, `${s.codigo} nec.`, `${s.codigo} DIF`, `${s.codigo} estatus`, `${s.codigo} en ruta`, `${s.codigo} sug. gerente`, `${s.codigo} sugerido`));
+    sucursalesVisibles.forEach(s => headers.push(`${s.codigo} exist`, `${s.codigo} en ruta`, `${s.codigo} ult30`, `${s.codigo} nec.`, `${s.codigo} DIF`, `${s.codigo} estatus`, `${s.codigo} sug. gerente`, `${s.codigo} sugerido`));
     headers.push('Últ. precio', 'Mejor precio', 'Δ$', 'Δ%', 'Proveedor asignado', 'Existencia', 'Ganador del sistema', '2º postor', '3º postor', 'Pzas/corrug.');
     const rows = filasFiltradas.map(f => {
       const r: any[] = [f.codigo_barras || '', f.sku, f.nombre, f.clasificacion || '', f.estatus || '', f.exist_cedis, f.exist_total, f.exist_sucursales, f.transito_global, f.ddi ?? '', f.venta_dia_anterior, f.ult30_total, f.tendencia_pct ?? ''];
