@@ -349,7 +349,7 @@ function OrdenesCompraPageInner() {
   const [guardandoFactura, setGuardandoFactura] = useState(false);
 
   // Control financiero de facturación: la suma de las facturas de una OC no
-  // puede exceder su total (0.5% de tolerancia por redondeos del proveedor).
+  // puede exceder su total (tolerancia fija de $1.00 por redondeos de centavos).
   const totalOcSel = Number(seleccionada?.total || 0);
   const totalFacturadoOtras = facturas
     .filter(f => f.folio !== nuevaFacturaForm.folio.trim())
