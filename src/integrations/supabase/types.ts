@@ -5910,6 +5910,7 @@ export type Database = {
         }
         Returns: Json
       }
+      cotizador_extras: { Args: { p_producto_ids: string[] }; Returns: Json }
       cotizador_generar_oc: { Args: { payload: Json }; Returns: Json }
       cotizador_historial_mensual: {
         Args: { p_producto_id: string }
