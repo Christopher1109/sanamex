@@ -352,7 +352,7 @@ export default function CotizadorSanamex() {
       });
       if (error) throw error;
       const ordenes = (data as any)?.ordenes || [];
-      toast.success(`${ordenes.length} orden(es) generada(s) para ${g.proveedor_nombre}`);
+      toast.success(`${ordenes.length} orden(es) generada(s) para ${g.proveedor_nombre} — listas para confirmar con el proveedor`);
       const idsAfectados = new Set(g.lineas.map(l => l.producto_id));
       setSeleccion(prev => new Set([...prev].filter(id => !idsAfectados.has(id))));
       setGenOpen(false);
@@ -380,13 +380,14 @@ export default function CotizadorSanamex() {
   function exportarCSV() {
     if (!snap) return;
     const headers = ['clave', 'SKU', 'Descripción', 'Clasif', 'Estatus', 'CEDIS', 'Exist total', 'Suma suc.', 'Tránsito', 'DDI', 'Vta día ant.', 'Últ30 total', 'Δ 30d %'];
-    sucursalesVisibles.forEach(s => headers.push(`${s.codigo} exist`, `${s.codigo} ult30`, `${s.codigo} nec.`, `${s.codigo} DIF`, `${s.codigo} estatus`, `${s.codigo} sugerido`));
+    sucursalesVisibles.forEach(s => headers.push(`${s.codigo} exist`, `${s.codigo} ult30`, `${s.codigo} nec.`, `${s.codigo} DIF`, `${s.codigo} estatus`, `${s.codigo} en ruta`, `${s.codigo} sug. gerente`, `${s.codigo} sugerido`));
     headers.push('Últ. precio', 'Mejor precio', 'Δ$', 'Δ%', 'Proveedor asignado', 'Existencia', 'Ganador del sistema', '2º postor', '3º postor', 'Pzas/corrug.');
     const rows = filasFiltradas.map(f => {
       const r: any[] = [f.codigo_barras || '', f.sku, f.nombre, f.clasificacion || '', f.estatus || '', f.exist_cedis, f.exist_total, f.exist_sucursales, f.transito_global, f.ddi ?? '', f.venta_dia_anterior, f.ult30_total, f.tendencia_pct ?? ''];
       sucursalesVisibles.forEach(s => {
         const c = f.sucursales?.[s.codigo];
-        r.push(c?.existencia ?? 0, c?.ult30 ?? 0, c?.necesidad ?? 0, c?.dif ?? 0, c?.estatus ?? '', sugeridoValor(f, s.codigo));
+        const sg = c ? sugGerMap[`${f.producto_id}|${c.sucursal_id}`] : undefined;
+        r.push(c?.existencia ?? 0, c?.ult30 ?? 0, c?.necesidad ?? 0, c?.dif ?? 0, c?.estatus ?? '', c?.transito ?? 0, sg?.cantidad ?? '', sugeridoValor(f, s.codigo));
       });
       const asignado = proveedorEfectivo(f);
       r.push(f.ultimo_precio_compra ?? '', f.mejor_precio ?? '', f.variacion_precio_abs, f.variacion_precio_pct ?? '', asignado?.proveedor_nombre ?? '', asignado?.existencia ?? '', f.ganador?.proveedor_nombre ?? '', f.postor_2?.proveedor_nombre ?? '', f.postor_3?.proveedor_nombre ?? '', f.piezas_corrugado ?? '');
@@ -517,7 +518,7 @@ export default function CotizadorSanamex() {
                 <TableHead className={`${TH1} text-right`}>Últ30</TableHead>
                 <TableHead className={`${TH1} text-right`}>Δ 30d</TableHead>
                 {sucursalesVisibles.map(s => (
-                  <TableHead key={s.id} className={`${TH1} text-center border-l bg-muted`} colSpan={5}>{s.codigo}</TableHead>
+                  <TableHead key={s.id} className={`${TH1} text-center border-l bg-muted`} colSpan={6}>{s.codigo}</TableHead>
                 ))}
                 <TableHead className={`${TH1} text-right border-l`}>Últ. $</TableHead>
                 <TableHead className={`${TH1} text-right`}>Mejor $</TableHead>
@@ -539,6 +540,7 @@ export default function CotizadorSanamex() {
                   <TableHead key={s.id + '-u'} className={`${TH2} text-right`}>Últ30</TableHead>,
                   <TableHead key={s.id + '-n'} className={`${TH2} text-right`}>Nec.</TableHead>,
                   <TableHead key={s.id + '-d'} className={`${TH2} text-right`}>DIF</TableHead>,
+                  <TableHead key={s.id + '-g'} className={`${TH2} text-right bg-amber-50`}>Sug. ger.</TableHead>,
                   <TableHead key={s.id + '-s'} className={`${TH2} text-right bg-primary/10`}>Sug.</TableHead>,
                 ])}
                 <TableHead colSpan={8} className={TH2}></TableHead>
