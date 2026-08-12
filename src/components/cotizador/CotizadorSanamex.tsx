@@ -595,13 +595,29 @@ export default function CotizadorSanamex() {
                       const savKey = c ? ovKey(f.producto_id, c.sucursal_id) : '';
                       const saving = savingOv.has(savKey);
                       const transito = c?.transito ?? 0;
+                      const rutaDet = c ? (rutaMap[`${f.producto_id}|${c.sucursal_id}`] || []) : [];
+                      const sugGer = c ? sugGerMap[`${f.producto_id}|${c.sucursal_id}`] : undefined;
                       const estBadge = c?.estatus ? <span className={`ml-0.5 text-[8px] px-0.5 rounded ${ESTATUS_COLORS[c.estatus] || 'bg-gray-100'}`}>{c.estatus}</span> : null;
+                      // Existencia = piezas físicas en piso. Las piezas en ruta
+                      // (pendientes de recibir) se muestran aparte, con el
+                      // desglose de qué proveedor las trae.
                       const existCell = (
                         <span className="inline-flex items-center gap-0.5">
                           {c?.existencia ?? 0}
                           {transito > 0 && (
-                            <Tooltip><TooltipTrigger asChild><Truck className="h-3 w-3 text-blue-600" /></TooltipTrigger>
-                              <TooltipContent>Tránsito abierto: {transito} pzas hacia {s.codigo}</TooltipContent></Tooltip>
+                            <Tooltip><TooltipTrigger asChild>
+                              <span className="inline-flex items-center gap-0.5 text-blue-700 cursor-default">
+                                <Truck className="h-3 w-3" /><span className="text-[9px]">{transito}</span>
+                              </span>
+                            </TooltipTrigger>
+                              <TooltipContent>
+                                <div className="text-xs space-y-0.5">
+                                  <p className="font-medium">En ruta a {s.codigo}: {transito} pzas (no están en piso)</p>
+                                  {rutaDet.map((r, i) => (
+                                    <p key={i}>{r.proveedor_nombre}: {r.cantidad} pzas{r.folio ? ` · ${r.folio}` : ''}</p>
+                                  ))}
+                                </div>
+                              </TooltipContent></Tooltip>
                           )}
                           {estBadge}
                         </span>
@@ -611,6 +627,16 @@ export default function CotizadorSanamex() {
                         <TableCell key={f.producto_id + s.id + '-u'} className="text-right text-xs">{Number(c?.ult30 ?? 0).toFixed(0)}</TableCell>,
                         <TableCell key={f.producto_id + s.id + '-n'} className="text-right text-xs">{Number(c?.necesidad ?? 0).toFixed(0)}</TableCell>,
                         <TableCell key={f.producto_id + s.id + '-d'} className={`text-right text-xs ${(c?.dif ?? 0) > 0 ? 'text-red-600 font-medium' : ''}`}>{Number(c?.dif ?? 0).toFixed(0)}</TableCell>,
+                        <TableCell key={f.producto_id + s.id + '-g'} className="text-right text-xs bg-amber-50">
+                          {sugGer ? (
+                            <Tooltip><TooltipTrigger asChild>
+                              <span className="font-medium text-amber-800 cursor-default">{sugGer.cantidad}</span>
+                            </TooltipTrigger><TooltipContent className="text-xs">
+                              Propuesto por {sugGer.usuario || 'la sucursal'}
+                              {sugGer.fecha ? ` · ${new Date(sugGer.fecha).toLocaleDateString('es-MX')}` : ''}
+                            </TooltipContent></Tooltip>
+                          ) : <span className="text-muted-foreground">—</span>}
+                        </TableCell>,
                         <TableCell key={f.producto_id + s.id + '-s'} className={`text-right text-xs p-1 ${ov ? 'bg-amber-100' : 'bg-primary/5'}`}>
                           <div className="flex items-center gap-0.5">
                             <Input
@@ -627,6 +653,7 @@ export default function CotizadorSanamex() {
                           </div>
                         </TableCell>,
                       ];
+
                     })}
                     <TableCell className="text-right text-xs border-l">{f.ultimo_precio_compra ? '$' + Number(f.ultimo_precio_compra).toFixed(2) : '—'}</TableCell>
                     <TableCell className="text-right text-xs font-semibold">{f.mejor_precio ? '$' + Number(f.mejor_precio).toFixed(2) : '—'}</TableCell>
