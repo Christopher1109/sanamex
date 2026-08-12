@@ -387,7 +387,7 @@ export default function CotizadorSanamex() {
       sucursalesVisibles.forEach(s => {
         const c = f.sucursales?.[s.codigo];
         const sg = c ? sugGerMap[`${f.producto_id}|${c.sucursal_id}`] : undefined;
-        r.push(c?.existencia ?? 0, c?.ult30 ?? 0, c?.necesidad ?? 0, c?.dif ?? 0, c?.estatus ?? '', c?.transito ?? 0, sg?.cantidad ?? '', sugeridoValor(f, s.codigo));
+        r.push(c?.existencia ?? 0, c?.transito ?? 0, c?.ult30 ?? 0, c?.necesidad ?? 0, c?.dif ?? 0, c?.estatus ?? '', sg?.cantidad ?? '', sugeridoValor(f, s.codigo));
       });
       const asignado = proveedorEfectivo(f);
       r.push(f.ultimo_precio_compra ?? '', f.mejor_precio ?? '', f.variacion_precio_abs, f.variacion_precio_pct ?? '', asignado?.proveedor_nombre ?? '', asignado?.existencia ?? '', f.ganador?.proveedor_nombre ?? '', f.postor_2?.proveedor_nombre ?? '', f.postor_3?.proveedor_nombre ?? '', f.piezas_corrugado ?? '');
