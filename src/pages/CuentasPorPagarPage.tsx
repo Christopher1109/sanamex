@@ -15,6 +15,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Upload, AlertTriangle, Clock, Wallet, CheckCircle2, FileUp, History, FileMinus } from 'lucide-react';
 import { toast } from 'sonner';
 import { registrarPagoCompra } from '@/lib/cxp';
+import FacturasPorPagar from '@/components/cxp/FacturasPorPagar';
 
 type Compra = {
   id: string; numero_compra: string; proveedor_id: string; total: number;
@@ -52,6 +53,9 @@ const CuentasPorPagarPage = () => {
   const [cuentasBan, setCuentasBan] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [filtro, setFiltro] = useState<'pendientes' | 'vencidas' | 'pagadas' | 'todas'>('pendientes');
+  // Vista por defecto: por FACTURA (así llegan los estados de cuenta del
+  // proveedor). "Por compra" queda como vista de respaldo / histórico.
+  const [vista, setVista] = useState<'factura' | 'compra'>('factura');
   const [filtroProv, setFiltroProv] = useState<string>('all');
   const [filtroAnt, setFiltroAnt] = useState<string>('all');
   const [filtroSuc, setFiltroSuc] = useState<string>('all');
@@ -295,6 +299,16 @@ const CuentasPorPagarPage = () => {
         <Button variant="outline" onClick={() => setShowImport(true)}><FileUp className="h-4 w-4 mr-2" />Importar saldos iniciales</Button>
       </div>
 
+      <Tabs value={vista} onValueChange={(v: any) => setVista(v)}>
+        <TabsList>
+          <TabsTrigger value="factura">Por factura</TabsTrigger>
+          <TabsTrigger value="compra">Por compra (histórico)</TabsTrigger>
+        </TabsList>
+      </Tabs>
+
+      {vista === 'factura' && <FacturasPorPagar />}
+      {vista === 'compra' && <>
+
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <Card><CardContent className="p-4">
           <div className="flex items-center justify-between"><p className="text-sm text-muted-foreground">Saldo total</p><Wallet className="h-4 w-4 text-muted-foreground" /></div>
@@ -459,6 +473,8 @@ const CuentasPorPagarPage = () => {
           </Table>
         </CardContent>
       </Card>
+
+      </>}
 
       {/* Nota de crédito de proveedor */}
       <Dialog open={!!showNota} onOpenChange={o => !o && setShowNota(null)}>
