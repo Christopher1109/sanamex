@@ -279,14 +279,13 @@ export default function CotizadorSanamex() {
       if (filtroClasif.length > 0 && !filtroClasif.includes(f.clasificacion || '')) return false;
       if (soloConOferta && !f.alerta_oferta) return false;
       if (filtroProveedor.length > 0) {
-        // Se muestra el producto si el proveedor filtrado lo ofrece, aunque
-        // no sea el ganador — el "no es la mejor opción" se marca visualmente
-        // en la columna de proveedor, no se oculta la fila.
-        const ids = new Set<string>();
-        if (f.ganador) ids.add(f.ganador.proveedor_id);
-        (f.todos_proveedores || []).forEach(p => ids.add(p.proveedor_id));
-        if (!filtroProveedor.some(p => ids.has(p))) return false;
+        // Al filtrar por proveedor solo se muestran los productos donde ese
+        // proveedor es el GANADOR del sistema (mejor opción con existencia).
+        // Antes se mostraba cualquier producto que el proveedor ofreciera,
+        // lo que llenaba la pantalla de renglones que no le iban a comprar.
+        if (!f.ganador || !filtroProveedor.includes(f.ganador.proveedor_id)) return false;
       }
+
       return true;
     });
   }, [snap, ocultas, filtroEstatus, filtroClasif, filtroProveedor, soloConOferta]);
