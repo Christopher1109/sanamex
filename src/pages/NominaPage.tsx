@@ -69,6 +69,18 @@ function EmpleadosTab() {
     toast.success(userId ? 'Usuario vinculado — ya puede ver su "Mi Nómina"' : 'Vínculo quitado');
     load();
   };
+  const [pendingBaja, setPendingBaja] = useState<any | null>(null);
+  const toggleBaja = async (emp: any) => {
+    const dandoDeBaja = emp.activo;
+    const { error } = await supabase.from('empleados').update({
+      activo: !dandoDeBaja,
+      fecha_baja: dandoDeBaja ? new Date().toISOString().slice(0, 10) : null,
+    }).eq('id', emp.id);
+    setPendingBaja(null);
+    if (error) { toast.error(error.message); return; }
+    toast.success(dandoDeBaja ? `${emp.nombre} dado de baja` : `${emp.nombre} reactivado`);
+    load();
+  };
   const importar = async (file: File) => {
     const XLSX = await import('xlsx');
     const wb = XLSX.read(await file.arrayBuffer());
@@ -183,7 +195,7 @@ function EmpleadosTab() {
       )}
       <Card><CardContent className="p-0">
         <table className="w-full text-sm">
-          <thead className="bg-muted"><tr><th className="p-2 text-left">Nombre</th><th className="p-2 text-left">RFC</th><th className="p-2 text-left">Reg. Patronal</th><th className="p-2 text-left">Puesto</th><th className="p-2 text-right">SD</th><th className="p-2 text-right">SBC</th><th className="p-2 text-left">Estatus</th><th className="p-2 text-left">Usuario vinculado</th></tr></thead>
+          <thead className="bg-muted"><tr><th className="p-2 text-left">Nombre</th><th className="p-2 text-left">RFC</th><th className="p-2 text-left">Reg. Patronal</th><th className="p-2 text-left">Puesto</th><th className="p-2 text-right">SD</th><th className="p-2 text-right">SBC</th><th className="p-2 text-left">Estatus</th><th className="p-2 text-left">Usuario vinculado</th><th className="p-2"></th></tr></thead>
           <tbody>{emps.map(e => (
             <tr key={e.id} className="border-b"><td className="p-2">{e.nombre}</td><td className="p-2 font-mono text-xs">{e.rfc}</td><td className="p-2 font-mono text-xs">{e.registro_patronal || '—'}</td><td className="p-2">{e.puesto}</td><td className="p-2 text-right">${Number(e.salario_diario).toFixed(2)}</td><td className="p-2 text-right">${Number(e.sbc).toFixed(2)}</td><td className="p-2"><Badge variant={e.activo?'default':'secondary'}>{e.activo?'Activo':'Baja'}</Badge></td>
             <td className="p-2">
@@ -195,10 +207,34 @@ function EmpleadosTab() {
                 </SelectContent>
               </Select>
             </td>
+            <td className="p-2">
+              <Button size="sm" variant={e.activo ? 'outline' : 'default'} onClick={() => setPendingBaja(e)}>
+                {e.activo ? 'Dar de baja' : 'Reactivar'}
+              </Button>
+            </td>
             </tr>
           ))}</tbody>
         </table>
       </CardContent></Card>
+
+      <AlertDialog open={!!pendingBaja} onOpenChange={o => !o && setPendingBaja(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2"><AlertTriangle className="h-5 w-5 text-amber-500"/>
+              {pendingBaja?.activo ? 'Dar de baja empleado' : 'Reactivar empleado'}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {pendingBaja?.activo
+                ? <>Vas a dar de baja a <strong>{pendingBaja?.nombre}</strong>. Dejará de aparecer en cálculos de nómina, asistencia e incidencias nuevas. Su historial (recibos, comisiones) no se borra. Se registra hoy como fecha de baja.</>
+                : <>Vas a reactivar a <strong>{pendingBaja?.nombre}</strong>. Volverá a aparecer como empleado activo en nómina.</>}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={() => toggleBaja(pendingBaja)}>Sí, confirmar</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
@@ -688,6 +724,141 @@ function RecibosTab() {
 }
 
 // ============================================================
+// METAS DE COMISIONES — por vendedor o por sucursal, trimestral
+// (pedido de Alejandro, sesión 27-jul-2026: "cada trimestre queremos
+// hacer modificación de las metas, según desempeño, según cómo van
+// moviéndose los gastos... por vendedor y por sucursal")
+// ============================================================
+function metaTrimestreActual() {
+  const now = new Date();
+  return { anio: now.getFullYear(), trimestre: Math.floor(now.getMonth() / 3) + 1 };
+}
+function MetasComisionesTab() {
+  const { anio: anioIni, trimestre: trimIni } = metaTrimestreActual();
+  const [anio, setAnio] = useState(anioIni);
+  const [trimestre, setTrimestre] = useState(trimIni);
+  const [metas, setMetas] = useState<any[]>([]);
+  const [emps, setEmps] = useState<any[]>([]);
+  const [sucursales, setSucursales] = useState<any[]>([]);
+  const [showNew, setShowNew] = useState(false);
+  const [neu, setNeu] = useState<any>({ alcance: 'vendedor', empleado_id: '', sucursal_id: '', meta_venta: '', porcentaje_comision: '', notas: '' });
+  const [saving, setSaving] = useState(false);
+
+  const load = () => (supabase as any).from('metas_comisiones')
+    .select('*, empleados(nombre), sucursales(nombre)')
+    .eq('anio', anio).eq('trimestre', trimestre)
+    .order('created_at', { ascending: false })
+    .then(({ data }: any) => setMetas(data || []));
+  useEffect(() => { load(); }, [anio, trimestre]);
+  useEffect(() => {
+    supabase.from('empleados').select('id,nombre').eq('activo', true).order('nombre').then(({ data }) => setEmps((data as any) || []));
+    supabase.from('sucursales').select('id,nombre').eq('activo', true).order('nombre').then(({ data }) => setSucursales((data as any) || []));
+  }, []);
+
+  const abrirNueva = () => {
+    setNeu({ alcance: 'vendedor', empleado_id: '', sucursal_id: '', meta_venta: '', porcentaje_comision: '', notas: '' });
+    setShowNew(true);
+  };
+  const guardar = async () => {
+    if (neu.alcance === 'vendedor' && !neu.empleado_id) { toast.error('Selecciona el vendedor'); return; }
+    if (neu.alcance === 'sucursal' && !neu.sucursal_id) { toast.error('Selecciona la sucursal'); return; }
+    if (!neu.meta_venta) { toast.error('Captura la meta de venta'); return; }
+    setSaving(true);
+    const payload: any = {
+      anio, trimestre,
+      empleado_id: neu.alcance === 'vendedor' ? neu.empleado_id : null,
+      sucursal_id: neu.alcance === 'sucursal' ? neu.sucursal_id : null,
+      meta_venta: Number(neu.meta_venta),
+      porcentaje_comision: Number(neu.porcentaje_comision || 0),
+      notas: neu.notas || null,
+    };
+    const { error } = await (supabase as any).from('metas_comisiones').upsert(payload, {
+      onConflict: neu.alcance === 'vendedor' ? 'empleado_id,anio,trimestre' : 'sucursal_id,anio,trimestre',
+    });
+    setSaving(false);
+    if (error) { toast.error(error.message); return; }
+    toast.success('Meta guardada');
+    setShowNew(false); load();
+  };
+
+  return (
+    <Card>
+      <CardHeader className="flex flex-row items-center justify-between flex-wrap gap-2">
+        <div>
+          <CardTitle>Metas de comisiones — Q{trimestre} {anio}</CardTitle>
+          <p className="text-sm text-muted-foreground mt-1">Editable cada trimestre por vendedor o por sucursal, según desempeño.</p>
+        </div>
+        <div className="flex gap-2 items-end">
+          <div><Label className="text-xs">Trimestre</Label>
+            <select className="h-9 border rounded px-2 text-sm" value={trimestre} onChange={e => setTrimestre(Number(e.target.value))}>
+              <option value={1}>Q1 (ene-mar)</option><option value={2}>Q2 (abr-jun)</option>
+              <option value={3}>Q3 (jul-sep)</option><option value={4}>Q4 (oct-dic)</option>
+            </select>
+          </div>
+          <div><Label className="text-xs">Año</Label><Input type="number" className="h-9 w-24" value={anio} onChange={e => setAnio(Number(e.target.value))} /></div>
+          <Button onClick={abrirNueva}><Plus className="h-4 w-4 mr-2" />Nueva meta</Button>
+        </div>
+      </CardHeader>
+      <CardContent>
+        <table className="w-full text-sm">
+          <thead className="bg-muted"><tr><th className="p-2 text-left">Alcance</th><th className="p-2 text-right">Meta de venta</th><th className="p-2 text-right">% comisión al cumplir</th><th className="p-2 text-left">Notas</th></tr></thead>
+          <tbody>{metas.length === 0 && <tr><td colSpan={4} className="p-4 text-center text-muted-foreground">Sin metas capturadas para Q{trimestre} {anio}</td></tr>}
+          {metas.map((m: any) => (
+            <tr key={m.id} className="border-b">
+              <td className="p-2">
+                {m.empleado_id
+                  ? <span className="flex items-center gap-2"><Badge variant="outline">Vendedor</Badge>{m.empleados?.nombre}</span>
+                  : <span className="flex items-center gap-2"><Badge variant="secondary">Sucursal</Badge>{m.sucursales?.nombre}</span>}
+              </td>
+              <td className="p-2 text-right">${Number(m.meta_venta).toLocaleString('es-MX', { minimumFractionDigits: 2 })}</td>
+              <td className="p-2 text-right">{m.porcentaje_comision}%</td>
+              <td className="p-2 text-xs text-muted-foreground">{m.notas || '—'}</td>
+            </tr>
+          ))}
+          </tbody>
+        </table>
+      </CardContent>
+
+      <Dialog open={showNew} onOpenChange={setShowNew}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Nueva meta — Q{trimestre} {anio}</DialogTitle></DialogHeader>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="col-span-2"><Label>Alcance</Label>
+              <select className="w-full h-10 border rounded px-2" value={neu.alcance} onChange={e => setNeu({ ...neu, alcance: e.target.value, empleado_id: '', sucursal_id: '' })}>
+                <option value="vendedor">Por vendedor</option>
+                <option value="sucursal">Por sucursal</option>
+              </select>
+            </div>
+            {neu.alcance === 'vendedor' ? (
+              <div className="col-span-2"><Label>Vendedor</Label>
+                <select className="w-full h-10 border rounded px-2" value={neu.empleado_id} onChange={e => setNeu({ ...neu, empleado_id: e.target.value })}>
+                  <option value="">—</option>
+                  {emps.map(e => <option key={e.id} value={e.id}>{e.nombre}</option>)}
+                </select>
+              </div>
+            ) : (
+              <div className="col-span-2"><Label>Sucursal</Label>
+                <select className="w-full h-10 border rounded px-2" value={neu.sucursal_id} onChange={e => setNeu({ ...neu, sucursal_id: e.target.value })}>
+                  <option value="">—</option>
+                  {sucursales.map(s => <option key={s.id} value={s.id}>{s.nombre}</option>)}
+                </select>
+              </div>
+            )}
+            <div><Label>Meta de venta ($)</Label><Input type="number" step="0.01" value={neu.meta_venta} onChange={e => setNeu({ ...neu, meta_venta: e.target.value })} /></div>
+            <div><Label>% comisión al cumplir</Label><Input type="number" step="0.01" value={neu.porcentaje_comision} onChange={e => setNeu({ ...neu, porcentaje_comision: e.target.value })} /></div>
+            <div className="col-span-2"><Label>Notas</Label><Input value={neu.notas} onChange={e => setNeu({ ...neu, notas: e.target.value })} placeholder="Ej. Ajustada por gastos del trimestre" /></div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowNew(false)}>Cancelar</Button>
+            <Button onClick={guardar} disabled={saving}>{saving ? 'Guardando...' : 'Guardar meta'}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </Card>
+  );
+}
+
+// ============================================================
 // COMISIONES — Agregar manual
 // ============================================================
 function ComisionesTab() {
@@ -714,13 +885,14 @@ function ComisionesTab() {
   };
   return (
     <div className="space-y-3">
+      <MetasComisionesTab />
       <div className="flex gap-2">
         <Button onClick={()=>setShowNew(true)}><Plus className="h-4 w-4 mr-2"/>Agregar comisión</Button>
       </div>
       <Card>
-        <CardHeader><CardTitle>Comisiones</CardTitle></CardHeader>
+        <CardHeader><CardTitle>Comisiones pagadas (captura manual)</CardTitle></CardHeader>
         <CardContent>
-          <p className="text-sm text-muted-foreground mb-3">Captura manual por empleado y periodo. Marcar "Grava" solo si la comisión debe reflejarse como percepción gravable en el recibo del periodo.</p>
+          <p className="text-sm text-muted-foreground mb-3">Captura manual por empleado y periodo, normalmente calculada contra la meta de arriba. Marcar "Grava" solo si la comisión debe reflejarse como percepción gravable en el recibo del periodo.</p>
           <table className="w-full text-sm">
             <thead className="bg-muted"><tr><th className="p-2 text-left">Empleado</th><th className="p-2 text-left">Periodo</th><th className="p-2 text-right">Base</th><th className="p-2 text-right">%</th><th className="p-2 text-right">Monto</th><th className="p-2">Grava</th><th className="p-2 text-left">Notas</th></tr></thead>
             <tbody>{rows.length===0 && <tr><td colSpan={7} className="p-4 text-center text-muted-foreground">Sin comisiones registradas</td></tr>}
