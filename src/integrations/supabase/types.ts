@@ -3031,7 +3031,9 @@ export type Database = {
         Row: {
           capturada_por: string | null
           created_at: string
+          dias_credito: number | null
           fecha_factura: string | null
+          fecha_limite_pago: string | null
           folio: string
           id: string
           importe: number | null
@@ -3043,7 +3045,9 @@ export type Database = {
         Insert: {
           capturada_por?: string | null
           created_at?: string
+          dias_credito?: number | null
           fecha_factura?: string | null
+          fecha_limite_pago?: string | null
           folio: string
           id?: string
           importe?: number | null
@@ -3055,7 +3059,9 @@ export type Database = {
         Update: {
           capturada_por?: string | null
           created_at?: string
+          dias_credito?: number | null
           fecha_factura?: string | null
+          fecha_limite_pago?: string | null
           folio?: string
           id?: string
           importe?: number | null
@@ -5802,15 +5808,26 @@ export type Database = {
       }
     }
     Functions: {
-      agregar_factura_oc: {
-        Args: {
-          p_fecha_factura?: string
-          p_folio: string
-          p_importe?: number
-          p_orden_id: string
-        }
-        Returns: string
-      }
+      agregar_factura_oc:
+        | {
+            Args: {
+              p_fecha_factura?: string
+              p_folio: string
+              p_importe?: number
+              p_orden_id: string
+            }
+            Returns: string
+          }
+        | {
+            Args: {
+              p_dias_credito?: number
+              p_fecha_factura?: string
+              p_folio: string
+              p_importe?: number
+              p_orden_id: string
+            }
+            Returns: string
+          }
       autorizar_oc_admin: {
         Args: { p_accion: string; p_oc_id: string; p_razon?: string }
         Returns: Json
@@ -6081,6 +6098,17 @@ export type Database = {
       marcar_llegada_oc: {
         Args: { p_orden_id: string; p_valor?: boolean }
         Returns: undefined
+      }
+      oc_facturacion_resumen: {
+        Args: { p_orden_id: string }
+        Returns: {
+          facturas_count: number
+          orden_id: string
+          proximo_vencimiento: string
+          saldo_por_facturar: number
+          total_facturado: number
+          total_orden: number
+        }[]
       }
       precio_vigente_proveedor: {
         Args: {

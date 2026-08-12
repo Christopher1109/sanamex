@@ -36,6 +36,8 @@ type Factura = {
   id: string; orden_id: string; folio: string; fecha_factura: string | null;
   importe: number | null; pdf_path: string | null; xml_path: string | null;
   created_at: string;
+  dias_credito?: number | null;
+  fecha_limite_pago?: string | null;
 };
 type Linea = {
   id: string; producto_id: string; cantidad_solicitada: number; cantidad_recibida: number;
@@ -343,8 +345,28 @@ function OrdenesCompraPageInner() {
   const [facturas, setFacturas] = useState<Factura[]>([]);
   const [facturaSel, setFacturaSel] = useState<string>('');
   const [nuevaFacturaOpen, setNuevaFacturaOpen] = useState(false);
-  const [nuevaFacturaForm, setNuevaFacturaForm] = useState({ folio: '', fecha_factura: '', importe: '' });
+  const [nuevaFacturaForm, setNuevaFacturaForm] = useState({ folio: '', fecha_factura: '', importe: '', dias_credito: '' });
   const [guardandoFactura, setGuardandoFactura] = useState(false);
+
+  // Control financiero de facturación: la suma de las facturas de una OC no
+  // puede exceder su total (0.5% de tolerancia por redondeos del proveedor).
+  const totalOcSel = Number(seleccionada?.total || 0);
+  const totalFacturadoOtras = facturas
+    .filter(f => f.folio !== nuevaFacturaForm.folio.trim())
+    .reduce((s, f) => s + Number(f.importe || 0), 0);
+  const totalFacturado = facturas.reduce((s, f) => s + Number(f.importe || 0), 0);
+  const saldoPorFacturar = Math.max(totalOcSel - totalFacturado, 0);
+  const importeNuevo = nuevaFacturaForm.importe ? Number(nuevaFacturaForm.importe) : 0;
+  const excedeTotalOc = totalOcSel > 0 && importeNuevo > 0 && (totalFacturadoOtras + importeNuevo) > totalOcSel * 1.005;
+  const fechaLimiteCalculada = (() => {
+    if (!nuevaFacturaForm.fecha_factura) return '';
+    const dias = nuevaFacturaForm.dias_credito ? Number(nuevaFacturaForm.dias_credito) : null;
+    if (dias === null || Number.isNaN(dias)) return '';
+    const d = new Date(nuevaFacturaForm.fecha_factura + 'T00:00:00');
+    d.setDate(d.getDate() + dias);
+    return d.toISOString().slice(0, 10);
+  })();
+
   const [subiendoDoc, setSubiendoDoc] = useState<string | null>(null); // `${facturaId}-pdf` | `${facturaId}-xml`
   const [recepcionesPorFactura, setRecepcionesPorFactura] = useState<Record<string, { linea_id: string; cantidad: number; factura_folio: string }[]>>({});
   const [notaOpen, setNotaOpen] = useState<Factura | null>(null);
@@ -626,7 +648,7 @@ function OrdenesCompraPageInner() {
   async function loadFacturas(ordenId: string) {
     const { data } = await (supabase as any)
       .from('ordenes_compra_facturas')
-      .select('id, orden_id, folio, fecha_factura, importe, pdf_path, xml_path, created_at')
+      .select('id, orden_id, folio, fecha_factura, importe, pdf_path, xml_path, created_at, dias_credito, fecha_limite_pago')
       .eq('orden_id', ordenId)
       .order('created_at', { ascending: false });
     setFacturas((data || []) as Factura[]);
@@ -715,11 +737,12 @@ function OrdenesCompraPageInner() {
         p_folio: nuevaFacturaForm.folio.trim(),
         p_fecha_factura: nuevaFacturaForm.fecha_factura || null,
         p_importe: nuevaFacturaForm.importe ? Number(nuevaFacturaForm.importe) : null,
+        p_dias_credito: nuevaFacturaForm.dias_credito ? Number(nuevaFacturaForm.dias_credito) : null,
       });
       if (error) { toast.error(error.message); return; }
       toast.success('Factura ligada a la orden de compra');
       setNuevaFacturaOpen(false);
-      setNuevaFacturaForm({ folio: '', fecha_factura: '', importe: '' });
+      setNuevaFacturaForm({ folio: '', fecha_factura: '', importe: '', dias_credito: '' });
       await loadFacturas(seleccionada.id);
       setFacturaSel(data as string);
     } catch (e: any) {
@@ -1303,7 +1326,7 @@ function OrdenesCompraPageInner() {
             <TableHeader>
               <TableRow>
                 <TableHead>SKU</TableHead><TableHead>Producto</TableHead>
-                <TableHead className="text-right">Solicitado</TableHead>
+                <TableHead className="text-right">Solicitado{Object.keys(ajustesLineas).length > 0 && <span className="block text-[10px] font-normal text-amber-600">original → gerente</span>}</TableHead>
                 <TableHead className="text-right">Recibido</TableHead>
                 <TableHead className="text-right">Precio</TableHead>
                 <TableHead className="text-right">Subtotal</TableHead>
@@ -1325,8 +1348,10 @@ function OrdenesCompraPageInner() {
                         <div>
                           {l.cantidad_solicitada}
                           {ajustesLineas[l.id] && (
-                            <div className="text-[10px] font-normal text-amber-600 whitespace-nowrap">
-                              antes: {ajustesLineas[l.id].cantidad_anterior} → {ajustesLineas[l.id].cantidad_nueva}
+                            <div className="text-[10px] font-normal text-amber-600 whitespace-nowrap leading-tight">
+                              original {ajustesLineas[l.id].cantidad_anterior} → gerente {ajustesLineas[l.id].cantidad_nueva}
+                              {' '}({ajustesLineas[l.id].cantidad_nueva - ajustesLineas[l.id].cantidad_anterior > 0 ? '+' : ''}
+                              {ajustesLineas[l.id].cantidad_nueva - ajustesLineas[l.id].cantidad_anterior})
                             </div>
                           )}
                         </div>
@@ -1368,8 +1393,14 @@ function OrdenesCompraPageInner() {
                 <Receipt className="h-5 w-5 text-primary" />
                 <h3 className="font-semibold">Facturas de esta orden</h3>
                 <Badge variant="outline">{facturas.length}</Badge>
+                {facturas.length > 0 && (
+                  <Badge variant={saldoPorFacturar > 0.5 ? 'secondary' : 'outline'} className="font-normal">
+                    Facturado ${totalFacturado.toLocaleString('es-MX', { minimumFractionDigits: 2 })} de ${Number(seleccionada.total || 0).toLocaleString('es-MX', { minimumFractionDigits: 2 })}
+                    {saldoPorFacturar > 0.5 && ` · saldo $${saldoPorFacturar.toLocaleString('es-MX', { minimumFractionDigits: 2 })}`}
+                  </Badge>
+                )}
               </div>
-              <Button size="sm" variant="outline" className="gap-1" onClick={() => { setNuevaFacturaForm({ folio: '', fecha_factura: '', importe: '' }); setNuevaFacturaOpen(true); }}>
+              <Button size="sm" variant="outline" className="gap-1" onClick={() => { setNuevaFacturaForm({ folio: '', fecha_factura: '', importe: '', dias_credito: '' }); setNuevaFacturaOpen(true); }}>
                 <Plus className="h-4 w-4" /> Agregar factura
               </Button>
             </div>
@@ -1392,6 +1423,17 @@ function OrdenesCompraPageInner() {
                           {f.fecha_factura || 'sin fecha'} {f.importe ? `· $${Number(f.importe).toLocaleString('es-MX', { minimumFractionDigits: 2 })}` : ''}
                           {recibidoEnEstaFactura > 0 && <> · {recibidoEnEstaFactura.toLocaleString('es-MX')} pieza{recibidoEnEstaFactura === 1 ? '' : 's'} recibidas con este folio</>}
                         </div>
+                        {f.fecha_limite_pago && (() => {
+                          const dias = Math.round((new Date(f.fecha_limite_pago + 'T00:00:00').getTime() - new Date(new Date().toDateString()).getTime()) / 86400000);
+                          const tono = dias < 0 ? 'text-destructive' : dias <= 3 ? 'text-amber-600' : 'text-muted-foreground';
+                          return (
+                            <div className={`text-xs mt-0.5 ${tono}`}>
+                              Pago límite {f.fecha_limite_pago}
+                              {f.dias_credito != null && ` (${f.dias_credito} días de crédito)`}
+                              {' · '}{dias < 0 ? `vencida hace ${Math.abs(dias)} día${Math.abs(dias) === 1 ? '' : 's'}` : dias === 0 ? 'vence hoy' : `vence en ${dias} día${dias === 1 ? '' : 's'}`}
+                            </div>
+                          );
+                        })()}
                       </div>
                       <div className="flex flex-wrap items-center gap-1">
                         <input type="file" accept=".pdf" className="hidden" id={`pdf-${f.id}`}
@@ -1671,13 +1713,33 @@ function OrdenesCompraPageInner() {
                   <Input type="number" step="0.01" value={nuevaFacturaForm.importe} onChange={e => setNuevaFacturaForm({ ...nuevaFacturaForm, importe: e.target.value })} />
                 </div>
               </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label className="text-xs">Días de crédito</Label>
+                  <Input type="number" min={0} value={nuevaFacturaForm.dias_credito}
+                    onChange={e => setNuevaFacturaForm({ ...nuevaFacturaForm, dias_credito: e.target.value })}
+                    placeholder="Del proveedor" />
+                </div>
+                <div>
+                  <Label className="text-xs">Fecha límite de pago</Label>
+                  <div className="h-10 flex items-center text-sm tabular-nums">
+                    {fechaLimiteCalculada || <span className="text-muted-foreground text-xs">Se calcula con la fecha y los días de crédito</span>}
+                  </div>
+                </div>
+              </div>
+              <div className={`rounded-md border p-2 text-xs ${excedeTotalOc ? 'border-destructive bg-destructive/10 text-destructive' : 'bg-muted/40 text-muted-foreground'}`}>
+                Total de la orden: <span className="tabular-nums font-medium">${Number(seleccionada.total || 0).toLocaleString('es-MX', { minimumFractionDigits: 2 })}</span>
+                {' · '}Ya facturado: <span className="tabular-nums font-medium">${totalFacturado.toLocaleString('es-MX', { minimumFractionDigits: 2 })}</span>
+                {' · '}Saldo por facturar: <span className="tabular-nums font-medium">${saldoPorFacturar.toLocaleString('es-MX', { minimumFractionDigits: 2 })}</span>
+                {excedeTotalOc && <div className="mt-1 font-medium">Con este importe la suma de facturas excedería el total de la orden.</div>}
+              </div>
               <p className="text-xs text-muted-foreground">
                 Si el proveedor separó esta orden en varias facturas (por empaque o por IVA), agrégalas todas aquí — cada una queda ligada a esta misma orden de compra.
               </p>
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => setNuevaFacturaOpen(false)}>Cancelar</Button>
-              <Button onClick={crearFactura} disabled={guardandoFactura}>
+              <Button onClick={crearFactura} disabled={guardandoFactura || excedeTotalOc}>
                 {guardandoFactura ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : null}Guardar factura
               </Button>
             </DialogFooter>
