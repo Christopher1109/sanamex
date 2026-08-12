@@ -88,10 +88,14 @@ export default function CotizadorSanamex() {
   const [detalle, setDetalle] = useState<Fila | null>(null);
   const [histData, setHistData] = useState<any[]>([]);
   const [ocAbiertas, setOcAbiertas] = useState<any[]>([]);
+  // Extras del cotizador: en ruta por sucursal (con proveedor) y sugerido del gerente.
+  const [rutaMap, setRutaMap] = useState<Record<string, RutaItem[]>>({});
+  const [sugGerMap, setSugGerMap] = useState<Record<string, SugGerenteItem>>({});
 
   useEffect(() => {
     try { localStorage.setItem(HIDDEN_KEY, JSON.stringify(Array.from(ocultas))); } catch {}
   }, [ocultas]);
+
 
   // Catálogo completo de estatus (no solo los que aparecen en el snapshot actual):
   // antes el filtro solo mostraba las opciones presentes en los productos ya
