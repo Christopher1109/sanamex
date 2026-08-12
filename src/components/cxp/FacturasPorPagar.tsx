@@ -117,6 +117,7 @@ const FacturasPorPagar = () => {
 
   function abrirPago(f: FacturaCxP) {
     setPagar(f);
+    setArchivo(null);
     setForm({
       fecha: new Date().toISOString().slice(0, 10),
       forma_pago: 'transferencia',
@@ -126,9 +127,27 @@ const FacturasPorPagar = () => {
     });
   }
 
+  // El comprobante vive en el bucket privado 'comprobantes-pago'; guardamos
+  // sólo la ruta y se abre con URL firmada para no exponer el archivo.
+  async function verComprobante(path: string) {
+    const { data, error } = await supabase.storage.from('comprobantes-pago').createSignedUrl(path, 60);
+    if (error || !data?.signedUrl) { toast.error('No se pudo abrir el comprobante'); return; }
+    window.open(data.signedUrl, '_blank');
+  }
+
   async function registrarPago() {
     if (!pagar) return;
     setGuardando(true);
+
+    let comprobantePath: string | null = null;
+    if (archivo) {
+      const ext = archivo.name.split('.').pop() || 'pdf';
+      const path = `${pagar.factura_id}/comprobante_${Date.now()}.${ext}`;
+      const { error: upErr } = await supabase.storage.from('comprobantes-pago').upload(path, archivo);
+      if (upErr) { setGuardando(false); toast.error(`Error subiendo comprobante: ${upErr.message}`); return; }
+      comprobantePath = path;
+    }
+
     // El monto NO se envía: la RPC paga siempre el importe neto completo de la
     // factura. Así ningún error de captura puede colar un pago parcial.
     const { data, error } = await (supabase as any).rpc('pagar_factura_oc', {
@@ -138,13 +157,16 @@ const FacturasPorPagar = () => {
       p_referencia: form.referencia || null,
       p_banco_cuenta_id: form.banco_cuenta_id || null,
       p_notas: form.notas || null,
+      p_comprobante_url: comprobantePath,
     });
     setGuardando(false);
     if (error) { toast.error(error.message); return; }
     toast.success(`Factura ${pagar.folio_factura} pagada por ${money(data?.monto || pagar.importe_neto)}${data?.compra_saldada ? ' — compra saldada' : ''}`);
     setPagar(null);
+    setArchivo(null);
     load();
   }
+
 
   const badgeVenc = (r: FacturaCxP) => {
     if (r.pagada) return <Badge className="bg-green-100 text-green-700">Pagada</Badge>;
