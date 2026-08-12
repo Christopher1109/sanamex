@@ -212,6 +212,14 @@ export default function PromocionesPage() {
           </Card>
         )}
       </div>
+        </TabsContent>
+
+        <TabsContent value="masiva" className="mt-4">
+          <PromocionesMasivas />
+        </TabsContent>
+      </Tabs>
+
+
 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent>
