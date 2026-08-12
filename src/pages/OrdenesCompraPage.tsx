@@ -349,7 +349,7 @@ function OrdenesCompraPageInner() {
   const [guardandoFactura, setGuardandoFactura] = useState(false);
 
   // Control financiero de facturación: la suma de las facturas de una OC no
-  // puede exceder su total (0.5% de tolerancia por redondeos del proveedor).
+  // puede exceder su total (tolerancia fija de $1.00 por redondeos de centavos).
   const totalOcSel = Number(seleccionada?.total || 0);
   const totalFacturadoOtras = facturas
     .filter(f => f.folio !== nuevaFacturaForm.folio.trim())
@@ -357,7 +357,7 @@ function OrdenesCompraPageInner() {
   const totalFacturado = facturas.reduce((s, f) => s + Number(f.importe || 0), 0);
   const saldoPorFacturar = Math.max(totalOcSel - totalFacturado, 0);
   const importeNuevo = nuevaFacturaForm.importe ? Number(nuevaFacturaForm.importe) : 0;
-  const excedeTotalOc = totalOcSel > 0 && importeNuevo > 0 && (totalFacturadoOtras + importeNuevo) > totalOcSel * 1.005;
+  const excedeTotalOc = totalOcSel > 0 && importeNuevo > 0 && (totalFacturadoOtras + importeNuevo) > totalOcSel + 1;
   const fechaLimiteCalculada = (() => {
     if (!nuevaFacturaForm.fecha_factura) return '';
     const dias = nuevaFacturaForm.dias_credito ? Number(nuevaFacturaForm.dias_credito) : null;

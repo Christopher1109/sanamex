@@ -10,7 +10,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Wallet, Loader2, Receipt, Lock, RefreshCw } from 'lucide-react';
+import { Wallet, Loader2, Receipt, Lock, RefreshCw, Paperclip, FileText, Upload } from 'lucide-react';
 import { toast } from 'sonner';
 
 // Unidad de pago = FOLIO DE FACTURA. Los estados de cuenta del proveedor
@@ -37,6 +37,11 @@ export type FacturaCxP = {
   proveedor_nombre: string | null;
   sucursal_id: string | null;
   sucursal_codigo: string | null;
+  pago_fecha?: string | null;
+  pago_forma?: string | null;
+  pago_referencia?: string | null;
+  pago_cuenta?: string | null;
+  pago_comprobante_url?: string | null;
 };
 
 const money = (n: number) => `$${Number(n || 0).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -60,6 +65,7 @@ const FacturasPorPagar = () => {
   const [filtroAnt, setFiltroAnt] = useState('all');
   const [busqueda, setBusqueda] = useState('');
   const [pagar, setPagar] = useState<FacturaCxP | null>(null);
+  const [archivo, setArchivo] = useState<File | null>(null);
   const [guardando, setGuardando] = useState(false);
   const [form, setForm] = useState({
     fecha: new Date().toISOString().slice(0, 10),
@@ -111,6 +117,7 @@ const FacturasPorPagar = () => {
 
   function abrirPago(f: FacturaCxP) {
     setPagar(f);
+    setArchivo(null);
     setForm({
       fecha: new Date().toISOString().slice(0, 10),
       forma_pago: 'transferencia',
@@ -120,9 +127,27 @@ const FacturasPorPagar = () => {
     });
   }
 
+  // El comprobante vive en el bucket privado 'comprobantes-pago'; guardamos
+  // sólo la ruta y se abre con URL firmada para no exponer el archivo.
+  async function verComprobante(path: string) {
+    const { data, error } = await supabase.storage.from('comprobantes-pago').createSignedUrl(path, 60);
+    if (error || !data?.signedUrl) { toast.error('No se pudo abrir el comprobante'); return; }
+    window.open(data.signedUrl, '_blank');
+  }
+
   async function registrarPago() {
     if (!pagar) return;
     setGuardando(true);
+
+    let comprobantePath: string | null = null;
+    if (archivo) {
+      const ext = archivo.name.split('.').pop() || 'pdf';
+      const path = `${pagar.factura_id}/comprobante_${Date.now()}.${ext}`;
+      const { error: upErr } = await supabase.storage.from('comprobantes-pago').upload(path, archivo);
+      if (upErr) { setGuardando(false); toast.error(`Error subiendo comprobante: ${upErr.message}`); return; }
+      comprobantePath = path;
+    }
+
     // El monto NO se envía: la RPC paga siempre el importe neto completo de la
     // factura. Así ningún error de captura puede colar un pago parcial.
     const { data, error } = await (supabase as any).rpc('pagar_factura_oc', {
@@ -132,13 +157,16 @@ const FacturasPorPagar = () => {
       p_referencia: form.referencia || null,
       p_banco_cuenta_id: form.banco_cuenta_id || null,
       p_notas: form.notas || null,
+      p_comprobante_url: comprobantePath,
     });
     setGuardando(false);
     if (error) { toast.error(error.message); return; }
     toast.success(`Factura ${pagar.folio_factura} pagada por ${money(data?.monto || pagar.importe_neto)}${data?.compra_saldada ? ' — compra saldada' : ''}`);
     setPagar(null);
+    setArchivo(null);
     load();
   }
+
 
   const badgeVenc = (r: FacturaCxP) => {
     if (r.pagada) return <Badge className="bg-green-100 text-green-700">Pagada</Badge>;
@@ -253,17 +281,33 @@ const FacturasPorPagar = () => {
                     {r.fecha_limite_pago || '—'}
                     {r.dias_credito != null && <div className="text-[10px] text-muted-foreground">{r.dias_credito} días crédito</div>}
                   </TableCell>
-                  <TableCell className="text-center">{badgeVenc(r)}</TableCell>
+                  <TableCell className="text-center">
+                    {badgeVenc(r)}
+                    {r.pagada && (r.pago_forma || r.pago_cuenta || r.pago_referencia) && (
+                      <div className="text-[10px] text-muted-foreground mt-1 leading-tight">
+                        {r.pago_fecha || ''} {r.pago_forma ? `· ${r.pago_forma}` : ''}
+                        {r.pago_cuenta ? <div>{r.pago_cuenta}</div> : null}
+                        {r.pago_referencia ? <div>Ref. {r.pago_referencia}</div> : null}
+                      </div>
+                    )}
+                  </TableCell>
                   <TableCell className="text-right tabular-nums">{r.importe ? money(r.importe) : <span className="text-xs text-muted-foreground">sin importe</span>}</TableCell>
                   <TableCell className="text-right tabular-nums text-muted-foreground">{r.notas_credito ? `- ${money(r.notas_credito)}` : '—'}</TableCell>
                   <TableCell className="text-right tabular-nums font-bold">{money(r.pagada ? r.pagado : r.saldo)}</TableCell>
                   <TableCell>
-                    {!r.pagada && (
+                    {!r.pagada ? (
                       <Button size="sm" disabled={!r.importe || !r.compra_id} onClick={() => abrirPago(r)}>
                         <Wallet className="h-3 w-3 mr-1" /> Pagar completa
                       </Button>
+                    ) : r.pago_comprobante_url ? (
+                      <Button size="sm" variant="outline" onClick={() => verComprobante(r.pago_comprobante_url!)}>
+                        <FileText className="h-3 w-3 mr-1" /> Comprobante
+                      </Button>
+                    ) : (
+                      <span className="text-[10px] text-muted-foreground">sin comprobante</span>
                     )}
                   </TableCell>
+
                 </TableRow>
               ))}
             </TableBody>
@@ -329,9 +373,30 @@ const FacturasPorPagar = () => {
                 </div>
               </div>
               <div>
+                <Label className="text-xs">Comprobante de pago (PDF o imagen)</Label>
+                <label className="mt-1 flex items-center gap-2 rounded-md border border-dashed p-3 cursor-pointer hover:bg-muted/50">
+                  {archivo ? <Paperclip className="h-4 w-4 text-primary" /> : <Upload className="h-4 w-4 text-muted-foreground" />}
+                  <span className="text-xs truncate">
+                    {archivo ? archivo.name : 'Adjuntar comprobante (transferencia, cheque, ficha)'}
+                  </span>
+                  <input
+                    type="file"
+                    accept="application/pdf,image/*"
+                    className="hidden"
+                    onChange={e => setArchivo(e.target.files?.[0] || null)}
+                  />
+                </label>
+                {archivo && (
+                  <button type="button" className="text-[11px] text-muted-foreground underline mt-1" onClick={() => setArchivo(null)}>
+                    Quitar archivo
+                  </button>
+                )}
+              </div>
+              <div>
                 <Label className="text-xs">Notas</Label>
                 <Textarea value={form.notas} onChange={e => setForm({ ...form, notas: e.target.value })} rows={2} />
               </div>
+
             </div>
           )}
           <DialogFooter>

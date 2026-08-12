@@ -6023,6 +6023,11 @@ export type Database = {
           orden_total: number
           pagada: boolean
           pagado: number
+          pago_comprobante_url: string
+          pago_cuenta: string
+          pago_fecha: string
+          pago_forma: string
+          pago_referencia: string
           pdf_path: string
           proveedor_id: string
           proveedor_nombre: string
@@ -6147,17 +6152,30 @@ export type Database = {
           total_orden: number
         }[]
       }
-      pagar_factura_oc: {
-        Args: {
-          p_banco_cuenta_id?: string
-          p_factura_id: string
-          p_fecha?: string
-          p_forma_pago?: string
-          p_notas?: string
-          p_referencia?: string
-        }
-        Returns: Json
-      }
+      pagar_factura_oc:
+        | {
+            Args: {
+              p_banco_cuenta_id?: string
+              p_factura_id: string
+              p_fecha?: string
+              p_forma_pago?: string
+              p_notas?: string
+              p_referencia?: string
+            }
+            Returns: Json
+          }
+        | {
+            Args: {
+              p_banco_cuenta_id?: string
+              p_comprobante_url?: string
+              p_factura_id: string
+              p_fecha?: string
+              p_forma_pago?: string
+              p_notas?: string
+              p_referencia?: string
+            }
+            Returns: Json
+          }
       precio_vigente_proveedor: {
         Args: {
           p_fecha?: string
