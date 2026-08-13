@@ -338,6 +338,85 @@ function PrimasRTTab() {
 // ============================================================
 // CONCEPTOS — nuevo + base bloqueados
 // ============================================================
+// ============================================================
+// BONO DE PUNTUALIDAD — configuración "mixta" por categoría (13-ago)
+//
+// Ver comentario en NominaCalculator.ts: hay dos reglas confirmadas
+// en distintos momentos que no cuadran entre sí (10%/5% plano vs
+// variable por puesto). Esta tabla deja el % editable por categoría
+// sin necesitar otro cambio de código — se sembró 10% parejo, que es
+// el comportamiento que ya estaba activo, así que por sí sola esta
+// pantalla no cambia ningún cálculo hasta que alguien la edite aquí.
+// ============================================================
+function BonoPuntualidadConfigCard() {
+  const [rows, setRows] = useState<any[]>([]);
+  const [editando, setEditando] = useState<Record<string, string>>({});
+  const [guardando, setGuardando] = useState<string | null>(null);
+
+  const load = () => (supabase as any).from('nomina_bono_puntualidad_config')
+    .select('*').order('categoria').then(({ data }: any) => setRows(data || []));
+  useEffect(() => { load(); }, []);
+
+  const guardar = async (categoria: string) => {
+    const val = editando[categoria];
+    if (val === undefined) return;
+    const pct = Number(val);
+    if (isNaN(pct) || pct < 0 || pct > 100) { toast.error('% inválido (0-100)'); return; }
+    setGuardando(categoria);
+    const { error } = await (supabase as any).from('nomina_bono_puntualidad_config')
+      .update({ pct_mensual: pct, updated_at: new Date().toISOString() }).eq('categoria', categoria);
+    setGuardando(null);
+    if (error) { toast.error(error.message); return; }
+    toast.success(`Bono de puntualidad de "${categoria}" actualizado a ${pct}% mensual`);
+    setEditando(prev => { const n = { ...prev }; delete n[categoria]; return n; });
+    load();
+  };
+
+  return (
+    <Card className="border-amber-400/50">
+      <CardHeader>
+        <CardTitle className="text-base">Bono de puntualidad — % mensual por categoría</CardTitle>
+        <p className="text-sm text-muted-foreground mt-1">
+          Pendiente de confirmar con el cliente si debe ser el mismo % para todos (como está ahora)
+          o variar por categoría. Ajusta aquí en cuanto se decida — no requiere tocar código.
+        </p>
+      </CardHeader>
+      <CardContent>
+        <table className="w-full text-sm">
+          <thead className="bg-muted"><tr>
+            <th className="p-2 text-left">Categoría</th>
+            <th className="p-2 text-right">% mensual</th>
+            <th className="p-2 text-left">Notas</th>
+            <th className="p-2"></th>
+          </tr></thead>
+          <tbody>
+            {rows.map(r => (
+              <tr key={r.categoria} className="border-b">
+                <td className="p-2 capitalize">{r.categoria}</td>
+                <td className="p-2 text-right">
+                  <Input
+                    type="number" step="0.01" className="w-24 h-8 text-right inline-block"
+                    value={editando[r.categoria] ?? String(r.pct_mensual)}
+                    onChange={e => setEditando(prev => ({ ...prev, [r.categoria]: e.target.value }))}
+                  />
+                </td>
+                <td className="p-2 text-xs text-muted-foreground">{r.notas || '—'}</td>
+                <td className="p-2 text-right">
+                  <Button size="sm" variant="outline"
+                    disabled={editando[r.categoria] === undefined || guardando === r.categoria}
+                    onClick={() => guardar(r.categoria)}>
+                    {guardando === r.categoria ? 'Guardando…' : 'Guardar'}
+                  </Button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </CardContent>
+    </Card>
+  );
+}
+
 function ConceptosTab() {
   const [conc, setConc] = useState<any[]>([]);
   const [showNew, setShowNew] = useState(false);
@@ -355,6 +434,7 @@ function ConceptosTab() {
   };
   return (
     <div className="space-y-3">
+      <BonoPuntualidadConfigCard />
       <div className="flex gap-2">
         <Button onClick={()=>setShowNew(true)}><Plus className="h-4 w-4 mr-2"/>Nuevo concepto</Button>
       </div>
@@ -420,23 +500,112 @@ function AsistenciaTab() {
     load();
     supabase.from('empleados').select('id,nombre,numero_empleado').then(({data})=>setEmps((data as any)||[]));
   }, []);
+  // Mapa de códigos del Excel oficial de incidencias -> valor que acepta
+  // asistencia.incidencia (CHECK: falta|retardo|permiso|vacaciones|
+  // incapacidad|dia_festivo|descanso_laborado|horas_extra|NULL).
+  // 'A' y 'Descanso' se guardan como NULL (día pagado normal, sin
+  // incidencia) — la diferencia entre "asistió" y "descanso programado"
+  // no afecta el cálculo de nómina, ambos son días pagados.
+  // 'PD' (prima dominical) se mapea a 'descanso_laborado' — es la
+  // categoría más cercana que ya existe (día de descanso trabajado);
+  // si el cliente la quiere separada hay que agregar un valor nuevo al
+  // CHECK de la tabla. Igual con 'TF' -> 'dia_festivo'.
+  const CODIGO_A_INCIDENCIA: Record<string, string | null> = {
+    'A': null, 'ASISTENCIA': null,
+    'D': null, 'DESCANSO': null,
+    'F': 'falta', 'FALTA': 'falta',
+    'R': 'retardo', 'RETARDO': 'retardo',
+    'P': 'permiso', 'PERMISO': 'permiso',
+    'V': 'vacaciones', 'VACACIONES': 'vacaciones',
+    'IN': 'incapacidad', 'INCAPACIDAD': 'incapacidad',
+    'TF': 'dia_festivo',
+    'PD': 'descanso_laborado', // prima dominical -> asumido como descanso trabajado, ver comentario arriba
+    'DD': 'descanso_laborado',
+  };
+
   const importar = async (file: File) => {
     const XLSX = await import('xlsx');
-    const wb = XLSX.read(await file.arrayBuffer());
-    const rows: any[] = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]);
+    const wb = XLSX.read(await file.arrayBuffer(), { cellDates: true });
+    const sheet = wb.Sheets[wb.SheetNames[0]];
+    // header:1 -> array de arrays (por posición), necesario porque este
+    // archivo es una MATRIZ (una fila por empleado, una columna por día),
+    // no una tabla de un registro por fila.
+    const grid: any[][] = XLSX.utils.sheet_to_json(sheet, { header: 1, raw: true });
+
+    // 1) Encontrar la fila de encabezado buscando la celda "NC" (clave de
+    //    empleado) y, en esa misma fila, todas las columnas cuyo valor sea
+    //    una fecha real (los días de la quincena).
+    let headerRowIdx = -1, colNC = -1, colNombre = -1;
+    for (let i = 0; i < grid.length; i++) {
+      const row = grid[i] || [];
+      const idxNC = row.findIndex((c: any) => String(c ?? '').trim().toUpperCase() === 'NC');
+      const idxNombre = row.findIndex((c: any) => String(c ?? '').trim().toUpperCase().startsWith('NOMBRE'));
+      if (idxNC >= 0 && idxNombre >= 0) { headerRowIdx = i; colNC = idxNC; colNombre = idxNombre; break; }
+    }
+    if (headerRowIdx === -1) {
+      toast.error('No se encontró el encabezado esperado (columnas "NC" y "NOMBRE DE COLABORADOR"). ¿Es el formato oficial de incidencias?');
+      return;
+    }
+    const headerRow = grid[headerRowIdx];
+    const diaCols: Array<{ col: number; fecha: string }> = [];
+    headerRow.forEach((v: any, col: number) => {
+      // xlsx con raw:true regresa fechas como objetos Date reales.
+      if (v instanceof Date && !isNaN(v.getTime())) {
+        diaCols.push({ col, fecha: v.toISOString().slice(0, 10) });
+      }
+    });
+    if (diaCols.length === 0) {
+      toast.error('No se encontraron columnas de fecha en el encabezado.');
+      return;
+    }
+
+    // 2) Empleados activos, para casar por número de empleado (NC).
     const map = new Map(emps.map(e => [String(e.numero_empleado || '').trim(), e.id]));
-    const map2 = new Map(emps.map(e => [String(e.nombre).toLowerCase().trim(), e.id]));
-    const filas2 = rows.map(r => {
-      const key = String(r.numero_empleado ?? r.empleado ?? '').trim();
-      const empId = map.get(key) || map2.get(key.toLowerCase()) || r.empleado_id;
-      return empId ? {
-        empleado_id: empId, fecha: r.fecha, entrada: r.entrada || null, salida: r.salida || null,
-        incidencia: r.incidencia || null, horas_extra: Number(r.horas_extra || 0), origen: 'import',
-      } : null;
-    }).filter(Boolean);
-    const { error } = await supabase.from('asistencia').upsert(filas2 as any, { onConflict: 'empleado_id,fecha' });
+
+    const filas: any[] = [];
+    const codigosNoReconocidos = new Set<string>();
+    let empleadosNoEncontrados = 0;
+
+    for (let r = headerRowIdx + 1; r < grid.length; r++) {
+      const row = grid[r] || [];
+      const nc = String(row[colNC] ?? '').trim();
+      if (!nc) continue; // fila vacía = fin de la plantilla
+      const empId = map.get(nc);
+      if (!empId) { empleadosNoEncontrados++; continue; }
+
+      for (const { col, fecha } of diaCols) {
+        const raw = row[col];
+        if (raw === undefined || raw === null || raw === '') continue;
+
+        if (typeof raw === 'number') {
+          // Celda numérica = horas extra ese día (el empleado sí asistió).
+          filas.push({ empleado_id: empId, fecha, incidencia: null, horas_extra: raw, origen: 'import' });
+          continue;
+        }
+
+        const codigo = String(raw).trim().toUpperCase();
+        if (codigo === '.') continue; // columna/celda separadora sin dato
+        if (!(codigo in CODIGO_A_INCIDENCIA)) {
+          codigosNoReconocidos.add(codigo);
+          continue; // no se adivina — mejor dejar el día sin tocar que meter un valor incorrecto
+        }
+        filas.push({ empleado_id: empId, fecha, incidencia: CODIGO_A_INCIDENCIA[codigo], horas_extra: 0, origen: 'import' });
+      }
+    }
+
+    if (filas.length === 0) {
+      toast.error('No se importó ningún registro — revisa que el archivo tenga el formato oficial.');
+      return;
+    }
+
+    const { error } = await supabase.from('asistencia').upsert(filas as any, { onConflict: 'empleado_id,fecha' });
     if (error) { toast.error(error.message); return; }
-    toast.success(`${filas2.length} registros`); load();
+
+    let msg = `${filas.length} registros importados`;
+    if (empleadosNoEncontrados > 0) msg += ` — ${empleadosNoEncontrados} fila(s) con NC sin coincidencia de empleado`;
+    if (codigosNoReconocidos.size > 0) msg += ` — códigos no reconocidos (se ignoraron): ${[...codigosNoReconocidos].join(', ')}`;
+    if (empleadosNoEncontrados > 0 || codigosNoReconocidos.size > 0) toast.warning(msg); else toast.success(msg);
+    load();
   };
   const guardarEdicion = async () => {
     if (!editing) return;

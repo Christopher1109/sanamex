@@ -52,7 +52,7 @@ export type PreviewComision = {
 // (auxiliar contable, coordinador calidad, gerente compras, etc.) NO
 // entran al Plan Equipo de sucursal; en el Excel real tienen su
 // propia sección "Bonos Administración" que no se implementó aquí.
-function categorizarPuesto(puesto: string | null): CategoriaReparto | null {
+export function categorizarPuesto(puesto: string | null): CategoriaReparto | null {
   if (!puesto) return null;
   const p = puesto.toUpperCase();
   if (p.includes('SUBGERENTE') || p.includes('SUB-GERENTE') || p.includes('SUB GERENTE')) return 'subgerente';

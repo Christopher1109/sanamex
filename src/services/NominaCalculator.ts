@@ -1,4 +1,5 @@
 import { supabase } from '@/integrations/supabase/client';
+import { categorizarPuesto } from './ComisionesCalculator';
 
 // Motor de nómina simplificado pero funcional. Tablas ISR vienen de tablas_isr
 // (versionables por año). Subsidio al empleo: aplica tabla SAT (placeholder simple aquí).
@@ -59,13 +60,21 @@ export const NominaCalculator = {
     const conceptos: ConceptoCalculado[] = [];
     conceptos.push({ clave: '001', descripcion: 'Sueldo', tipo: 'percepcion', importe_gravado: sueldo, importe_exento: 0, importe_total: sueldo });
     if (retardos === 0 && faltas === 0) {
-      // Confirmado por Contabilidad Sanamex (27-jul-2026): el premio de
-      // puntualidad es 10% del sueldo mensual; como el pago es quincenal,
-      // se aplica el 5% sobre el sueldo del periodo. Si en el futuro
-      // manejan otra periodicidad, se ajusta el mismo % mensual proporcional.
-      const factorPuntualidad = periodicidad === 'quincenal' ? 0.05
-        : periodicidad === 'semanal' ? 0.10 / 4.345
-        : 0.10; // mensual
+      // Bono "mixto" (13-ago-2026): el % ahora se busca por categoría de
+      // puesto en nomina_bono_puntualidad_config en vez de estar fijo en
+      // el código. Se sembró 10% parejo para TODAS las categorías, que es
+      // exactamente la Regla A confirmada el 27-jul — así que hoy el
+      // resultado no cambia. Queda listo para que, en cuanto se cierre en
+      // la junta cuál regla aplica (la plana o la variable por puesto de
+      // CONTPAQi), se ajuste solo la tabla, sin tocar código de nuevo.
+      const categoria = categorizarPuesto(emp.puesto) || 'otros';
+      const { data: cfgRow } = await supabase
+        .from('nomina_bono_puntualidad_config' as any)
+        .select('pct_mensual').eq('categoria', categoria).maybeSingle();
+      const pctMensual = Number((cfgRow as any)?.pct_mensual ?? 10);
+      const factorPuntualidad = periodicidad === 'quincenal' ? pctMensual / 200
+        : periodicidad === 'semanal' ? pctMensual / 100 / 4.345
+        : pctMensual / 100; // mensual
       const punt = Math.round(sueldo * factorPuntualidad * 100) / 100;
       conceptos.push({ clave: '010', descripcion: 'Premio por puntualidad', tipo: 'percepcion', importe_gravado: punt, importe_exento: 0, importe_total: punt });
     }
