@@ -15,7 +15,7 @@ export default function ReportesAdminPage() {
     <div className="space-y-6">
       <div>
         <h1 className="text-3xl font-bold">Reportes administrativos</h1>
-        <p className="text-muted-foreground">Estados financieros, flujo, antigüedad e impuestos.</p>
+        <p className="text-muted-foreground">Estados financieros, flujo y antigüedad. Para impuestos (IVA, ISR, ISN, retenciones), ve al módulo de Determinación de Impuestos.</p>
       </div>
       <Tabs defaultValue="balanza" className="space-y-4">
         <TabsList>
@@ -24,7 +24,6 @@ export default function ReportesAdminPage() {
           <TabsTrigger value="bg">Balance General</TabsTrigger>
           <TabsTrigger value="flujo">Flujo de Efectivo</TabsTrigger>
           <TabsTrigger value="cxp">Antigüedad CxP</TabsTrigger>
-          <TabsTrigger value="iva">Impuestos (IVA)</TabsTrigger>
           <TabsTrigger value="sat">XML SAT</TabsTrigger>
         </TabsList>
         <TabsContent value="balanza"><BalanzaTab /></TabsContent>
@@ -32,7 +31,6 @@ export default function ReportesAdminPage() {
         <TabsContent value="bg"><BGTab /></TabsContent>
         <TabsContent value="flujo"><FlujoTab /></TabsContent>
         <TabsContent value="cxp"><CxPTab /></TabsContent>
-        <TabsContent value="iva"><IvaTab /></TabsContent>
         <TabsContent value="sat"><SatTab /></TabsContent>
       </Tabs>
     </div>
@@ -215,36 +213,6 @@ function CxPTab() {
           <thead className="bg-muted"><tr><th className="p-2 text-left">Compra</th><th className="p-2 text-left">Proveedor</th><th className="p-2 text-left">Fecha</th><th className="p-2 text-right">Días</th><th className="p-2 text-left">Bucket</th><th className="p-2 text-right">Saldo</th></tr></thead>
           <tbody>{enriched.map((r:any,i)=>(<tr key={i} className="border-b"><td className="p-2">{r.numero_compra}</td><td className="p-2">{r.proveedores?.nombre}</td><td className="p-2">{r.fecha_factura}</td><td className="p-2 text-right">{r.dias}</td><td className="p-2">{r.bucket}</td><td className="p-2 text-right">${Number(r.saldo||0).toFixed(2)}</td></tr>))}</tbody>
         </table>
-      </CardContent>
-    </Card>
-  );
-}
-
-function IvaTab() {
-  const f = useFiltros();
-  const [trasladado, setTrasladado] = useState(0);
-  const [acreditable, setAcreditable] = useState(0);
-  useEffect(() => {
-    supabase.from('cfdi_emitidos').select('total').eq('es_demo', false).neq('estado', 'cancelado')
-      .gte('timbrado_at', f.desde).lte('timbrado_at', f.hasta)
-      .then(({ data }) => {
-        const sum = ((data as any) || []).reduce((s: number, r: any) => s + Number(r.total || 0), 0);
-        setTrasladado(sum * 0.16 / 1.16);
-      });
-    supabase.from('compras').select('total').gte('created_at', f.desde).lte('created_at', f.hasta)
-      .then(({ data }) => {
-        const sum = ((data as any) || []).reduce((s: number, r: any) => s + Number(r.total || 0), 0);
-        setAcreditable(sum * 0.16 / 1.16);
-      });
-  }, [f.desde, f.hasta]);
-  return (
-    <Card>
-      <CardHeader><Filtros f={f} /></CardHeader>
-      <CardContent className="space-y-2 max-w-2xl">
-        <p className="text-sm text-muted-foreground">Cálculo base (16% efectivo). El cálculo fino llega en el siguiente prompt.</p>
-        <div className="flex justify-between border-b py-2"><span>IVA trasladado (ventas CFDI)</span><span>${trasladado.toFixed(2)}</span></div>
-        <div className="flex justify-between border-b py-2"><span>IVA acreditable (compras)</span><span>${acreditable.toFixed(2)}</span></div>
-        <div className="flex justify-between py-2 font-bold"><span>IVA a {trasladado-acreditable>=0?'pagar':'favor'}</span><span>${Math.abs(trasladado-acreditable).toFixed(2)}</span></div>
       </CardContent>
     </Card>
   );
