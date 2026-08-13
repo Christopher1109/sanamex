@@ -17,6 +17,7 @@ import {
 import { Upload, Plus, Calculator, FileCheck, Receipt, FileText, Download, Lock, Pencil, AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
 import { NominaCalculator, BiometricoConnector } from '@/services/NominaCalculator';
+import { ComisionesCalculator, type PreviewComision } from '@/services/ComisionesCalculator';
 
 export default function NominaPage() {
   return (
@@ -861,6 +862,184 @@ function MetasComisionesTab() {
 // ============================================================
 // COMISIONES — Agregar manual
 // ============================================================
+// ============================================================
+// COMISIONES — Motor automático (Plan Equipo) — v1
+//
+// Calcula Utilidad Neta de la sucursal en el trimestre y la reparte
+// según los escalones y % por rol configurados. Ver ComisionesCalculator.ts
+// para el detalle de qué queda fuera de esta primera versión (Plan
+// Individual, Bono Gerentes, bonos trimestrales fijos).
+// ============================================================
+function MotorComisionesTab() {
+  const { anio: anioIni, trimestre: trimIni } = metaTrimestreActual();
+  const [anio, setAnio] = useState(anioIni);
+  const [trimestre, setTrimestre] = useState(trimIni);
+  const [sucursales, setSucursales] = useState<any[]>([]);
+  const [sucursalId, setSucursalId] = useState('');
+  const [gastos, setGastos] = useState('0');
+  const [preview, setPreview] = useState<PreviewComision | null>(null);
+  const [calculando, setCalculando] = useState(false);
+  const [aplicando, setAplicando] = useState(false);
+  const [confirmAplicar, setConfirmAplicar] = useState(false);
+
+  useEffect(() => {
+    supabase.from('sucursales').select('id,nombre').eq('activo', true).order('nombre')
+      .then(({ data }) => setSucursales((data as any) || []));
+  }, []);
+
+  const calcular = async () => {
+    if (!sucursalId) { toast.error('Selecciona la sucursal'); return; }
+    setCalculando(true);
+    try {
+      const p = await ComisionesCalculator.calcularPreview(sucursalId, anio, trimestre, Number(gastos || 0));
+      setPreview(p);
+    } catch (e: any) {
+      toast.error(e.message || 'No se pudo calcular');
+    } finally {
+      setCalculando(false);
+    }
+  };
+
+  const aplicar = async () => {
+    if (!preview) return;
+    setAplicando(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      await ComisionesCalculator.aplicarCalculo(preview, user?.id || null);
+      toast.success('Comisiones aplicadas — ya aparecen en "Comisiones pagadas" abajo');
+      setPreview(null);
+      setConfirmAplicar(false);
+    } catch (e: any) {
+      toast.error(e.message || 'No se pudo aplicar');
+    } finally {
+      setAplicando(false);
+    }
+  };
+
+  return (
+    <Card className="border-primary/30">
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2"><Calculator className="h-4 w-4" /> Motor de comisiones (automático) — v1</CardTitle>
+        <p className="text-sm text-muted-foreground mt-1">
+          Utilidad Neta de la sucursal en el trimestre → escalón → % de comisión → reparto por rol.
+          Los gastos del periodo todavía se capturan a mano (no hay módulo de gastos operativos).
+          Los escalones y el % de reparto por rol son <strong>valores de ejemplo</strong> — ajústalos en
+          la base de datos con el cliente antes de usar esto en producción. Quedan fuera de esta
+          primera versión: Plan Individual, Bono Gerentes, y bonos trimestrales fijos (A-P-P / metas
+          consecutivas) del Excel original.
+        </p>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="grid grid-cols-4 gap-3">
+          <div><Label className="text-xs">Sucursal</Label>
+            <select className="w-full h-10 border rounded px-2" value={sucursalId} onChange={e => { setSucursalId(e.target.value); setPreview(null); }}>
+              <option value="">—</option>
+              {sucursales.map(s => <option key={s.id} value={s.id}>{s.nombre}</option>)}
+            </select>
+          </div>
+          <div><Label className="text-xs">Trimestre</Label>
+            <select className="w-full h-10 border rounded px-2" value={trimestre} onChange={e => { setTrimestre(Number(e.target.value)); setPreview(null); }}>
+              <option value={1}>Q1 (ene-mar)</option><option value={2}>Q2 (abr-jun)</option>
+              <option value={3}>Q3 (jul-sep)</option><option value={4}>Q4 (oct-dic)</option>
+            </select>
+          </div>
+          <div><Label className="text-xs">Año</Label>
+            <Input type="number" value={anio} onChange={e => { setAnio(Number(e.target.value)); setPreview(null); }} />
+          </div>
+          <div><Label className="text-xs">Gastos del periodo ($)</Label>
+            <Input type="number" step="0.01" value={gastos} onChange={e => { setGastos(e.target.value); setPreview(null); }} placeholder="Renta, financiamiento, admin…" />
+          </div>
+        </div>
+        <Button onClick={calcular} disabled={calculando || !sucursalId}>
+          {calculando ? 'Calculando…' : 'Calcular utilidad y comisión'}
+        </Button>
+
+        {preview && (
+          <div className="space-y-3 border-t pt-4">
+            <div className="grid grid-cols-3 gap-3">
+              <div className="rounded-lg border p-3">
+                <p className="text-xs text-muted-foreground">Ventas del trimestre</p>
+                <p className="text-lg font-bold">${preview.ventas_totales.toLocaleString('es-MX', { minimumFractionDigits: 2 })}</p>
+              </div>
+              <div className="rounded-lg border p-3">
+                <p className="text-xs text-muted-foreground">Utilidad bruta</p>
+                <p className="text-lg font-bold">${preview.utilidad_bruta.toLocaleString('es-MX', { minimumFractionDigits: 2 })}</p>
+              </div>
+              <div className="rounded-lg border p-3 bg-accent/40">
+                <p className="text-xs text-muted-foreground">Utilidad neta (- gastos)</p>
+                <p className="text-lg font-bold">${preview.utilidad_neta.toLocaleString('es-MX', { minimumFractionDigits: 2 })}</p>
+              </div>
+            </div>
+
+            {!preview.escalon && (
+              <div className="rounded-lg border border-amber-400 bg-amber-50 p-3 text-sm text-amber-800">
+                ⚠️ La utilidad neta no cayó en ningún escalón configurado para Q{trimestre} {anio}
+                {preview.sucursal_id ? '' : ''} — revisa los escalones o si la utilidad es negativa. Comisión = $0.
+              </div>
+            )}
+            {preview.escalon && (
+              <p className="text-sm">
+                Escalón aplicado: <Badge variant="secondary">#{preview.escalon.orden}</Badge>{' '}
+                (${preview.escalon.limite_inferior.toLocaleString('es-MX')} – {preview.escalon.limite_superior === null ? 'sin tope' : `$${preview.escalon.limite_superior.toLocaleString('es-MX')}`})
+                {' '}→ <strong>{preview.pct_comision_aplicado}%</strong> = <strong>${preview.comision_total.toLocaleString('es-MX', { minimumFractionDigits: 2 })}</strong> de comisión total
+              </p>
+            )}
+
+            <table className="w-full text-sm">
+              <thead className="bg-muted"><tr>
+                <th className="p-2 text-left">Categoría</th><th className="p-2 text-right">% reparto</th>
+                <th className="p-2 text-right">Monto categoría</th><th className="p-2 text-left">Empleados (monto c/u)</th>
+              </tr></thead>
+              <tbody>
+                {preview.reparto.map(r => (
+                  <tr key={r.categoria} className="border-b">
+                    <td className="p-2 capitalize">{r.categoria}</td>
+                    <td className="p-2 text-right">{r.pct_reparto}%</td>
+                    <td className="p-2 text-right">${r.monto_categoria.toLocaleString('es-MX', { minimumFractionDigits: 2 })}</td>
+                    <td className="p-2 text-xs">
+                      {r.empleados.length === 0
+                        ? <span className="text-muted-foreground">Sin empleados activos en esta categoría en esta sucursal</span>
+                        : r.empleados.map(e => `${e.nombre} ($${e.monto.toLocaleString('es-MX', { minimumFractionDigits: 2 })})`).join(', ')}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+
+            {preview.empleados_sin_categoria.length > 0 && (
+              <p className="text-xs text-muted-foreground">
+                No entran al reparto (puesto administrativo/no clasificado): {preview.empleados_sin_categoria.map(e => `${e.nombre} (${e.puesto || 'sin puesto'})`).join(', ')}
+              </p>
+            )}
+
+            <Button onClick={() => setConfirmAplicar(true)} disabled={preview.comision_total <= 0}>
+              Aplicar — generar comisiones por empleado
+            </Button>
+          </div>
+        )}
+      </CardContent>
+
+      <AlertDialog open={confirmAplicar} onOpenChange={setConfirmAplicar}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Aplicar este cálculo de comisiones?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Se creará una comisión por cada empleado con monto mayor a $0 en la tabla de abajo
+              ("Comisiones pagadas"), lista para incluirse en su siguiente recibo de nómina. Esta
+              acción no se puede deshacer automáticamente — si algo está mal, se tendría que borrar
+              manualmente cada comisión generada.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={aplicar} disabled={aplicando}>{aplicando ? 'Aplicando…' : 'Sí, aplicar'}</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </Card>
+  );
+}
+
 function ComisionesTab() {
   const [rows, setRows] = useState<any[]>([]);
   const [emps, setEmps] = useState<any[]>([]);
@@ -885,6 +1064,7 @@ function ComisionesTab() {
   };
   return (
     <div className="space-y-3">
+      <MotorComisionesTab />
       <MetasComisionesTab />
       <div className="flex gap-2">
         <Button onClick={()=>setShowNew(true)}><Plus className="h-4 w-4 mr-2"/>Agregar comisión</Button>
