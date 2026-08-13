@@ -79,6 +79,7 @@ export interface PendingVenta {
   metodo_pago: string;
   efectivo_recibido: number | null;
   notas: string | null;
+  requiere_factura?: boolean;
   items: Array<{
     producto_id: string;
     sku: string;

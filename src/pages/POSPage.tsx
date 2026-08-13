@@ -7,6 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Textarea } from '@/components/ui/textarea';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Trash2, Barcode, Plus, Minus, ShoppingCart, Search, Printer, RotateCcw, WifiOff, Receipt } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
@@ -158,6 +159,9 @@ const POSPage = () => {
   const [searchOpen, setSearchOpen] = useState(false);
   const [metodoPago, setMetodoPago] = useState('Efectivo');
   const [efectivoRecibido, setEfectivoRecibido] = useState('');
+  // Etiquetado fiscal: si el cliente pide factura, se marca urgente/mismo día
+  // en Facturación; si no, la venta queda acumulable (público en general).
+  const [requiereFactura, setRequiereFactura] = useState(false);
   const [nota, setNota] = useState('');
   const [loading, setLoading] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
@@ -457,6 +461,7 @@ const POSPage = () => {
           metodo_pago: metodoPago,
           efectivo_recibido: metodoPago === 'Efectivo' ? parseFloat(efectivoRecibido || '0') : null,
           notas: nota || null,
+          requiere_factura: requiereFactura,
           items: cart.map(i => ({
             producto_id: i.producto_id,
             sku: i.sku,
@@ -495,6 +500,7 @@ const POSPage = () => {
         dispatch({ type: 'CLEAR' });
         setEfectivoRecibido('');
         setNota('');
+        setRequiereFactura(false);
         toast.success(`Venta offline registrada · se sincronizará al recuperar conexión`);
         return;
       }
@@ -508,6 +514,7 @@ const POSPage = () => {
         p_efectivo_recibido: metodoPago === 'Efectivo' ? parseFloat(efectivoRecibido || '0') : null,
         p_nota: nota || null,
         p_cliente_id: null,
+        p_requiere_factura: requiereFactura,
       });
 
       if (error) throw error;
@@ -518,6 +525,7 @@ const POSPage = () => {
       dispatch({ type: 'CLEAR' });
       setEfectivoRecibido('');
       setNota('');
+      setRequiereFactura(false);
       toast.success(`Venta ${result.numero_venta} completada`);
     } catch (err: any) {
       toast.error(err.message || 'Error al procesar la venta');
@@ -760,6 +768,21 @@ const POSPage = () => {
                     )}
                   </div>
                 )}
+
+                <div className="flex items-center gap-2 rounded-md border p-3">
+                  <Checkbox
+                    id="requiere-factura"
+                    checked={requiereFactura}
+                    onCheckedChange={(v) => setRequiereFactura(v === true)}
+                  />
+                  <label htmlFor="requiere-factura" className="text-sm leading-tight cursor-pointer">
+                    El cliente pidió factura
+                    <span className="block text-xs text-muted-foreground">
+                      Se marcará como urgente (mismo día) en Facturación. Si se deja sin marcar, la venta
+                      entra al acumulado de público en general.
+                    </span>
+                  </label>
+                </div>
 
                 <div>
                   <label className="text-sm font-medium text-muted-foreground">Nota (opcional)</label>
