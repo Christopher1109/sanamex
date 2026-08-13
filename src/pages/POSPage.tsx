@@ -569,7 +569,6 @@ const POSPage = () => {
                   handleScan(scanInput);
                 }
               }}
-              onBlur={refocusScan}
               placeholder="Escanear código de barras…"
               className="pl-10 text-lg h-12"
               autoFocus
