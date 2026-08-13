@@ -43,10 +43,14 @@ const MiNominaPage = () => {
       .order('fecha', { ascending: false });
     setIncidencias(asis || []);
 
+    // Portal del empleado: solo debe ver recibos ya timbrados (nómina
+    // pagada y con CFDI). Un recibo en borrador/generado todavía puede
+    // cambiar, así que no se le muestra hasta que esté timbrado.
     const { data: recibo } = await supabase
       .from('recibos_nomina')
       .select('*')
       .eq('empleado_id', emp.id)
+      .eq('estatus', 'timbrado')
       .order('periodo_fin', { ascending: false })
       .limit(1)
       .maybeSingle();
@@ -130,7 +134,7 @@ const MiNominaPage = () => {
           </CardContent>
         </Card>
       ) : (
-        <Card><CardContent className="p-6 text-center text-muted-foreground">Todavía no tienes recibos de nómina generados.</CardContent></Card>
+        <Card><CardContent className="p-6 text-center text-muted-foreground">Todavía no tienes recibos de nómina timbrados. En cuanto se timbre tu recibo del periodo, aparecerá aquí.</CardContent></Card>
       )}
 
       <Card>

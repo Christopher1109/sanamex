@@ -78,6 +78,23 @@ export const NominaCalculator = {
       conceptos.push({ clave: '019H', descripcion: 'Horas extra', tipo: 'percepcion', importe_gravado: monto, importe_exento: 0, importe_total: monto });
     }
 
+    // Vales de despensa — SUPUESTO PENDIENTE DE CONFIRMAR CON EL CLIENTE.
+    // En la reunión el cliente dijo "chance es por antigüedad" pero no
+    // cerró la regla. Con base en el histórico real de CONTPAQi que nos
+    // compartieron (Q14, 2da quincena jul-2026), los empleados que ya
+    // estaban activos ANTES del inicio del periodo recibieron un monto
+    // fijo (~$1,320 quincenales); los de alta reciente dentro del mismo
+    // periodo recibieron $0 (se entiende que se prorratea a 0 en su
+    // primer periodo incompleto). Esa es la regla que se implementa
+    // aquí como primera versión — falta que el cliente confirme si es
+    // correcta, si cambia por puesto, o si hay una tabla de antigüedad
+    // con montos escalonados.
+    const DESPENSA_QUINCENAL = 1320;
+    const yaActivoAlIniciarPeriodo = !emp.fecha_alta || new Date(emp.fecha_alta) < new Date(inicio);
+    if (yaActivoAlIniciarPeriodo) {
+      conceptos.push({ clave: '029', descripcion: 'Vales de despensa', tipo: 'percepcion', importe_gravado: 0, importe_exento: DESPENSA_QUINCENAL, importe_total: DESPENSA_QUINCENAL });
+    }
+
     const totalGravado = conceptos.filter(c => c.tipo === 'percepcion').reduce((s, c) => s + c.importe_gravado, 0);
     const isr = await calcularISRPeriodo(totalGravado, periodicidad, anio);
     const sbc = Number(emp.sbc || sd);
