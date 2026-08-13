@@ -176,6 +176,7 @@ export async function processPendingQueue(): Promise<{
         p_cliente_id: v.cliente_id ?? undefined,
         p_cliente_uuid_local: v.cliente_uuid_local,
         p_origen: 'offline',
+        p_requiere_factura: v.requiere_factura ?? undefined,
       } as any);
 
       if (error) throw error;
