@@ -522,19 +522,21 @@ const POSPage = () => {
         p_sucursal_id: selectedSucursal.id,
         p_cajero_id: user.id,
         p_items: itemsPayload as any,
-        p_metodo_pago: metodoPago,
-        p_efectivo_recibido: metodoPago === 'Efectivo' ? parseFloat(efectivoRecibido || '0') : null,
+        p_metodo_pago: esCredito ? 'Crédito' : metodoPago,
+        p_efectivo_recibido: !esCredito && metodoPago === 'Efectivo' ? parseFloat(efectivoRecibido || '0') : null,
         p_nota: nota || null,
-        p_cliente_id: null,
+        p_cliente_id: clienteId || null,
       });
 
       if (error) throw error;
 
       const result = data as unknown as SaleResult;
 
-      // La bandera de facturación se marca aparte (no es parámetro de la RPC)
-      if (requiereFactura && result?.sale_id) {
-        await supabase.from('ventas').update({ requiere_factura: true }).eq('id', result.sale_id);
+      // Banderas que no son parámetros de la RPC (facturación y tipo de venta)
+      if (result?.sale_id) {
+        const patch: Record<string, any> = { tipo_venta: tipoVenta };
+        if (requiereFactura) patch.requiere_factura = true;
+        await (supabase as any).from('ventas').update(patch).eq('id', result.sale_id);
       }
 
       setSaleResult(result);
@@ -543,7 +545,9 @@ const POSPage = () => {
       setEfectivoRecibido('');
       setNota('');
       setRequiereFactura(false);
-      toast.success(`Venta ${result.numero_venta} completada`);
+      setTipoVenta('contado');
+      setClienteId('');
+      toast.success(`Venta ${result.numero_venta} completada${esCredito ? ' a crédito' : ''}`);
     } catch (err: any) {
       toast.error(err.message || 'Error al procesar la venta');
     } finally {
