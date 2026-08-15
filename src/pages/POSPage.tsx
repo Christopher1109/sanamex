@@ -514,12 +514,17 @@ const POSPage = () => {
         p_efectivo_recibido: metodoPago === 'Efectivo' ? parseFloat(efectivoRecibido || '0') : null,
         p_nota: nota || null,
         p_cliente_id: null,
-        p_requiere_factura: requiereFactura,
       });
 
       if (error) throw error;
 
       const result = data as unknown as SaleResult;
+
+      // La bandera de facturación se marca aparte (no es parámetro de la RPC)
+      if (requiereFactura && result?.sale_id) {
+        await supabase.from('ventas').update({ requiere_factura: true }).eq('id', result.sale_id);
+      }
+
       setSaleResult(result);
       setSuccessOpen(true);
       dispatch({ type: 'CLEAR' });
