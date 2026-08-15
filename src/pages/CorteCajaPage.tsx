@@ -42,13 +42,14 @@ const CorteCajaPage = () => {
   const [expandidas, setExpandidas] = useState<Set<string>>(new Set());
   const [lineas, setLineas] = useState<Record<string, any[]>>({});
 
-  // Corrección auditada de método de pago / estatus de venta (concluida / en ruta)
+  // Cierre auditado de la venta: "En ruta" -> "Concluida" con método de pago final
   const [ventasInfo, setVentasInfo] = useState<Record<string, { estatus_entrega: string }>>({});
+  const [metodoOriginal, setMetodoOriginal] = useState<Record<string, string>>({});
   const [correccionesCount, setCorreccionesCount] = useState<Record<string, number>>({});
   const [metodosPago, setMetodosPago] = useState<any[]>([]);
   const [corrigiendo, setCorrigiendo] = useState<Movimiento | null>(null);
   const [historialCorr, setHistorialCorr] = useState<any[]>([]);
-  const [corrForm, setCorrForm] = useState({ metodo: '', estatus: 'concluida', motivo: '' });
+  const [corrForm, setCorrForm] = useState({ metodo: '', motivo: '' });
   const [guardandoCorr, setGuardandoCorr] = useState(false);
 
   useEffect(() => {
@@ -85,11 +86,21 @@ const CorteCajaPage = () => {
     setVentasInfo(infoVentas);
     const idsVenta = (ventasDia || []).map((v: any) => v.id);
     if (idsVenta.length) {
-      const { data: corrs } = await (supabase as any).from('venta_correcciones').select('venta_id').in('venta_id', idsVenta);
+      const [{ data: corrs }, { data: pagos }] = await Promise.all([
+        (supabase as any).from('venta_correcciones').select('venta_id').in('venta_id', idsVenta),
+        (supabase as any).from('venta_pagos').select('venta_id, metodos_pago:metodo_pago_id ( nombre )').in('venta_id', idsVenta),
+      ]);
       const cnt: Record<string, number> = {};
       (corrs || []).forEach((c: any) => { cnt[c.venta_id] = (cnt[c.venta_id] || 0) + 1; });
       setCorreccionesCount(cnt);
-    } else setCorreccionesCount({});
+      const orig: Record<string, string> = {};
+      (pagos || []).forEach((p: any) => {
+        const n = p.metodos_pago?.nombre;
+        if (!n) return;
+        orig[p.venta_id] = orig[p.venta_id] ? `${orig[p.venta_id]} + ${n}` : n;
+      });
+      setMetodoOriginal(orig);
+    } else { setCorreccionesCount({}); setMetodoOriginal({}); }
 
     // Totales por RPC (suma de todas las sucursales del alcance)
     const rpcs = await Promise.all(
@@ -149,24 +160,24 @@ const CorteCajaPage = () => {
 
   async function abrirCorreccion(m: Movimiento) {
     setCorrigiendo(m);
-    setCorrForm({ metodo: '', estatus: ventasInfo[m.id]?.estatus_entrega || 'concluida', motivo: '' });
+    setCorrForm({ metodo: metodoOriginal[m.id] || '', motivo: '' });
     const { data } = await (supabase as any).from('venta_correcciones').select('*').eq('venta_id', m.id).order('corregido_at', { ascending: false });
     setHistorialCorr(data || []);
   }
 
   async function guardarCorreccion() {
     if (!corrigiendo) return;
-    if (!corrForm.metodo.trim()) { toast.error('Indica el método de pago real'); return; }
+    if (!corrForm.metodo.trim()) { toast.error('Indica el método de pago final'); return; }
     setGuardandoCorr(true);
     const { error } = await (supabase as any).rpc('corregir_venta_pago_estatus', {
       p_venta_id: corrigiendo.id,
       p_metodo_pago_corregido: corrForm.metodo.trim(),
-      p_estatus_corregido: corrForm.estatus,
+      p_estatus_corregido: 'concluida',
       p_motivo: corrForm.motivo.trim() || null,
     });
     setGuardandoCorr(false);
     if (error) { toast.error(error.message); return; }
-    toast.success('Corrección registrada — queda el histórico de lo que se reportó y lo real');
+    toast.success('Venta concluida con el método de pago final — queda el histórico del cambio');
     setCorrigiendo(null);
     load();
   }
@@ -381,11 +392,13 @@ const CorteCajaPage = () => {
                             <span>{m.folio}</span>
                             {m.tipo === 'venta' && (
                               <>
-                                {ventasInfo[m.id]?.estatus_entrega === 'en_ruta' && (
-                                  <Badge variant="outline" className="text-[10px] px-1.5 py-0">En ruta</Badge>
+                                {ventasInfo[m.id]?.estatus_entrega === 'en_ruta' ? (
+                                  <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-amber-500 text-amber-600">En ruta</Badge>
+                                ) : (
+                                  <Badge variant="secondary" className="text-[10px] px-1.5 py-0">Concluida</Badge>
                                 )}
                                 {correccionesCount[m.id] > 0 && (
-                                  <Badge variant="secondary" className="text-[10px] px-1.5 py-0">Corregida ({correccionesCount[m.id]})</Badge>
+                                  <Badge variant="secondary" className="text-[10px] px-1.5 py-0">Pago ajustado ({correccionesCount[m.id]})</Badge>
                                 )}
                               </>
                             )}
@@ -395,9 +408,9 @@ const CorteCajaPage = () => {
                         <TableCell className={`text-right font-medium ${m.tipo === 'compra' ? 'text-orange-600' : ''}`}>
                           {m.tipo === 'compra' ? '-' : ''}{money(m.monto)}
                           {m.tipo === 'venta' && (
-                            <Button size="sm" variant="ghost" className="h-6 ml-2 px-2 text-xs"
+                            <Button size="sm" variant={ventasInfo[m.id]?.estatus_entrega === 'en_ruta' ? 'outline' : 'ghost'} className="h-6 ml-2 px-2 text-xs"
                               onClick={(ev) => { ev.stopPropagation(); abrirCorreccion(m); }}>
-                              Corregir
+                              {ventasInfo[m.id]?.estatus_entrega === 'en_ruta' ? 'Concluir' : 'Ajustar pago'}
                             </Button>
                           )}
                         </TableCell>
@@ -561,26 +574,19 @@ const CorteCajaPage = () => {
       <Dialog open={!!corrigiendo} onOpenChange={(o) => !o && setCorrigiendo(null)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Corregir venta {corrigiendo?.folio}</DialogTitle>
+            <DialogTitle>Concluir venta {corrigiendo?.folio}</DialogTitle>
             <DialogDescription>
-              El cliente reportó una forma de pago al hacer el pedido, pero pagó distinto al llegar. Esto no cambia el ticket original — se registra la corrección con quién y cuándo la hizo, y queda visible el histórico.
+              Confirma la entrega y el pago final. Esto no cambia el ticket original — se guarda el histórico (anterior → final) con quién y cuándo lo hizo.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
-            <div>
-              <Label>Estatus de la venta</Label>
-              <Select value={corrForm.estatus} onValueChange={(v) => setCorrForm({ ...corrForm, estatus: v })}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="concluida">Concluida</SelectItem>
-                  <SelectItem value="en_ruta">En ruta</SelectItem>
-                </SelectContent>
-              </Select>
+            <div className="rounded border bg-muted/40 p-2 text-sm">
+              Método original (punto de venta): <strong>{corrigiendo ? (metodoOriginal[corrigiendo.id] || 'sin dato') : '—'}</strong>
             </div>
             <div>
-              <Label>Método de pago real</Label>
+              <Label>Método de pago final</Label>
               <Select value={corrForm.metodo} onValueChange={(v) => setCorrForm({ ...corrForm, metodo: v })}>
-                <SelectTrigger><SelectValue placeholder="Selecciona el método real..." /></SelectTrigger>
+                <SelectTrigger><SelectValue placeholder="Selecciona el método con el que pagó..." /></SelectTrigger>
                 <SelectContent>
                   {metodosPago.map((m) => <SelectItem key={m.id} value={m.nombre}>{m.nombre}</SelectItem>)}
                 </SelectContent>
@@ -605,7 +611,7 @@ const CorteCajaPage = () => {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setCorrigiendo(null)}>Cancelar</Button>
-            <Button onClick={guardarCorreccion} disabled={guardandoCorr}>{guardandoCorr ? 'Guardando...' : 'Guardar corrección'}</Button>
+            <Button onClick={guardarCorreccion} disabled={guardandoCorr}>{guardandoCorr ? 'Guardando...' : 'Concluir venta'}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

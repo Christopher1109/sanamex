@@ -31,6 +31,7 @@ import GestionUsuariosPage from './pages/GestionUsuariosPage';
 import RecomendacionesPage from './pages/RecomendacionesPage';
 import FiscalPage from './pages/FiscalPage';
 import CargasMasivasPage from './pages/CargasMasivasPage';
+import CuentasPorCobrarPage from './pages/CuentasPorCobrarPage';
 import CuentasPorPagarPage from './pages/CuentasPorPagarPage';
 import RotacionPage from './pages/RotacionPage';
 import RentabilidadLotesPage from './pages/RentabilidadLotesPage';
@@ -58,7 +59,6 @@ import ContabilidadPage from './pages/ContabilidadPage';
 import ReportesAdminPage from './pages/ReportesAdminPage';
 import ImpuestosPage from './pages/ImpuestosPage';
 import NominaPage from './pages/NominaPage';
-import IncidenciasNominaPage from './pages/IncidenciasNominaPage';
 import MiNominaPage from './pages/MiNominaPage';
 import OAuthConsent from './pages/OAuthConsent';
 
@@ -138,6 +138,7 @@ const AppContent = () => {
               <Route path="/actividad" element={<AuditoriaPage />} />
               <Route path="/super-admin" element={<SuperAdminPage />} />
               <Route path="/super-admin/usuarios" element={<GestionUsuariosPage />} />
+              <Route path="/cuentas-por-cobrar" element={<CuentasPorCobrarPage />} />
               <Route path="/cuentas-por-pagar" element={<CuentasPorPagarPage />} />
               <Route path="/bancos" element={<BancosPage />} />
               <Route path="/conciliacion" element={<ConciliacionPage />} />
@@ -146,7 +147,6 @@ const AppContent = () => {
               <Route path="/reportes-admin" element={<ReportesAdminPage />} />
               <Route path="/impuestos" element={<ImpuestosPage />} />
               <Route path="/nomina" element={<NominaPage />} />
-              <Route path="/incidencias-nomina" element={<IncidenciasNominaPage />} />
               <Route path="/mi-nomina" element={<MiNominaPage />} />
               {/* Fase 2 (ocultas tras feature flag) */}
               <Route path="/productos" element={<Fase2Guard><Productos /></Fase2Guard>} />

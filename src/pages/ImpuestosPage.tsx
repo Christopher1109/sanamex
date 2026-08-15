@@ -7,7 +7,6 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
-import { Switch } from '@/components/ui/switch';
 import { Calculator, Download, FileText, Send } from 'lucide-react';
 import { toast } from 'sonner';
 import { ImpuestosCalculator, SatConnector } from '@/services/ImpuestosCalculator';
@@ -17,21 +16,19 @@ export default function ImpuestosPage() {
     <div className="space-y-6">
       <div>
         <h1 className="text-3xl font-bold">Determinación de impuestos</h1>
-        <p className="text-muted-foreground">IVA, ISR, ISN, retenciones e IEPS opcional.</p>
+        <p className="text-muted-foreground">IVA, ISR, ISN y retenciones.</p>
       </div>
       <Tabs defaultValue="iva">
         <TabsList>
           <TabsTrigger value="iva">IVA</TabsTrigger>
           <TabsTrigger value="isr">ISR provisional</TabsTrigger>
           <TabsTrigger value="isn">ISN / Retenciones</TabsTrigger>
-          <TabsTrigger value="ieps">IEPS</TabsTrigger>
           <TabsTrigger value="declaraciones">Declaraciones</TabsTrigger>
           <TabsTrigger value="parametros">Parámetros</TabsTrigger>
         </TabsList>
         <TabsContent value="iva"><IvaTab /></TabsContent>
         <TabsContent value="isr"><IsrTab /></TabsContent>
         <TabsContent value="isn"><IsnTab /></TabsContent>
-        <TabsContent value="ieps"><IepsTab /></TabsContent>
         <TabsContent value="declaraciones"><DeclaracionesTab /></TabsContent>
         <TabsContent value="parametros"><ParametrosTab /></TabsContent>
       </Tabs>
@@ -174,30 +171,8 @@ function IsnTab() {
   );
 }
 
-function IepsTab() {
-  const [params, setParams] = useState<any>(null);
-  useEffect(() => { supabase.from('impuestos_parametros').select('*').eq('id',1).single().then(({data})=>setParams(data)); }, []);
-  if (!params) return null;
-  const toggle = async () => {
-    const v = !params.ieps_activo;
-    await supabase.from('impuestos_parametros').update({ ieps_activo: v }).eq('id', 1);
-    setParams({ ...params, ieps_activo: v });
-    toast.success(v ? 'IEPS activado' : 'IEPS desactivado');
-  };
-  return (
-    <Card>
-      <CardHeader><CardTitle>IEPS (opcional)</CardTitle></CardHeader>
-      <CardContent className="space-y-3">
-        <p className="text-sm text-muted-foreground">En farmacia normalmente no aplica. El cliente confirma.</p>
-        <div className="flex items-center gap-2">
-          <Switch checked={params.ieps_activo} onCheckedChange={toggle} />
-          <span>{params.ieps_activo ? 'Activo' : 'Desactivado'}</span>
-        </div>
-        {params.ieps_activo && <p className="text-xs">Estructura lista. Captura por producto vendrá cuando el cliente lo solicite.</p>}
-      </CardContent>
-    </Card>
-  );
-}
+
+
 
 function DeclaracionesTab() {
   const [rows, setRows] = useState<any[]>([]);

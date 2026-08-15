@@ -22,7 +22,7 @@ const emptyForm = {
   representante_suplente: '', telefono: '', celular_suplente: '', email: '',
   direccion: '', comentario: '',
   numero_precio: 1 as number | null, limite_credito: 0 as number | null, dias_credito: 0 as number | null,
-  aplica_retenciones: false, desglosa_ieps: false, servicio_domicilio: false,
+  aplica_retenciones: false, servicio_domicilio: false,
   factura_calle: '', factura_cp: '', activo: true,
 };
 
@@ -77,7 +77,7 @@ const ClientesPage = () => {
       celular_suplente: c.celular_suplente || '', email: c.email || '',
       direccion: c.direccion || '', comentario: c.comentario || '',
       numero_precio: c.numero_precio ?? 1, limite_credito: c.limite_credito ?? 0, dias_credito: c.dias_credito ?? 0,
-      aplica_retenciones: !!c.aplica_retenciones, desglosa_ieps: !!c.desglosa_ieps,
+      aplica_retenciones: !!c.aplica_retenciones,
       servicio_domicilio: !!c.servicio_domicilio,
       factura_calle: c.factura_calle || '', factura_cp: c.factura_cp || '', activo: c.activo !== false,
     };
@@ -272,10 +272,6 @@ const ClientesPage = () => {
                 <div className="flex items-center gap-2">
                   <Checkbox id="cli-ret" checked={form.aplica_retenciones} onCheckedChange={v => setForm({ ...form, aplica_retenciones: !!v })} />
                   <Label htmlFor="cli-ret" className="cursor-pointer">Aplica retenciones</Label>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Checkbox id="cli-ieps" checked={form.desglosa_ieps} onCheckedChange={v => setForm({ ...form, desglosa_ieps: !!v })} />
-                  <Label htmlFor="cli-ieps" className="cursor-pointer">Desglosa IEPS</Label>
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-3">

@@ -40,7 +40,7 @@ const PedidosPage = () => {
   const [productos, setProductos] = useState<any[]>([]);
   const [rutas, setRutas] = useState<any[]>([]);
   const [lotesPorProducto, setLotesPorProducto] = useState<any[]>([]);
-  const [form, setForm] = useState({ cliente_id: '', ruta_id: '', notas: '' });
+  const [form, setForm] = useState({ cliente_id: '', ruta_id: '', notas: '', tipo_venta: 'contado' });
   const [lineas, setLineas] = useState<{producto_id: string; lote_id: string; cantidad: number; precio: number; nombre: string; lote_nombre: string; disponible: number}[]>([]);
   const [addProd, setAddProd] = useState({ producto_id: '', lote_id: '', cantidad: '1' });
 
@@ -65,7 +65,7 @@ const PedidosPage = () => {
 
   const openCreate = async () => {
     setShowCreate(true);
-    setForm({ cliente_id: '', ruta_id: '', notas: '' });
+    setForm({ cliente_id: '', ruta_id: '', notas: '', tipo_venta: 'contado' });
     setLineas([]);
     setAddProd({ producto_id: '', lote_id: '', cantidad: '1' });
 
@@ -126,7 +126,7 @@ const PedidosPage = () => {
     const { data: pedido, error } = await supabase.from('pedidos').insert({
       numero_pedido: numPedido, cliente_id: form.cliente_id,
       sucursal_id: selectedSucursal!.id, estado: 'pendiente',
-      ruta_id: form.ruta_id || null,
+      ruta_id: form.ruta_id || null, tipo_venta: form.tipo_venta,
       notas: form.notas || null, creado_por: user?.id,
     }).select().single();
 
@@ -302,6 +302,19 @@ const PedidosPage = () => {
               </Select>
             </div>
 
+            <div>
+              <Label>Tipo de venta *</Label>
+              <Select value={form.tipo_venta} onValueChange={v => setForm({...form, tipo_venta: v})}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="contado">De contado</SelectItem>
+                  <SelectItem value="credito">A crédito</SelectItem>
+                </SelectContent>
+              </Select>
+              {form.tipo_venta === 'credito' && (
+                <p className="text-xs text-amber-600 mt-1">El saldo se cobrará en Cuentas por Cobrar.</p>
+              )}
+            </div>
 
             <div className="border rounded-lg p-3 space-y-3">
               <Label>Agregar Productos</Label>

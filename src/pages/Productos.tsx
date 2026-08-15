@@ -27,7 +27,7 @@ const empty = {
   formula: '', sustancia_activa: '', presentacion: '', forma_farmaceutica: '',
   laboratorio: '', indice_terapeutico: '', registro_sanitario: '', fraccion_arancelaria: '',
   receta_medica: false, departamento: '', categoria: '', agrupador: '', estatus: 'A',
-  clasificacion_80_20: '', iva_tasa: '', ieps: '0', clave_sat: '',
+  clasificacion_80_20: '', iva_tasa: '', clave_sat: '',
   unidad: 'pieza', precio_base: '0', costo: '0', stock_minimo: '10',
   requiere_lote: true,
 };
@@ -107,7 +107,7 @@ const Productos = () => {
       receta_medica: !!p.receta_medica, departamento: p.departamento || '', categoria: p.categoria || '',
       agrupador: p.agrupador || '',
       estatus: p.estatus || 'A', clasificacion_80_20: p.clasificacion_80_20 || '',
-      iva_tasa: p.iva_tasa == null ? '' : String(p.iva_tasa), ieps: String(p.ieps ?? 0), clave_sat: p.clave_sat || '',
+      iva_tasa: p.iva_tasa == null ? '' : String(p.iva_tasa), clave_sat: p.clave_sat || '',
       unidad: p.unidad || 'pieza', precio_base: String(p.precio_base ?? 0), costo: String(p.costo ?? 0),
       stock_minimo: String(p.stock_minimo ?? 10), requiere_lote: !!p.requiere_lote,
     });
@@ -139,7 +139,6 @@ const Productos = () => {
       estatus: form.estatus || 'A',
       clasificacion_80_20: form.clasificacion_80_20 || null,
       iva_tasa: form.iva_tasa === '' || form.iva_tasa == null ? null : parseFloat(form.iva_tasa),
-      ieps: parseFloat(form.ieps) || 0,
       clave_sat: form.clave_sat || null, unidad: form.unidad || 'pieza',
       precio_base: parseFloat(form.precio_base) || 0, costo: parseFloat(form.costo) || 0,
       stock_minimo: parseInt(form.stock_minimo) || 10, requiere_lote: form.requiere_lote,
@@ -236,7 +235,7 @@ const Productos = () => {
           estatus: norm(r['ESTATUS']) || 'A',
           clasificacion_80_20: norm(r['CLASIFICACIÓN 80/20']),
           iva_tasa: (() => { const v = String(r['IVA'] ?? '').trim().toUpperCase(); if (v === '') return null; if (v === 'S') return 16; if (v === 'N') return 0; const n = Number(v); return isNaN(n) ? null : n; })(),
-          ieps: num(r['IEPS']), clave_sat: norm(r['CLAVE SAT']),
+          clave_sat: norm(r['CLAVE SAT']),
           fecha_carga_erp: fechaErp,
           costo: num(r['COSTO']), precio_base: num(r['PRECIO 1']),
           unidad: 'pieza', stock_minimo: 10, requiere_lote: true,
@@ -499,7 +498,6 @@ const Productos = () => {
                     </SelectContent>
                   </Select>
                 </div>
-                <div><Label>IEPS (%)</Label><Input type="number" step="0.01" value={form.ieps} onChange={e => setForm({...form, ieps: e.target.value})} /></div>
               </div>
             </TabsContent>
 

@@ -162,6 +162,11 @@ const POSPage = () => {
   // Etiquetado fiscal: si el cliente pide factura, se marca urgente/mismo día
   // en Facturación; si no, la venta queda acumulable (público en general).
   const [requiereFactura, setRequiereFactura] = useState(false);
+  // Cobranza: una venta a crédito requiere cliente identificado (se cobra después
+  // en Cuentas por Cobrar). De contado se cobra en caja al momento.
+  const [clientes, setClientes] = useState<{ id: string; nombre: string }[]>([]);
+  const [clienteId, setClienteId] = useState<string>('');
+  const [tipoVenta, setTipoVenta] = useState<'contado' | 'credito'>('contado');
   const [nota, setNota] = useState('');
   const [loading, setLoading] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
@@ -179,8 +184,9 @@ const POSPage = () => {
   const cambio = metodoPago === 'Efectivo' && efectivoRecibido
     ? Math.max(0, parseFloat(efectivoRecibido) - total)
     : 0;
+  const esCredito = tipoVenta === 'credito';
   const canCharge = cart.length > 0 && total > 0 && !!selectedSucursal &&
-    (metodoPago !== 'Efectivo' || (parseFloat(efectivoRecibido || '0') >= total));
+    (esCredito ? !!clienteId : (metodoPago !== 'Efectivo' || (parseFloat(efectivoRecibido || '0') >= total)));
 
   // ── Focus management ──
   const refocusScan = useCallback(() => {
@@ -190,6 +196,12 @@ const POSPage = () => {
   useEffect(() => {
     refocusScan();
   }, [refocusScan]);
+
+  // Catálogo de clientes (para ventas a crédito / identificadas)
+  useEffect(() => {
+    supabase.from('clientes').select('id, nombre').eq('activo', true).order('nombre')
+      .then(({ data }) => setClientes((data as any[]) || []));
+  }, []);
 
   // Global keyboard shortcuts
   useEffect(() => {
@@ -434,6 +446,10 @@ const POSPage = () => {
   // ── Checkout (online or offline) ──
   const handleCheckout = async () => {
     if (!user || !selectedSucursal) return;
+    if (isOffline && esCredito) {
+      toast.error('Las ventas a crédito requieren conexión (se registran en Cuentas por Cobrar).');
+      return;
+    }
     setLoading(true);
     setConfirmOpen(false);
 
@@ -510,19 +526,21 @@ const POSPage = () => {
         p_sucursal_id: selectedSucursal.id,
         p_cajero_id: user.id,
         p_items: itemsPayload as any,
-        p_metodo_pago: metodoPago,
-        p_efectivo_recibido: metodoPago === 'Efectivo' ? parseFloat(efectivoRecibido || '0') : null,
+        p_metodo_pago: esCredito ? 'Crédito' : metodoPago,
+        p_efectivo_recibido: !esCredito && metodoPago === 'Efectivo' ? parseFloat(efectivoRecibido || '0') : null,
         p_nota: nota || null,
-        p_cliente_id: null,
+        p_cliente_id: clienteId || null,
       });
 
       if (error) throw error;
 
       const result = data as unknown as SaleResult;
 
-      // La bandera de facturación se marca aparte (no es parámetro de la RPC)
-      if (requiereFactura && result?.sale_id) {
-        await supabase.from('ventas').update({ requiere_factura: true }).eq('id', result.sale_id);
+      // Banderas que no son parámetros de la RPC (facturación y tipo de venta)
+      if (result?.sale_id) {
+        const patch: Record<string, any> = { tipo_venta: tipoVenta };
+        if (requiereFactura) patch.requiere_factura = true;
+        await (supabase as any).from('ventas').update(patch).eq('id', result.sale_id);
       }
 
       setSaleResult(result);
@@ -531,7 +549,9 @@ const POSPage = () => {
       setEfectivoRecibido('');
       setNota('');
       setRequiereFactura(false);
-      toast.success(`Venta ${result.numero_venta} completada`);
+      setTipoVenta('contado');
+      setClienteId('');
+      toast.success(`Venta ${result.numero_venta} completada${esCredito ? ' a crédito' : ''}`);
     } catch (err: any) {
       toast.error(err.message || 'Error al procesar la venta');
     } finally {
@@ -739,18 +759,55 @@ const POSPage = () => {
 
               <div className="space-y-3">
                 <div>
-                  <label className="text-sm font-medium text-muted-foreground">Método de Pago</label>
-                  <Select value={metodoPago} onValueChange={setMetodoPago}>
+                  <label className="text-sm font-medium text-muted-foreground">Cliente</label>
+                  <Select value={clienteId || 'publico'} onValueChange={(v) => {
+                    const id = v === 'publico' ? '' : v;
+                    setClienteId(id);
+                    if (!id) setTipoVenta('contado');
+                  }}>
                     <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="Efectivo">💵 Efectivo</SelectItem>
-                      <SelectItem value="Transferencia">🏦 Transferencia</SelectItem>
-                      <SelectItem value="Tarjeta">💳 Tarjeta</SelectItem>
+                      <SelectItem value="publico">Público en general</SelectItem>
+                      {clientes.map(c => <SelectItem key={c.id} value={c.id}>{c.nombre}</SelectItem>)}
                     </SelectContent>
                   </Select>
                 </div>
 
-                {metodoPago === 'Efectivo' && (
+                <div>
+                  <label className="text-sm font-medium text-muted-foreground">Tipo de venta</label>
+                  <Select value={tipoVenta} onValueChange={(v) => setTipoVenta(v as 'contado' | 'credito')}>
+                    <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="contado">De contado</SelectItem>
+                      <SelectItem value="credito" disabled={!clienteId}>A crédito</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  {esCredito ? (
+                    <p className="text-xs text-amber-600 mt-1">
+                      No se cobra en caja: el saldo se cobra en Cuentas por Cobrar.
+                    </p>
+                  ) : !clienteId ? (
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Para vender a crédito primero selecciona un cliente.
+                    </p>
+                  ) : null}
+                </div>
+
+                {!esCredito && (
+                  <div>
+                    <label className="text-sm font-medium text-muted-foreground">Método de Pago</label>
+                    <Select value={metodoPago} onValueChange={setMetodoPago}>
+                      <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Efectivo">💵 Efectivo</SelectItem>
+                        <SelectItem value="Transferencia">🏦 Transferencia</SelectItem>
+                        <SelectItem value="Tarjeta">💳 Tarjeta</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+
+                {!esCredito && metodoPago === 'Efectivo' && (
                   <div className="space-y-2">
                     <div>
                       <label className="text-sm font-medium text-muted-foreground">Efectivo recibido</label>
