@@ -31,6 +31,7 @@ import GestionUsuariosPage from './pages/GestionUsuariosPage';
 import RecomendacionesPage from './pages/RecomendacionesPage';
 import FiscalPage from './pages/FiscalPage';
 import CargasMasivasPage from './pages/CargasMasivasPage';
+import CuentasPorCobrarPage from './pages/CuentasPorCobrarPage';
 import CuentasPorPagarPage from './pages/CuentasPorPagarPage';
 import RotacionPage from './pages/RotacionPage';
 import RentabilidadLotesPage from './pages/RentabilidadLotesPage';
@@ -137,6 +138,7 @@ const AppContent = () => {
               <Route path="/actividad" element={<AuditoriaPage />} />
               <Route path="/super-admin" element={<SuperAdminPage />} />
               <Route path="/super-admin/usuarios" element={<GestionUsuariosPage />} />
+              <Route path="/cuentas-por-cobrar" element={<CuentasPorCobrarPage />} />
               <Route path="/cuentas-por-pagar" element={<CuentasPorPagarPage />} />
               <Route path="/bancos" element={<BancosPage />} />
               <Route path="/conciliacion" element={<ConciliacionPage />} />

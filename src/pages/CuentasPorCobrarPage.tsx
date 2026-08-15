@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { Fragment, useEffect, useMemo, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -207,8 +207,8 @@ const CuentasPorCobrarPage = () => {
               </TableHeader>
               <TableBody>
                 {filtradas.map(r => (
-                  <>
-                    <TableRow key={r.cliente_id} className="cursor-pointer" onClick={() => toggleDetalle(r.cliente_id)}>
+                  <Fragment key={r.cliente_id}>
+                    <TableRow className="cursor-pointer" onClick={() => toggleDetalle(r.cliente_id)}>
                       <TableCell>{expandido === r.cliente_id
                         ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}</TableCell>
                       <TableCell>
@@ -238,7 +238,7 @@ const CuentasPorCobrarPage = () => {
                       </TableCell>
                     </TableRow>
                     {expandido === r.cliente_id && (
-                      <TableRow key={`${r.cliente_id}-det`}>
+                      <TableRow>
                         <TableCell colSpan={8} className="bg-muted/40">
                           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 py-2">
                             <div>
@@ -286,7 +286,7 @@ const CuentasPorCobrarPage = () => {
                         </TableCell>
                       </TableRow>
                     )}
-                  </>
+                  </Fragment>
                 ))}
               </TableBody>
             </Table>
