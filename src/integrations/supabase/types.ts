@@ -670,6 +670,8 @@ export type Database = {
       comisiones: {
         Row: {
           base_calculo: number
+          calculo_id: string | null
+          categoria_reparto: string | null
           created_at: string
           empleado_id: string
           grava: boolean
@@ -682,6 +684,8 @@ export type Database = {
         }
         Insert: {
           base_calculo?: number
+          calculo_id?: string | null
+          categoria_reparto?: string | null
           created_at?: string
           empleado_id: string
           grava?: boolean
@@ -694,6 +698,8 @@ export type Database = {
         }
         Update: {
           base_calculo?: number
+          calculo_id?: string | null
+          categoria_reparto?: string | null
           created_at?: string
           empleado_id?: string
           grava?: boolean
@@ -706,6 +712,13 @@ export type Database = {
         }
         Relationships: [
           {
+            foreignKeyName: "comisiones_calculo_id_fkey"
+            columns: ["calculo_id"]
+            isOneToOne: false
+            referencedRelation: "comisiones_calculo_sucursal"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "comisiones_empleado_id_fkey"
             columns: ["empleado_id"]
             isOneToOne: false
@@ -713,6 +726,149 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      comisiones_calculo_sucursal: {
+        Row: {
+          anio: number
+          aplicada: boolean
+          calculado_por: string | null
+          comision_total: number
+          costo_ventas: number
+          created_at: string
+          escalon_id: string | null
+          gastos_periodo: number
+          id: string
+          pct_comision_aplicado: number
+          sucursal_id: string
+          trimestre: number
+          updated_at: string
+          utilidad_bruta: number
+          utilidad_neta: number
+          ventas_totales: number
+        }
+        Insert: {
+          anio: number
+          aplicada?: boolean
+          calculado_por?: string | null
+          comision_total?: number
+          costo_ventas?: number
+          created_at?: string
+          escalon_id?: string | null
+          gastos_periodo?: number
+          id?: string
+          pct_comision_aplicado?: number
+          sucursal_id: string
+          trimestre: number
+          updated_at?: string
+          utilidad_bruta?: number
+          utilidad_neta?: number
+          ventas_totales?: number
+        }
+        Update: {
+          anio?: number
+          aplicada?: boolean
+          calculado_por?: string | null
+          comision_total?: number
+          costo_ventas?: number
+          created_at?: string
+          escalon_id?: string | null
+          gastos_periodo?: number
+          id?: string
+          pct_comision_aplicado?: number
+          sucursal_id?: string
+          trimestre?: number
+          updated_at?: string
+          utilidad_bruta?: number
+          utilidad_neta?: number
+          ventas_totales?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "comisiones_calculo_sucursal_escalon_id_fkey"
+            columns: ["escalon_id"]
+            isOneToOne: false
+            referencedRelation: "comisiones_escalones"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "comisiones_calculo_sucursal_sucursal_id_fkey"
+            columns: ["sucursal_id"]
+            isOneToOne: false
+            referencedRelation: "sucursales"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      comisiones_escalones: {
+        Row: {
+          anio: number
+          created_at: string
+          id: string
+          limite_inferior: number
+          limite_superior: number | null
+          orden: number
+          pct_comision: number
+          sucursal_id: string | null
+          trimestre: number
+          updated_at: string
+        }
+        Insert: {
+          anio: number
+          created_at?: string
+          id?: string
+          limite_inferior?: number
+          limite_superior?: number | null
+          orden: number
+          pct_comision?: number
+          sucursal_id?: string | null
+          trimestre: number
+          updated_at?: string
+        }
+        Update: {
+          anio?: number
+          created_at?: string
+          id?: string
+          limite_inferior?: number
+          limite_superior?: number | null
+          orden?: number
+          pct_comision?: number
+          sucursal_id?: string | null
+          trimestre?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "comisiones_escalones_sucursal_id_fkey"
+            columns: ["sucursal_id"]
+            isOneToOne: false
+            referencedRelation: "sucursales"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      comisiones_reparto_roles: {
+        Row: {
+          categoria: string
+          created_at: string
+          id: string
+          pct_reparto: number
+          updated_at: string
+        }
+        Insert: {
+          categoria: string
+          created_at?: string
+          id?: string
+          pct_reparto?: number
+          updated_at?: string
+        }
+        Update: {
+          categoria?: string
+          created_at?: string
+          id?: string
+          pct_reparto?: number
+          updated_at?: string
+        }
+        Relationships: []
       }
       compra_lineas: {
         Row: {
