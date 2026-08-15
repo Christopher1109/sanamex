@@ -174,30 +174,8 @@ function IsnTab() {
   );
 }
 
-function IepsTab() {
-  const [params, setParams] = useState<any>(null);
-  useEffect(() => { supabase.from('impuestos_parametros').select('*').eq('id',1).single().then(({data})=>setParams(data)); }, []);
-  if (!params) return null;
-  const toggle = async () => {
-    const v = !params.ieps_activo;
-    await supabase.from('impuestos_parametros').update({ ieps_activo: v }).eq('id', 1);
-    setParams({ ...params, ieps_activo: v });
-    toast.success(v ? 'IEPS activado' : 'IEPS desactivado');
-  };
-  return (
-    <Card>
-      <CardHeader><CardTitle>IEPS (opcional)</CardTitle></CardHeader>
-      <CardContent className="space-y-3">
-        <p className="text-sm text-muted-foreground">En farmacia normalmente no aplica. El cliente confirma.</p>
-        <div className="flex items-center gap-2">
-          <Switch checked={params.ieps_activo} onCheckedChange={toggle} />
-          <span>{params.ieps_activo ? 'Activo' : 'Desactivado'}</span>
-        </div>
-        {params.ieps_activo && <p className="text-xs">Estructura lista. Captura por producto vendrá cuando el cliente lo solicite.</p>}
-      </CardContent>
-    </Card>
-  );
-}
+
+
 
 function DeclaracionesTab() {
   const [rows, setRows] = useState<any[]>([]);
