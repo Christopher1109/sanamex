@@ -2289,6 +2289,63 @@ export type Database = {
           },
         ]
       }
+      metas_comisiones: {
+        Row: {
+          anio: number
+          created_at: string
+          created_by: string | null
+          empleado_id: string | null
+          id: string
+          meta_venta: number
+          notas: string | null
+          porcentaje_comision: number
+          sucursal_id: string | null
+          trimestre: number
+          updated_at: string
+        }
+        Insert: {
+          anio: number
+          created_at?: string
+          created_by?: string | null
+          empleado_id?: string | null
+          id?: string
+          meta_venta?: number
+          notas?: string | null
+          porcentaje_comision?: number
+          sucursal_id?: string | null
+          trimestre: number
+          updated_at?: string
+        }
+        Update: {
+          anio?: number
+          created_at?: string
+          created_by?: string | null
+          empleado_id?: string | null
+          id?: string
+          meta_venta?: number
+          notas?: string | null
+          porcentaje_comision?: number
+          sucursal_id?: string | null
+          trimestre?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "metas_comisiones_empleado_id_fkey"
+            columns: ["empleado_id"]
+            isOneToOne: false
+            referencedRelation: "empleados"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "metas_comisiones_sucursal_id_fkey"
+            columns: ["sucursal_id"]
+            isOneToOne: false
+            referencedRelation: "sucursales"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       metodos_pago: {
         Row: {
           activo: boolean | null
@@ -5458,6 +5515,50 @@ export type Database = {
         }
         Relationships: []
       }
+      venta_correcciones: {
+        Row: {
+          corregido_at: string
+          corregido_por: string | null
+          estatus_anterior: string | null
+          estatus_corregido: string
+          id: string
+          metodo_pago_anterior: string | null
+          metodo_pago_corregido: string
+          motivo: string | null
+          venta_id: string
+        }
+        Insert: {
+          corregido_at?: string
+          corregido_por?: string | null
+          estatus_anterior?: string | null
+          estatus_corregido: string
+          id?: string
+          metodo_pago_anterior?: string | null
+          metodo_pago_corregido: string
+          motivo?: string | null
+          venta_id: string
+        }
+        Update: {
+          corregido_at?: string
+          corregido_por?: string | null
+          estatus_anterior?: string | null
+          estatus_corregido?: string
+          id?: string
+          metodo_pago_anterior?: string | null
+          metodo_pago_corregido?: string
+          motivo?: string | null
+          venta_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "venta_correcciones_venta_id_fkey"
+            columns: ["venta_id"]
+            isOneToOne: false
+            referencedRelation: "ventas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       venta_lineas: {
         Row: {
           cantidad: number
@@ -5578,6 +5679,7 @@ export type Database = {
           corte_id: string | null
           created_at: string | null
           estado: string
+          estatus_entrega: string
           fecha: string | null
           id: string
           impuestos: number
@@ -5604,6 +5706,7 @@ export type Database = {
           corte_id?: string | null
           created_at?: string | null
           estado?: string
+          estatus_entrega?: string
           fecha?: string | null
           id?: string
           impuestos?: number
@@ -5630,6 +5733,7 @@ export type Database = {
           corte_id?: string | null
           created_at?: string | null
           estado?: string
+          estatus_entrega?: string
           fecha?: string | null
           id?: string
           impuestos?: number
@@ -6048,6 +6152,31 @@ export type Database = {
           p_orden_id?: string
         }
         Returns: Json
+      }
+      corregir_venta_pago_estatus: {
+        Args: {
+          p_estatus_corregido: string
+          p_metodo_pago_corregido: string
+          p_motivo?: string
+          p_venta_id: string
+        }
+        Returns: {
+          corregido_at: string
+          corregido_por: string | null
+          estatus_anterior: string | null
+          estatus_corregido: string
+          id: string
+          metodo_pago_anterior: string | null
+          metodo_pago_corregido: string
+          motivo: string | null
+          venta_id: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "venta_correcciones"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       cotizador_extras: { Args: { p_producto_ids: string[] }; Returns: Json }
       cotizador_generar_oc: { Args: { payload: Json }; Returns: Json }
