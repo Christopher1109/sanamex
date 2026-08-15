@@ -755,18 +755,55 @@ const POSPage = () => {
 
               <div className="space-y-3">
                 <div>
-                  <label className="text-sm font-medium text-muted-foreground">Método de Pago</label>
-                  <Select value={metodoPago} onValueChange={setMetodoPago}>
+                  <label className="text-sm font-medium text-muted-foreground">Cliente</label>
+                  <Select value={clienteId || 'publico'} onValueChange={(v) => {
+                    const id = v === 'publico' ? '' : v;
+                    setClienteId(id);
+                    if (!id) setTipoVenta('contado');
+                  }}>
                     <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="Efectivo">💵 Efectivo</SelectItem>
-                      <SelectItem value="Transferencia">🏦 Transferencia</SelectItem>
-                      <SelectItem value="Tarjeta">💳 Tarjeta</SelectItem>
+                      <SelectItem value="publico">Público en general</SelectItem>
+                      {clientes.map(c => <SelectItem key={c.id} value={c.id}>{c.nombre}</SelectItem>)}
                     </SelectContent>
                   </Select>
                 </div>
 
-                {metodoPago === 'Efectivo' && (
+                <div>
+                  <label className="text-sm font-medium text-muted-foreground">Tipo de venta</label>
+                  <Select value={tipoVenta} onValueChange={(v) => setTipoVenta(v as 'contado' | 'credito')}>
+                    <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="contado">De contado</SelectItem>
+                      <SelectItem value="credito" disabled={!clienteId}>A crédito</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  {esCredito ? (
+                    <p className="text-xs text-amber-600 mt-1">
+                      No se cobra en caja: el saldo se cobra en Cuentas por Cobrar.
+                    </p>
+                  ) : !clienteId ? (
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Para vender a crédito primero selecciona un cliente.
+                    </p>
+                  ) : null}
+                </div>
+
+                {!esCredito && (
+                  <div>
+                    <label className="text-sm font-medium text-muted-foreground">Método de Pago</label>
+                    <Select value={metodoPago} onValueChange={setMetodoPago}>
+                      <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Efectivo">💵 Efectivo</SelectItem>
+                        <SelectItem value="Transferencia">🏦 Transferencia</SelectItem>
+                        <SelectItem value="Tarjeta">💳 Tarjeta</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+
+                {!esCredito && metodoPago === 'Efectivo' && (
                   <div className="space-y-2">
                     <div>
                       <label className="text-sm font-medium text-muted-foreground">Efectivo recibido</label>
