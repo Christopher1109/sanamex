@@ -607,6 +607,50 @@ function AsistenciaTab() {
     if (empleadosNoEncontrados > 0 || codigosNoReconocidos.size > 0) toast.warning(msg); else toast.success(msg);
     load();
   };
+  // Plantilla oficial "Lista de Raya": misma matriz que espera el importador
+  // (fila de encabezado con NC / NOMBRE DE COLABORADOR y una columna por día),
+  // prellenada con los empleados activos y la quincena en curso.
+  const descargarPlantilla = async () => {
+    const XLSX = await import('xlsx');
+    const hoy = new Date();
+    const primerDia = hoy.getDate() <= 15 ? 1 : 16;
+    const ultimoDia = hoy.getDate() <= 15 ? 15 : new Date(hoy.getFullYear(), hoy.getMonth() + 1, 0).getDate();
+    const dias: Date[] = [];
+    for (let d = primerDia; d <= ultimoDia; d++) dias.push(new Date(hoy.getFullYear(), hoy.getMonth(), d));
+
+    const header = ['NC', 'NOMBRE DE COLABORADOR', ...dias];
+    const cuerpo = [...emps]
+      .sort((a, b) => String(a.numero_empleado || '').localeCompare(String(b.numero_empleado || '')))
+      .map(e => [e.numero_empleado || '', e.nombre, ...dias.map(() => '')]);
+
+    const ws = XLSX.utils.aoa_to_sheet([header, ...cuerpo]);
+    ws['!cols'] = [{ wch: 8 }, { wch: 38 }, ...dias.map(() => ({ wch: 6 }))];
+
+    const codigos = [
+      ['CÓDIGO', 'SIGNIFICADO', 'CÓMO SE REGISTRA EN EL SISTEMA'],
+      ['A', 'Asistencia', 'Día pagado normal (sin incidencia)'],
+      ['D', 'Descanso programado', 'Día pagado normal (sin incidencia)'],
+      ['F', 'Falta', 'falta'],
+      ['R', 'Retardo', 'retardo'],
+      ['P', 'Permiso', 'permiso'],
+      ['V', 'Vacaciones', 'vacaciones'],
+      ['IN', 'Incapacidad', 'incapacidad'],
+      ['TF', 'Día festivo trabajado', 'dia_festivo'],
+      ['PD', 'Prima dominical', 'descanso_laborado'],
+      ['DD', 'Descanso trabajado', 'descanso_laborado'],
+      ['(número)', 'Horas extra de ese día', 'horas_extra'],
+      ['.', 'Celda separadora', 'Se ignora'],
+    ];
+    const wsCodigos = XLSX.utils.aoa_to_sheet(codigos);
+    wsCodigos['!cols'] = [{ wch: 12 }, { wch: 30 }, { wch: 38 }];
+
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Lista de Raya');
+    XLSX.utils.book_append_sheet(wb, wsCodigos, 'Códigos');
+    XLSX.writeFile(wb, `Lista_de_Raya_${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, '0')}_Q${primerDia === 1 ? 1 : 2}.xlsx`, { cellDates: true });
+    toast.success('Plantilla descargada — no cambies los encabezados NC ni las fechas.');
+  };
+
   const guardarEdicion = async () => {
     if (!editing) return;
     const { error } = await supabase.from('asistencia').update({
@@ -627,8 +671,21 @@ function AsistenciaTab() {
       <div className="flex gap-2">
         <input id="asis-file" type="file" accept=".xlsx,.csv" className="hidden" onChange={e => e.target.files?.[0] && importar(e.target.files[0])} />
         <Button variant="outline" onClick={() => document.getElementById('asis-file')?.click()}><Upload className="h-4 w-4 mr-2" />Importar asistencia</Button>
+        <Button variant="outline" onClick={descargarPlantilla}><Download className="h-4 w-4 mr-2" />Descargar plantilla</Button>
         <Button variant="outline" onClick={sync}>Sincronizar biométrico (stub)</Button>
       </div>
+      <Card><CardContent className="p-4 text-xs space-y-1">
+        <p className="font-semibold text-sm">Formato "Lista de Raya" — códigos válidos</p>
+        <p className="text-muted-foreground">
+          Una fila por colaborador (NC = número de empleado) y una columna por día. Cualquier código
+          distinto a estos se ignora en la importación y se te reporta al final.
+        </p>
+        <div className="flex flex-wrap gap-2 pt-1">
+          {[['A','Asistencia'],['D','Descanso'],['F','Falta'],['R','Retardo'],['P','Permiso'],['V','Vacaciones'],['IN','Incapacidad'],['TF','Festivo trabajado'],['PD','Prima dominical'],['DD','Descanso trabajado'],['1, 2, 3…','Horas extra']].map(([c, d]) => (
+            <Badge key={c} variant="outline" className="font-normal">{c} = {d}</Badge>
+          ))}
+        </div>
+      </CardContent></Card>
       <Card><CardContent className="p-0"><table className="w-full text-sm">
         <thead className="bg-muted"><tr><th className="p-2 text-left">Fecha</th><th className="p-2 text-left">Empleado</th><th className="p-2">Entrada</th><th className="p-2">Salida</th><th className="p-2">Incidencia</th><th className="p-2 text-right">Hrs extra</th><th className="p-2">Notas</th><th></th></tr></thead>
         <tbody>{filas.map(a => (
