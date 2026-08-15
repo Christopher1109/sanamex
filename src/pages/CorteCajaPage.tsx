@@ -572,26 +572,19 @@ const CorteCajaPage = () => {
       <Dialog open={!!corrigiendo} onOpenChange={(o) => !o && setCorrigiendo(null)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Corregir venta {corrigiendo?.folio}</DialogTitle>
+            <DialogTitle>Concluir venta {corrigiendo?.folio}</DialogTitle>
             <DialogDescription>
-              El cliente reportó una forma de pago al hacer el pedido, pero pagó distinto al llegar. Esto no cambia el ticket original — se registra la corrección con quién y cuándo la hizo, y queda visible el histórico.
+              Confirma la entrega y el pago final. Esto no cambia el ticket original — se guarda el histórico (anterior → final) con quién y cuándo lo hizo.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
-            <div>
-              <Label>Estatus de la venta</Label>
-              <Select value={corrForm.estatus} onValueChange={(v) => setCorrForm({ ...corrForm, estatus: v })}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="concluida">Concluida</SelectItem>
-                  <SelectItem value="en_ruta">En ruta</SelectItem>
-                </SelectContent>
-              </Select>
+            <div className="rounded border bg-muted/40 p-2 text-sm">
+              Método original (punto de venta): <strong>{corrigiendo ? (metodoOriginal[corrigiendo.id] || 'sin dato') : '—'}</strong>
             </div>
             <div>
-              <Label>Método de pago real</Label>
+              <Label>Método de pago final</Label>
               <Select value={corrForm.metodo} onValueChange={(v) => setCorrForm({ ...corrForm, metodo: v })}>
-                <SelectTrigger><SelectValue placeholder="Selecciona el método real..." /></SelectTrigger>
+                <SelectTrigger><SelectValue placeholder="Selecciona el método con el que pagó..." /></SelectTrigger>
                 <SelectContent>
                   {metodosPago.map((m) => <SelectItem key={m.id} value={m.nombre}>{m.nombre}</SelectItem>)}
                 </SelectContent>
