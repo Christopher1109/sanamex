@@ -57,6 +57,7 @@ export const MODULOS: ModuloDef[] = [
   { key: 'reportes', label: 'Reportes', categoria: 'Análisis', path: '/reportes', niveles: SIMPLE },
   // Finanzas
   { key: 'cuentas_por_pagar', label: 'Cuentas por Pagar', categoria: 'Finanzas', path: '/cuentas-por-pagar', niveles: FULL },
+  { key: 'cuentas_por_cobrar', label: 'Cuentas por Cobrar', categoria: 'Finanzas', path: '/cuentas-por-cobrar', niveles: FULL },
   { key: 'bancos', label: 'Bancos', categoria: 'Finanzas', path: '/bancos', niveles: FULL },
   { key: 'conciliacion', label: 'Conciliación', categoria: 'Finanzas', path: '/conciliacion', niveles: FULL },
   { key: 'contabilidad', label: 'Contabilidad', categoria: 'Finanzas', path: '/contabilidad', niveles: FULL },
@@ -87,7 +88,7 @@ export const DEFAULTS_POR_ROL: Record<string, Partial<Record<string, NivelAcceso
     traspasos: 'administrar', devoluciones_proveedor: 'administrar', inventario: 'administrar',
     corte_caja: 'administrar',
     caducidades: 'administrar', rotacion: 'consultar', rentabilidad_lotes: 'consultar',
-    reportes: 'consultar', cuentas_por_pagar: 'capturar', bancos: 'consultar',
+    reportes: 'consultar', cuentas_por_pagar: 'capturar', cuentas_por_cobrar: 'capturar', bancos: 'consultar',
     conciliacion: 'capturar', contabilidad: 'sin_acceso', reportes_admin: 'consultar',
     cfdi: 'capturar', impuestos: 'sin_acceso', nomina: 'sin_acceso',
     cargas_masivas: 'capturar', ventas_offline: 'consultar', actividad: 'consultar',
@@ -100,7 +101,7 @@ export const DEFAULTS_POR_ROL: Record<string, Partial<Record<string, NivelAcceso
     traspasos: 'capturar', devoluciones_proveedor: 'capturar', inventario: 'capturar',
     corte_caja: 'capturar',
     caducidades: 'consultar', rotacion: 'consultar', reportes: 'consultar',
-    cuentas_por_pagar: 'consultar', ventas_offline: 'consultar',
+    cuentas_por_pagar: 'consultar', cuentas_por_cobrar: 'consultar', ventas_offline: 'consultar',
   },
 
   ventas: {
@@ -127,7 +128,7 @@ export const DEFAULTS_POR_ROL: Record<string, Partial<Record<string, NivelAcceso
     articulos: 'consultar', proveedores: 'consultar', clientes: 'consultar',
     compras: 'consultar', ventas: 'consultar', inventario: 'consultar',
     caducidades: 'consultar', rotacion: 'consultar', rentabilidad_lotes: 'consultar',
-    reportes: 'consultar', cuentas_por_pagar: 'consultar', bancos: 'consultar',
+    reportes: 'consultar', cuentas_por_pagar: 'consultar', cuentas_por_cobrar: 'consultar', bancos: 'consultar',
     conciliacion: 'consultar', contabilidad: 'consultar', cfdi: 'consultar',
     actividad: 'consultar', reportes_admin: 'consultar', ajustes_inventario: 'administrar',
   },
@@ -137,7 +138,7 @@ export const DEFAULTS_POR_ROL: Record<string, Partial<Record<string, NivelAcceso
 
   contabilidad: {
     contabilidad: 'administrar', nomina: 'administrar', cfdi: 'administrar',
-    impuestos: 'administrar', cuentas_por_pagar: 'administrar',
+    impuestos: 'administrar', cuentas_por_pagar: 'administrar', cuentas_por_cobrar: 'administrar',
     bancos: 'autorizar', conciliacion: 'autorizar',
     reportes_admin: 'consultar', actividad: 'consultar',
     articulos: 'consultar', proveedores: 'consultar', clientes: 'consultar',
@@ -145,7 +146,7 @@ export const DEFAULTS_POR_ROL: Record<string, Partial<Record<string, NivelAcceso
   },
 
   contraloria: {
-    cuentas_por_pagar: 'capturar', bancos: 'capturar', conciliacion: 'capturar',
+    cuentas_por_pagar: 'capturar', cuentas_por_cobrar: 'capturar', bancos: 'capturar', conciliacion: 'capturar',
     contabilidad: 'capturar', cfdi: 'capturar', impuestos: 'capturar',
     nomina: 'consultar', reportes_admin: 'consultar', actividad: 'consultar',
     articulos: 'consultar', proveedores: 'consultar', clientes: 'consultar',
@@ -153,13 +154,13 @@ export const DEFAULTS_POR_ROL: Record<string, Partial<Record<string, NivelAcceso
   },
 
   tesoreria: {
-    bancos: 'autorizar', cuentas_por_pagar: 'autorizar', conciliacion: 'autorizar',
+    bancos: 'autorizar', cuentas_por_pagar: 'autorizar', cuentas_por_cobrar: 'autorizar', conciliacion: 'autorizar',
     contabilidad: 'capturar', reportes_admin: 'consultar',
   },
 
   contador: {
     contabilidad: 'administrar', nomina: 'administrar', cfdi: 'administrar',
-    impuestos: 'administrar', bancos: 'autorizar', cuentas_por_pagar: 'autorizar',
+    impuestos: 'administrar', bancos: 'autorizar', cuentas_por_pagar: 'autorizar', cuentas_por_cobrar: 'autorizar',
     conciliacion: 'autorizar', reportes_admin: 'consultar', actividad: 'consultar',
   },
 
