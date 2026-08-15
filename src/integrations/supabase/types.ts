@@ -1768,6 +1768,63 @@ export type Database = {
           },
         ]
       }
+      cxc_abonos: {
+        Row: {
+          cliente_id: string
+          comprobante_url: string | null
+          created_at: string
+          created_by: string | null
+          fecha: string
+          id: string
+          metodo_pago: string | null
+          monto: number
+          notas: string | null
+          referencia: string | null
+          venta_id: string | null
+        }
+        Insert: {
+          cliente_id: string
+          comprobante_url?: string | null
+          created_at?: string
+          created_by?: string | null
+          fecha?: string
+          id?: string
+          metodo_pago?: string | null
+          monto: number
+          notas?: string | null
+          referencia?: string | null
+          venta_id?: string | null
+        }
+        Update: {
+          cliente_id?: string
+          comprobante_url?: string | null
+          created_at?: string
+          created_by?: string | null
+          fecha?: string
+          id?: string
+          metodo_pago?: string | null
+          monto?: number
+          notas?: string | null
+          referencia?: string | null
+          venta_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cxc_abonos_cliente_id_fkey"
+            columns: ["cliente_id"]
+            isOneToOne: false
+            referencedRelation: "clientes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cxc_abonos_venta_id_fkey"
+            columns: ["venta_id"]
+            isOneToOne: false
+            referencedRelation: "ventas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       declaraciones: {
         Row: {
           a_cargo_o_favor: number
@@ -3791,6 +3848,7 @@ export type Database = {
           requiere_factura: boolean | null
           ruta_id: string | null
           sucursal_id: string
+          tipo_venta: string
           updated_at: string | null
         }
         Insert: {
@@ -3804,6 +3862,7 @@ export type Database = {
           requiere_factura?: boolean | null
           ruta_id?: string | null
           sucursal_id: string
+          tipo_venta?: string
           updated_at?: string | null
         }
         Update: {
@@ -3817,6 +3876,7 @@ export type Database = {
           requiere_factura?: boolean | null
           ruta_id?: string | null
           sucursal_id?: string
+          tipo_venta?: string
           updated_at?: string | null
         }
         Relationships: [
@@ -5848,6 +5908,7 @@ export type Database = {
           sincronizada_at: string | null
           subtotal: number
           sucursal_id: string
+          tipo_venta: string
           total: number
           usuario_libre: string | null
           vendedor_id: string | null
@@ -5875,6 +5936,7 @@ export type Database = {
           sincronizada_at?: string | null
           subtotal?: number
           sucursal_id: string
+          tipo_venta?: string
           total?: number
           usuario_libre?: string | null
           vendedor_id?: string | null
@@ -5902,6 +5964,7 @@ export type Database = {
           sincronizada_at?: string | null
           subtotal?: number
           sucursal_id?: string
+          tipo_venta?: string
           total?: number
           usuario_libre?: string | null
           vendedor_id?: string | null
@@ -6401,6 +6464,36 @@ export type Database = {
           p_tipo: string
         }
         Returns: Json
+      }
+      cxc_registrar_abono: {
+        Args: {
+          p_cliente_id: string
+          p_comprobante_url?: string
+          p_fecha: string
+          p_metodo_pago?: string
+          p_monto: number
+          p_notas?: string
+          p_referencia?: string
+          p_venta_id?: string
+        }
+        Returns: string
+      }
+      cxc_resumen: {
+        Args: never
+        Returns: {
+          abonado: number
+          cliente_id: string
+          cliente_nombre: string
+          dias_antiguedad: number
+          dias_credito: number
+          limite_credito: number
+          num_ventas: number
+          rfc: string
+          saldo: number
+          total_credito: number
+          vencido: boolean
+          venta_mas_antigua: string
+        }[]
       }
       cxp_facturas_pendientes: {
         Args: never
