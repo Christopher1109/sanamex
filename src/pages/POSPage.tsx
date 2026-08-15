@@ -162,6 +162,11 @@ const POSPage = () => {
   // Etiquetado fiscal: si el cliente pide factura, se marca urgente/mismo día
   // en Facturación; si no, la venta queda acumulable (público en general).
   const [requiereFactura, setRequiereFactura] = useState(false);
+  // Cobranza: una venta a crédito requiere cliente identificado (se cobra después
+  // en Cuentas por Cobrar). De contado se cobra en caja al momento.
+  const [clientes, setClientes] = useState<{ id: string; nombre: string }[]>([]);
+  const [clienteId, setClienteId] = useState<string>('');
+  const [tipoVenta, setTipoVenta] = useState<'contado' | 'credito'>('contado');
   const [nota, setNota] = useState('');
   const [loading, setLoading] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
