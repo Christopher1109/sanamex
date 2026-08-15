@@ -176,12 +176,15 @@ export async function processPendingQueue(): Promise<{
         p_cliente_id: v.cliente_id ?? undefined,
         p_cliente_uuid_local: v.cliente_uuid_local,
         p_origen: 'offline',
-        p_requiere_factura: v.requiere_factura ?? undefined,
       } as any);
 
       if (error) throw error;
       const result = data as any;
+      if (v.requiere_factura && result?.sale_id) {
+        await supabase.from('ventas').update({ requiere_factura: true }).eq('id', result.sale_id);
+      }
       const isConflict = result?.estado === 'requiere_revision';
+
 
       await offlineDB.pending_ventas.update(v.cliente_uuid_local, {
         status: isConflict ? 'requires_review' : 'synced',
