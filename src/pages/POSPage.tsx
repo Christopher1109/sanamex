@@ -446,6 +446,10 @@ const POSPage = () => {
   // ── Checkout (online or offline) ──
   const handleCheckout = async () => {
     if (!user || !selectedSucursal) return;
+    if (isOffline && esCredito) {
+      toast.error('Las ventas a crédito requieren conexión (se registran en Cuentas por Cobrar).');
+      return;
+    }
     setLoading(true);
     setConfirmOpen(false);
 
