@@ -392,11 +392,13 @@ const CorteCajaPage = () => {
                             <span>{m.folio}</span>
                             {m.tipo === 'venta' && (
                               <>
-                                {ventasInfo[m.id]?.estatus_entrega === 'en_ruta' && (
-                                  <Badge variant="outline" className="text-[10px] px-1.5 py-0">En ruta</Badge>
+                                {ventasInfo[m.id]?.estatus_entrega === 'en_ruta' ? (
+                                  <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-amber-500 text-amber-600">En ruta</Badge>
+                                ) : (
+                                  <Badge variant="secondary" className="text-[10px] px-1.5 py-0">Concluida</Badge>
                                 )}
                                 {correccionesCount[m.id] > 0 && (
-                                  <Badge variant="secondary" className="text-[10px] px-1.5 py-0">Corregida ({correccionesCount[m.id]})</Badge>
+                                  <Badge variant="secondary" className="text-[10px] px-1.5 py-0">Pago ajustado ({correccionesCount[m.id]})</Badge>
                                 )}
                               </>
                             )}
@@ -405,10 +407,10 @@ const CorteCajaPage = () => {
                         {esGeneral && <TableCell className="text-xs">{nombreSucursal(m.sucursal_id)}</TableCell>}
                         <TableCell className={`text-right font-medium ${m.tipo === 'compra' ? 'text-orange-600' : ''}`}>
                           {m.tipo === 'compra' ? '-' : ''}{money(m.monto)}
-                          {m.tipo === 'venta' && (
-                            <Button size="sm" variant="ghost" className="h-6 ml-2 px-2 text-xs"
+                          {m.tipo === 'venta' && ventasInfo[m.id]?.estatus_entrega === 'en_ruta' && (
+                            <Button size="sm" variant="outline" className="h-6 ml-2 px-2 text-xs"
                               onClick={(ev) => { ev.stopPropagation(); abrirCorreccion(m); }}>
-                              Corregir
+                              Concluir
                             </Button>
                           )}
                         </TableCell>
