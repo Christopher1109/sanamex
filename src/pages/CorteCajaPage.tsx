@@ -609,7 +609,7 @@ const CorteCajaPage = () => {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setCorrigiendo(null)}>Cancelar</Button>
-            <Button onClick={guardarCorreccion} disabled={guardandoCorr}>{guardandoCorr ? 'Guardando...' : 'Guardar corrección'}</Button>
+            <Button onClick={guardarCorreccion} disabled={guardandoCorr}>{guardandoCorr ? 'Guardando...' : 'Concluir venta'}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
