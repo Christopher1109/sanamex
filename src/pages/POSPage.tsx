@@ -184,8 +184,9 @@ const POSPage = () => {
   const cambio = metodoPago === 'Efectivo' && efectivoRecibido
     ? Math.max(0, parseFloat(efectivoRecibido) - total)
     : 0;
+  const esCredito = tipoVenta === 'credito';
   const canCharge = cart.length > 0 && total > 0 && !!selectedSucursal &&
-    (metodoPago !== 'Efectivo' || (parseFloat(efectivoRecibido || '0') >= total));
+    (esCredito ? !!clienteId : (metodoPago !== 'Efectivo' || (parseFloat(efectivoRecibido || '0') >= total)));
 
   // ── Focus management ──
   const refocusScan = useCallback(() => {
@@ -195,6 +196,12 @@ const POSPage = () => {
   useEffect(() => {
     refocusScan();
   }, [refocusScan]);
+
+  // Catálogo de clientes (para ventas a crédito / identificadas)
+  useEffect(() => {
+    supabase.from('clientes').select('id, nombre').eq('activo', true).order('nombre')
+      .then(({ data }) => setClientes((data as any[]) || []));
+  }, []);
 
   // Global keyboard shortcuts
   useEffect(() => {
