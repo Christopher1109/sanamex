@@ -86,11 +86,21 @@ const CorteCajaPage = () => {
     setVentasInfo(infoVentas);
     const idsVenta = (ventasDia || []).map((v: any) => v.id);
     if (idsVenta.length) {
-      const { data: corrs } = await (supabase as any).from('venta_correcciones').select('venta_id').in('venta_id', idsVenta);
+      const [{ data: corrs }, { data: pagos }] = await Promise.all([
+        (supabase as any).from('venta_correcciones').select('venta_id').in('venta_id', idsVenta),
+        (supabase as any).from('venta_pagos').select('venta_id, metodos_pago:metodo_pago_id ( nombre )').in('venta_id', idsVenta),
+      ]);
       const cnt: Record<string, number> = {};
       (corrs || []).forEach((c: any) => { cnt[c.venta_id] = (cnt[c.venta_id] || 0) + 1; });
       setCorreccionesCount(cnt);
-    } else setCorreccionesCount({});
+      const orig: Record<string, string> = {};
+      (pagos || []).forEach((p: any) => {
+        const n = p.metodos_pago?.nombre;
+        if (!n) return;
+        orig[p.venta_id] = orig[p.venta_id] ? `${orig[p.venta_id]} + ${n}` : n;
+      });
+      setMetodoOriginal(orig);
+    } else { setCorreccionesCount({}); setMetodoOriginal({}); }
 
     // Totales por RPC (suma de todas las sucursales del alcance)
     const rpcs = await Promise.all(
