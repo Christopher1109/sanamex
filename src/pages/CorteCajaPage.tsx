@@ -407,10 +407,10 @@ const CorteCajaPage = () => {
                         {esGeneral && <TableCell className="text-xs">{nombreSucursal(m.sucursal_id)}</TableCell>}
                         <TableCell className={`text-right font-medium ${m.tipo === 'compra' ? 'text-orange-600' : ''}`}>
                           {m.tipo === 'compra' ? '-' : ''}{money(m.monto)}
-                          {m.tipo === 'venta' && ventasInfo[m.id]?.estatus_entrega === 'en_ruta' && (
-                            <Button size="sm" variant="outline" className="h-6 ml-2 px-2 text-xs"
+                          {m.tipo === 'venta' && (
+                            <Button size="sm" variant={ventasInfo[m.id]?.estatus_entrega === 'en_ruta' ? 'outline' : 'ghost'} className="h-6 ml-2 px-2 text-xs"
                               onClick={(ev) => { ev.stopPropagation(); abrirCorreccion(m); }}>
-                              Concluir
+                              {ventasInfo[m.id]?.estatus_entrega === 'en_ruta' ? 'Concluir' : 'Ajustar pago'}
                             </Button>
                           )}
                         </TableCell>
