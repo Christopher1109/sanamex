@@ -42,13 +42,14 @@ const CorteCajaPage = () => {
   const [expandidas, setExpandidas] = useState<Set<string>>(new Set());
   const [lineas, setLineas] = useState<Record<string, any[]>>({});
 
-  // Corrección auditada de método de pago / estatus de venta (concluida / en ruta)
+  // Cierre auditado de la venta: "En ruta" -> "Concluida" con método de pago final
   const [ventasInfo, setVentasInfo] = useState<Record<string, { estatus_entrega: string }>>({});
+  const [metodoOriginal, setMetodoOriginal] = useState<Record<string, string>>({});
   const [correccionesCount, setCorreccionesCount] = useState<Record<string, number>>({});
   const [metodosPago, setMetodosPago] = useState<any[]>([]);
   const [corrigiendo, setCorrigiendo] = useState<Movimiento | null>(null);
   const [historialCorr, setHistorialCorr] = useState<any[]>([]);
-  const [corrForm, setCorrForm] = useState({ metodo: '', estatus: 'concluida', motivo: '' });
+  const [corrForm, setCorrForm] = useState({ metodo: '', motivo: '' });
   const [guardandoCorr, setGuardandoCorr] = useState(false);
 
   useEffect(() => {
