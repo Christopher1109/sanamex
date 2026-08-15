@@ -33,7 +33,7 @@ const ICONS: Record<string, any> = {
   rotacion: TrendingUp, rentabilidad_lotes: DollarSign, reportes: FileSpreadsheet,
   cuentas_por_pagar: Wallet, bancos: DollarSign, conciliacion: ArrowLeftRight,
   contabilidad: FileSpreadsheet, reportes_admin: FileSpreadsheet, cfdi: Receipt,
-  impuestos: Receipt, nomina: Wallet, incidencias_nomina: UserCog, cargas_masivas: Upload, ventas_offline: CloudOff,
+  impuestos: Receipt, nomina: Wallet, cargas_masivas: Upload, ventas_offline: CloudOff,
   actividad: History, super_admin: Shield,
 };
 

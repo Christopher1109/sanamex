@@ -58,7 +58,6 @@ import ContabilidadPage from './pages/ContabilidadPage';
 import ReportesAdminPage from './pages/ReportesAdminPage';
 import ImpuestosPage from './pages/ImpuestosPage';
 import NominaPage from './pages/NominaPage';
-import IncidenciasNominaPage from './pages/IncidenciasNominaPage';
 import MiNominaPage from './pages/MiNominaPage';
 import OAuthConsent from './pages/OAuthConsent';
 
@@ -146,7 +145,6 @@ const AppContent = () => {
               <Route path="/reportes-admin" element={<ReportesAdminPage />} />
               <Route path="/impuestos" element={<ImpuestosPage />} />
               <Route path="/nomina" element={<NominaPage />} />
-              <Route path="/incidencias-nomina" element={<IncidenciasNominaPage />} />
               <Route path="/mi-nomina" element={<MiNominaPage />} />
               {/* Fase 2 (ocultas tras feature flag) */}
               <Route path="/productos" element={<Fase2Guard><Productos /></Fase2Guard>} />
