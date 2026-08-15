@@ -160,24 +160,24 @@ const CorteCajaPage = () => {
 
   async function abrirCorreccion(m: Movimiento) {
     setCorrigiendo(m);
-    setCorrForm({ metodo: '', estatus: ventasInfo[m.id]?.estatus_entrega || 'concluida', motivo: '' });
+    setCorrForm({ metodo: metodoOriginal[m.id] || '', motivo: '' });
     const { data } = await (supabase as any).from('venta_correcciones').select('*').eq('venta_id', m.id).order('corregido_at', { ascending: false });
     setHistorialCorr(data || []);
   }
 
   async function guardarCorreccion() {
     if (!corrigiendo) return;
-    if (!corrForm.metodo.trim()) { toast.error('Indica el método de pago real'); return; }
+    if (!corrForm.metodo.trim()) { toast.error('Indica el método de pago final'); return; }
     setGuardandoCorr(true);
     const { error } = await (supabase as any).rpc('corregir_venta_pago_estatus', {
       p_venta_id: corrigiendo.id,
       p_metodo_pago_corregido: corrForm.metodo.trim(),
-      p_estatus_corregido: corrForm.estatus,
+      p_estatus_corregido: 'concluida',
       p_motivo: corrForm.motivo.trim() || null,
     });
     setGuardandoCorr(false);
     if (error) { toast.error(error.message); return; }
-    toast.success('Corrección registrada — queda el histórico de lo que se reportó y lo real');
+    toast.success('Venta concluida con el método de pago final — queda el histórico del cambio');
     setCorrigiendo(null);
     load();
   }
