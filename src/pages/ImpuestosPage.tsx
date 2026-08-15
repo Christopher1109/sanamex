@@ -17,21 +17,19 @@ export default function ImpuestosPage() {
     <div className="space-y-6">
       <div>
         <h1 className="text-3xl font-bold">Determinación de impuestos</h1>
-        <p className="text-muted-foreground">IVA, ISR, ISN, retenciones e IEPS opcional.</p>
+        <p className="text-muted-foreground">IVA, ISR, ISN y retenciones.</p>
       </div>
       <Tabs defaultValue="iva">
         <TabsList>
           <TabsTrigger value="iva">IVA</TabsTrigger>
           <TabsTrigger value="isr">ISR provisional</TabsTrigger>
           <TabsTrigger value="isn">ISN / Retenciones</TabsTrigger>
-          <TabsTrigger value="ieps">IEPS</TabsTrigger>
           <TabsTrigger value="declaraciones">Declaraciones</TabsTrigger>
           <TabsTrigger value="parametros">Parámetros</TabsTrigger>
         </TabsList>
         <TabsContent value="iva"><IvaTab /></TabsContent>
         <TabsContent value="isr"><IsrTab /></TabsContent>
         <TabsContent value="isn"><IsnTab /></TabsContent>
-        <TabsContent value="ieps"><IepsTab /></TabsContent>
         <TabsContent value="declaraciones"><DeclaracionesTab /></TabsContent>
         <TabsContent value="parametros"><ParametrosTab /></TabsContent>
       </Tabs>
