@@ -238,6 +238,16 @@ const CorteCajaPage = () => {
   const neto = totales.total_ventas - totales.total_compras;
   const ventasDelDia = movimientos.filter(m => m.tipo === 'venta');
   const comprasDelDia = movimientos.filter(m => m.tipo === 'compra');
+  // Corte de caja separado mostrador/ruta (junta SANAMEX 15-ago-2026, punto
+  // 3): se usa el mismo campo estatus_entrega que ya distingue "concluida"
+  // (mostrador, se cobra en el momento) de "en_ruta" (pendiente hasta que
+  // el chofer confirma la entrega). No se toca la lógica de cierre de
+  // corte (cerrarCorte más abajo) — eso sigue siendo un corte único por
+  // sucursal/día; separar el cierre contable en dos cortes independientes
+  // quedó pendiente porque depende de la definición de permisos que
+  // Alejandro dejó para una llamada aparte (ver docs/SANAMEX_15ago2026_seguimiento.md).
+  const ventasMostrador = ventasDelDia.filter(m => ventasInfo[m.id]?.estatus_entrega !== 'en_ruta');
+  const ventasRuta = ventasDelDia.filter(m => ventasInfo[m.id]?.estatus_entrega === 'en_ruta');
 
   const analisis = useMemo(() => {
     const cerrados = historial.filter((c: any) => c.estado === 'cerrado');
@@ -347,10 +357,17 @@ const CorteCajaPage = () => {
             <TabsList>
               <TabsTrigger value="todos">Todos ({movimientos.length})</TabsTrigger>
               <TabsTrigger value="ventas">Ventas ({ventasDelDia.length})</TabsTrigger>
+              <TabsTrigger value="mostrador">Mostrador ({ventasMostrador.length})</TabsTrigger>
+              <TabsTrigger value="ruta">Ruta ({ventasRuta.length})</TabsTrigger>
               <TabsTrigger value="compras">Compras ({comprasDelDia.length})</TabsTrigger>
             </TabsList>
-            {([['todos', movimientos], ['ventas', ventasDelDia], ['compras', comprasDelDia]] as const).map(([key, rows]) => (
+            {([['todos', movimientos], ['ventas', ventasDelDia], ['mostrador', ventasMostrador], ['ruta', ventasRuta], ['compras', comprasDelDia]] as const).map(([key, rows]) => (
               <TabsContent key={key} value={key} className="mt-4">
+                {(key === 'mostrador' || key === 'ruta') && (
+                  <p className="text-xs text-muted-foreground mb-2">
+                    Subtotal {key === 'mostrador' ? 'mostrador' : 'ruta'}: {money(rows.reduce((s, m) => s + m.monto, 0))}
+                  </p>
+                )}
                 <Table>
                   <TableHeader><TableRow>
                     <TableHead>Hora</TableHead>
