@@ -315,6 +315,7 @@ const ConciliacionPage = () => {
                 <Select value={enviarForm.entidadTipo} onValueChange={(v: 'proveedor' | 'cliente') => {
                   setEnviarForm({ ...enviarForm, entidadTipo: v, entidadId: '' });
                   setComprasPendientes([]); setComprasSel(new Set());
+                  setVentasPendientes([]); setVentasSel(new Set());
                 }}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
