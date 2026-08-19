@@ -10,7 +10,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { HandCoins, Loader2, RefreshCw, Paperclip, ChevronDown, ChevronRight, Upload } from 'lucide-react';
+import { HandCoins, Loader2, RefreshCw, Paperclip, ChevronDown, ChevronRight, Upload, Receipt, Plus } from 'lucide-react';
 import { toast } from 'sonner';
 
 // Cobranza: el saldo se lleva POR CLIENTE (suma de sus ventas a crédito menos
@@ -29,6 +29,14 @@ type ResumenCxC = {
   venta_mas_antigua: string | null;
   dias_antiguedad: number | null;
   vencido: boolean;
+  // Calculados en el cliente (junta 15-ago-2026): la RPC cxc_resumen todavía
+  // no resta notas de crédito server-side (ver migración
+  // 20260819010000_notas_credito_cliente.sql), así que aquí se netea el
+  // saldo con las notas de crédito para reflejar el saldo real y, si
+  // aplica, el saldo a favor del cliente.
+  notasCredito: number;
+  saldoNeto: number;
+  saldoAFavor: number;
 };
 
 const money = (n: number) => `$${Number(n || 0).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -39,7 +47,7 @@ const CuentasPorCobrarPage = () => {
   const [estado, setEstado] = useState<'pendientes' | 'vencidos' | 'todos'>('pendientes');
   const [busqueda, setBusqueda] = useState('');
   const [expandido, setExpandido] = useState<string | null>(null);
-  const [detalle, setDetalle] = useState<Record<string, { ventas: any[]; abonos: any[] }>>({});
+  const [detalle, setDetalle] = useState<Record<string, { ventas: any[]; abonos: any[]; notasCredito: any[] }>>({});
   const [abonar, setAbonar] = useState<ResumenCxC | null>(null);
   const [archivo, setArchivo] = useState<File | null>(null);
   const [guardando, setGuardando] = useState(false);
@@ -51,13 +59,31 @@ const CuentasPorCobrarPage = () => {
     notas: '',
   });
 
+  // Nueva nota de crédito de cliente (junta 15-ago-2026, punto 7).
+  const [ncCliente, setNcCliente] = useState<ResumenCxC | null>(null);
+  const [ncForm, setNcForm] = useState({ monto: '', motivo: '' });
+  const [guardandoNc, setGuardandoNc] = useState(false);
+
   useEffect(() => { load(); }, []);
 
   async function load() {
     setLoading(true);
-    const { data, error } = await (supabase as any).rpc('cxc_resumen');
+    const [{ data, error }, { data: ncData }] = await Promise.all([
+      (supabase as any).rpc('cxc_resumen'),
+      (supabase as any).from('notas_credito_cliente').select('cliente_id, monto'),
+    ]);
     if (error) toast.error(error.message);
-    setRows((data || []) as ResumenCxC[]);
+    const ncPorCliente = new Map<string, number>();
+    for (const nc of (ncData || [])) {
+      ncPorCliente.set(nc.cliente_id, (ncPorCliente.get(nc.cliente_id) || 0) + Number(nc.monto || 0));
+    }
+    const enriquecidas: ResumenCxC[] = (data || []).map((r: any) => {
+      const notasCredito = ncPorCliente.get(r.cliente_id) || 0;
+      const saldoNeto = Math.max(Number(r.saldo || 0) - notasCredito, 0);
+      const saldoAFavor = Math.max(notasCredito - Number(r.saldo || 0), 0);
+      return { ...r, notasCredito, saldoNeto, saldoAFavor };
+    });
+    setRows(enriquecidas);
     setLoading(false);
   }
 
@@ -65,7 +91,7 @@ const CuentasPorCobrarPage = () => {
     if (expandido === clienteId) { setExpandido(null); return; }
     setExpandido(clienteId);
     if (detalle[clienteId]) return;
-    const [{ data: ventas }, { data: abonos }] = await Promise.all([
+    const [{ data: ventas }, { data: abonos }, { data: notasCredito }] = await Promise.all([
       (supabase as any).from('ventas')
         .select('id, numero_venta, fecha, total, estado')
         .eq('cliente_id', clienteId).eq('tipo_venta', 'credito').neq('estado', 'cancelada')
@@ -73,8 +99,34 @@ const CuentasPorCobrarPage = () => {
       (supabase as any).from('cxc_abonos')
         .select('id, fecha, monto, metodo_pago, referencia, comprobante_url, notas')
         .eq('cliente_id', clienteId).order('fecha', { ascending: false }),
+      (supabase as any).from('notas_credito_cliente')
+        .select('id, folio, fecha, monto, motivo')
+        .eq('cliente_id', clienteId).order('fecha', { ascending: false }),
     ]);
-    setDetalle(prev => ({ ...prev, [clienteId]: { ventas: ventas || [], abonos: abonos || [] } }));
+    setDetalle(prev => ({ ...prev, [clienteId]: { ventas: ventas || [], abonos: abonos || [], notasCredito: notasCredito || [] } }));
+  }
+
+  function abrirNotaCredito(r: ResumenCxC) {
+    setNcCliente(r);
+    setNcForm({ monto: '', motivo: '' });
+  }
+
+  async function registrarNotaCredito() {
+    if (!ncCliente) return;
+    const monto = parseFloat(ncForm.monto || '0');
+    if (!monto || monto <= 0) { toast.error('Captura un monto mayor a cero'); return; }
+    setGuardandoNc(true);
+    const { error } = await (supabase as any).rpc('crear_nota_credito_cliente', {
+      p_cliente_id: ncCliente.cliente_id,
+      p_monto: monto,
+      p_motivo: ncForm.motivo || null,
+    });
+    setGuardandoNc(false);
+    if (error) { toast.error(error.message); return; }
+    toast.success(`Nota de crédito de ${money(monto)} registrada a ${ncCliente.cliente_nombre}`);
+    setDetalle(prev => { const c = { ...prev }; delete c[ncCliente.cliente_id]; return c; });
+    setNcCliente(null);
+    load();
   }
 
   async function verComprobante(path: string) {
@@ -87,7 +139,7 @@ const CuentasPorCobrarPage = () => {
     setAbonar(r);
     setArchivo(null);
     setForm({
-      monto: String(r.saldo.toFixed(2)),
+      monto: String(r.saldoNeto.toFixed(2)),
       fecha: new Date().toISOString().slice(0, 10),
       metodo_pago: 'transferencia',
       referencia: '',
@@ -99,7 +151,9 @@ const CuentasPorCobrarPage = () => {
     if (!abonar) return;
     const monto = parseFloat(form.monto || '0');
     if (!monto || monto <= 0) { toast.error('Captura un monto mayor a cero'); return; }
-    if (monto > abonar.saldo + 0.001) { toast.error('El abono no puede ser mayor al saldo pendiente'); return; }
+    // Tope contra el saldo neto (ya descontadas las notas de crédito), no
+    // contra el saldo crudo de la RPC — junta 15-ago-2026, punto 7.
+    if (monto > abonar.saldoNeto + 0.001) { toast.error('El abono no puede ser mayor al saldo pendiente (ya neteado de notas de crédito)'); return; }
     if (!archivo) { toast.error('Adjunta el comprobante del abono'); return; }
     setGuardando(true);
 
@@ -130,16 +184,17 @@ const CuentasPorCobrarPage = () => {
       const q = busqueda.trim().toLowerCase();
       if (!`${r.cliente_nombre} ${r.rfc || ''}`.toLowerCase().includes(q)) return false;
     }
-    if (estado === 'pendientes') return r.saldo > 0.009;
+    if (estado === 'pendientes') return r.saldoNeto > 0.009;
     if (estado === 'vencidos') return r.vencido;
     return true;
   });
 
-  const conSaldo = rows.filter(r => r.saldo > 0.009);
+  const conSaldo = rows.filter(r => r.saldoNeto > 0.009);
   const vencidos = rows.filter(r => r.vencido);
-  const totalSaldo = useMemo(() => conSaldo.reduce((s, r) => s + r.saldo, 0), [rows]);
-  const totalVencido = useMemo(() => vencidos.reduce((s, r) => s + r.saldo, 0), [rows]);
+  const totalSaldo = useMemo(() => conSaldo.reduce((s, r) => s + r.saldoNeto, 0), [rows]);
+  const totalVencido = useMemo(() => vencidos.reduce((s, r) => s + r.saldoNeto, 0), [rows]);
   const totalCobrado = useMemo(() => rows.reduce((s, r) => s + r.abonado, 0), [rows]);
+  const totalNotasCredito = useMemo(() => rows.reduce((s, r) => s + r.notasCredito, 0), [rows]);
 
   return (
     <div className="space-y-4">
@@ -168,8 +223,8 @@ const CuentasPorCobrarPage = () => {
           <p className="text-2xl font-bold mt-1 text-green-600">{money(totalCobrado)}</p>
         </CardContent></Card>
         <Card><CardContent className="p-4">
-          <p className="text-sm text-muted-foreground">Ventas a crédito</p>
-          <p className="text-2xl font-bold mt-1">{rows.reduce((s, r) => s + Number(r.num_ventas || 0), 0)}</p>
+          <p className="text-sm text-muted-foreground">Notas de crédito aplicadas</p>
+          <p className="text-2xl font-bold mt-1 text-amber-600">{money(totalNotasCredito)}</p>
         </CardContent></Card>
       </div>
 
@@ -200,8 +255,9 @@ const CuentasPorCobrarPage = () => {
                   <TableHead className="text-center">Ventas</TableHead>
                   <TableHead className="text-right">Crédito</TableHead>
                   <TableHead className="text-right">Abonado</TableHead>
-                  <TableHead className="text-right">Saldo</TableHead>
-                  <TableHead>Antigüedad</TableHead>
+                  <TableHead className="text-right">Notas de crédito</TableHead>
+                  <TableHead className="text-right">Saldo neto</TableHead>
+                  <TableHead>Vence en</TableHead>
                   <TableHead className="text-right">Acción</TableHead>
                 </TableRow>
               </TableHeader>
@@ -220,16 +276,27 @@ const CuentasPorCobrarPage = () => {
                       <TableCell className="text-center">{r.num_ventas}</TableCell>
                       <TableCell className="text-right">{money(r.total_credito)}</TableCell>
                       <TableCell className="text-right text-green-600">{money(r.abonado)}</TableCell>
-                      <TableCell className="text-right font-bold">{money(r.saldo)}</TableCell>
+                      <TableCell className="text-right">
+                        {r.notasCredito > 0.009 ? <span className="text-amber-600">-{money(r.notasCredito)}</span> : '—'}
+                      </TableCell>
+                      <TableCell className="text-right font-bold">
+                        {r.saldoAFavor > 0.009 ? (
+                          <span className="text-blue-600">Saldo a favor {money(r.saldoAFavor)}</span>
+                        ) : money(r.saldoNeto)}
+                      </TableCell>
                       <TableCell>
-                        {r.saldo <= 0.009
+                        {r.saldoNeto <= 0.009
                           ? <Badge className="bg-green-100 text-green-700">Saldado</Badge>
                           : r.vencido
-                            ? <Badge variant="destructive">Vencido {r.dias_antiguedad}d</Badge>
-                            : <Badge variant="secondary">{r.dias_antiguedad ?? 0}d</Badge>}
+                            ? <Badge variant="destructive">Vencido hace {r.dias_antiguedad !== null ? r.dias_antiguedad - (r.dias_credito ?? 30) : 0}d</Badge>
+                            : <Badge variant="secondary">Faltan {r.dias_credito !== null ? (r.dias_credito ?? 30) - (r.dias_antiguedad ?? 0) : '—'}d</Badge>}
                       </TableCell>
-                      <TableCell className="text-right">
-                        {r.saldo > 0.009 && (
+                      <TableCell className="text-right space-x-2 whitespace-nowrap">
+                        <Button size="sm" variant="ghost"
+                          onClick={(e) => { e.stopPropagation(); abrirNotaCredito(r); }}>
+                          <Receipt className="h-3.5 w-3.5 mr-1" /> Nota de crédito
+                        </Button>
+                        {r.saldoNeto > 0.009 && (
                           <Button size="sm" variant="outline"
                             onClick={(e) => { e.stopPropagation(); abrirAbono(r); }}>
                             Registrar abono
@@ -239,8 +306,8 @@ const CuentasPorCobrarPage = () => {
                     </TableRow>
                     {expandido === r.cliente_id && (
                       <TableRow>
-                        <TableCell colSpan={8} className="bg-muted/40">
-                          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 py-2">
+                        <TableCell colSpan={9} className="bg-muted/40">
+                          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 py-2">
                             <div>
                               <p className="text-sm font-semibold mb-2">Ventas a crédito</p>
                               {(detalle[r.cliente_id]?.ventas || []).length === 0 ? (
@@ -277,6 +344,21 @@ const CuentasPorCobrarPage = () => {
                                           </Button>
                                         )}
                                       </span>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                            <div>
+                              <p className="text-sm font-semibold mb-2">Notas de crédito</p>
+                              {(detalle[r.cliente_id]?.notasCredito || []).length === 0 ? (
+                                <p className="text-xs text-muted-foreground">Sin notas de crédito registradas.</p>
+                              ) : (
+                                <div className="space-y-1">
+                                  {detalle[r.cliente_id].notasCredito.map((n: any) => (
+                                    <div key={n.id} className="flex justify-between text-xs gap-2">
+                                      <span>{n.folio} · {String(n.fecha).slice(0, 10)}{n.motivo ? ` · ${n.motivo}` : ''}</span>
+                                      <span className="font-medium text-amber-600">-{money(n.monto)}</span>
                                     </div>
                                   ))}
                                 </div>
@@ -351,6 +433,40 @@ const CuentasPorCobrarPage = () => {
             <Button variant="outline" onClick={() => setAbonar(null)} disabled={guardando}>Cancelar</Button>
             <Button onClick={registrarAbono} disabled={guardando}>
               {guardando && <Loader2 className="h-4 w-4 mr-2 animate-spin" />} Registrar abono
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Nota de crédito de cliente (junta 15-ago-2026, punto 7). */}
+      <Dialog open={!!ncCliente} onOpenChange={(o) => !o && setNcCliente(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader><DialogTitle>Registrar nota de crédito</DialogTitle></DialogHeader>
+          {ncCliente && (
+            <div className="space-y-3">
+              <div className="rounded-md border p-3 text-sm">
+                <p className="font-medium">{ncCliente.cliente_nombre}</p>
+                <p className="text-muted-foreground text-xs">Saldo actual: {money(ncCliente.saldoNeto)}</p>
+              </div>
+              <div>
+                <Label>Monto de la nota de crédito *</Label>
+                <Input type="number" min={0} step="0.01" value={ncForm.monto}
+                  onChange={e => setNcForm({ ...ncForm, monto: e.target.value })} />
+              </div>
+              <div>
+                <Label>Motivo</Label>
+                <Textarea rows={2} value={ncForm.motivo} onChange={e => setNcForm({ ...ncForm, motivo: e.target.value })}
+                  placeholder="Ej. Devolución de mercancía, ajuste de precio…" />
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Si el monto supera el saldo pendiente, el excedente queda como saldo a favor del cliente.
+              </p>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setNcCliente(null)} disabled={guardandoNc}>Cancelar</Button>
+            <Button onClick={registrarNotaCredito} disabled={guardandoNc}>
+              {guardandoNc && <Loader2 className="h-4 w-4 mr-2 animate-spin" />} <Plus className="h-4 w-4 mr-1" /> Registrar nota de crédito
             </Button>
           </DialogFooter>
         </DialogContent>

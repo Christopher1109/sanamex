@@ -24,6 +24,7 @@ export default function ReportesAdminPage() {
           <TabsTrigger value="bg">Balance General</TabsTrigger>
           <TabsTrigger value="flujo">Flujo de Efectivo</TabsTrigger>
           <TabsTrigger value="cxp">Antigüedad CxP</TabsTrigger>
+          <TabsTrigger value="cxc">Antigüedad CxC</TabsTrigger>
           <TabsTrigger value="sat">XML SAT</TabsTrigger>
         </TabsList>
         <TabsContent value="balanza"><BalanzaTab /></TabsContent>
@@ -31,6 +32,7 @@ export default function ReportesAdminPage() {
         <TabsContent value="bg"><BGTab /></TabsContent>
         <TabsContent value="flujo"><FlujoTab /></TabsContent>
         <TabsContent value="cxp"><CxPTab /></TabsContent>
+        <TabsContent value="cxc"><CxCTab /></TabsContent>
         <TabsContent value="sat"><SatTab /></TabsContent>
       </Tabs>
     </div>
@@ -213,6 +215,71 @@ function CxPTab() {
           <thead className="bg-muted"><tr><th className="p-2 text-left">Compra</th><th className="p-2 text-left">Proveedor</th><th className="p-2 text-left">Fecha</th><th className="p-2 text-right">Días</th><th className="p-2 text-left">Bucket</th><th className="p-2 text-right">Saldo</th></tr></thead>
           <tbody>{enriched.map((r:any,i)=>(<tr key={i} className="border-b"><td className="p-2">{r.numero_compra}</td><td className="p-2">{r.proveedores?.nombre}</td><td className="p-2">{r.fecha_factura}</td><td className="p-2 text-right">{r.dias}</td><td className="p-2">{r.bucket}</td><td className="p-2 text-right">${Number(r.saldo||0).toFixed(2)}</td></tr>))}</tbody>
         </table>
+      </CardContent>
+    </Card>
+  );
+}
+
+// Reporte de cuentas por cobrar (junta SANAMEX 15-ago-2026, punto 7: agregar
+// este reporte al apartado de reportes administrativos — antes solo estaban
+// flujo de efectivo y antigüedad de CxP). Reutiliza el mismo RPC `cxc_resumen`
+// que ya usa la página de Cuentas por Cobrar, para no tener dos fuentes de
+// verdad distintas del saldo por cliente.
+function CxCTab() {
+  const [rows, setRows] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  useEffect(() => {
+    (supabase as any).rpc('cxc_resumen').then(({ data }: any) => {
+      setRows((data || []).filter((r: any) => Number(r.saldo || 0) > 0.009));
+      setLoading(false);
+    });
+  }, []);
+  const bucketDe = (dias: number) => (dias <= 30 ? '1-30' : dias <= 60 ? '31-60' : dias <= 90 ? '61-90' : '90+');
+  const totalSaldo = rows.reduce((s, r) => s + Number(r.saldo || 0), 0);
+  return (
+    <Card>
+      <CardHeader className="flex flex-row justify-between items-center">
+        <div>
+          <CardTitle>Antigüedad de CxC</CardTitle>
+          <p className="text-sm text-muted-foreground mt-1">Saldo por cliente, ordenado por antigüedad. Total: ${totalSaldo.toFixed(2)}</p>
+        </div>
+        <Button variant="outline" onClick={() => exportExcel(rows, 'antiguedad_cxc.xlsx')}><Download className="h-4 w-4 mr-2" />Excel</Button>
+      </CardHeader>
+      <CardContent>
+        {loading ? (
+          <p className="text-sm text-muted-foreground">Cargando…</p>
+        ) : rows.length === 0 ? (
+          <p className="text-sm text-muted-foreground">Sin cuentas por cobrar pendientes.</p>
+        ) : (
+          <table className="w-full text-sm">
+            <thead className="bg-muted">
+              <tr>
+                <th className="p-2 text-left">Cliente</th>
+                <th className="p-2 text-left">RFC</th>
+                <th className="p-2 text-right">Crédito total</th>
+                <th className="p-2 text-right">Abonado</th>
+                <th className="p-2 text-right">Saldo</th>
+                <th className="p-2 text-right">Días</th>
+                <th className="p-2 text-left">Bucket</th>
+                <th className="p-2 text-left">Estado</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((r: any, i: number) => (
+                <tr key={i} className="border-b">
+                  <td className="p-2">{r.cliente_nombre}</td>
+                  <td className="p-2">{r.rfc || '—'}</td>
+                  <td className="p-2 text-right">${Number(r.total_credito || 0).toFixed(2)}</td>
+                  <td className="p-2 text-right">${Number(r.abonado || 0).toFixed(2)}</td>
+                  <td className="p-2 text-right font-medium">${Number(r.saldo || 0).toFixed(2)}</td>
+                  <td className="p-2 text-right">{r.dias_antiguedad ?? 0}</td>
+                  <td className="p-2">{bucketDe(Number(r.dias_antiguedad || 0))}</td>
+                  <td className="p-2">{r.vencido ? 'Vencido' : 'Vigente'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
       </CardContent>
     </Card>
   );
