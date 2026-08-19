@@ -47,6 +47,7 @@ type EntregaPendiente = {
   total: number;
   fecha: string;
   sucursal_id: string;
+  repartidor_id: string | null;
 };
 
 type EntregaConcluidaHoy = {
