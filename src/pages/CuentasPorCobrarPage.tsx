@@ -10,8 +10,9 @@ import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { HandCoins, Loader2, RefreshCw, Paperclip, ChevronDown, ChevronRight, Upload, Receipt, Plus } from 'lucide-react';
+import { HandCoins, Loader2, RefreshCw, Paperclip, ChevronDown, ChevronRight, Upload, Receipt, Plus, CalendarDays } from 'lucide-react';
 import { toast } from 'sonner';
+import CalendarioVencimientos from '@/components/calendario/CalendarioVencimientos';
 
 // Cobranza: el saldo se lleva POR CLIENTE (suma de sus ventas a crédito menos
 // sus abonos). Los abonos son manuales, siempre con comprobante, y la RPC
@@ -45,6 +46,9 @@ const CuentasPorCobrarPage = () => {
   const [rows, setRows] = useState<ResumenCxC[]>([]);
   const [loading, setLoading] = useState(true);
   const [estado, setEstado] = useState<'pendientes' | 'vencidos' | 'todos'>('pendientes');
+  // Junta SANAMEX 15-ago-2026, punto 6: vista de calendario como alternativa
+  // a la lista, compartida con Cuentas por Pagar (mismo componente).
+  const [vista, setVista] = useState<'lista' | 'calendario'>('lista');
   const [busqueda, setBusqueda] = useState('');
   const [expandido, setExpandido] = useState<string | null>(null);
   const [detalle, setDetalle] = useState<Record<string, { ventas: any[]; abonos: any[]; notasCredito: any[] }>>({});
@@ -202,10 +206,20 @@ const CuentasPorCobrarPage = () => {
         <h1 className="text-2xl font-bold flex items-center gap-2">
           <HandCoins className="h-6 w-6" /> Cuentas por Cobrar
         </h1>
-        <Button variant="outline" size="sm" onClick={load}>
-          <RefreshCw className="h-4 w-4 mr-2" /> Actualizar
-        </Button>
+        <div className="flex items-center gap-2">
+          <Tabs value={vista} onValueChange={(v: any) => setVista(v)}>
+            <TabsList>
+              <TabsTrigger value="lista">Lista</TabsTrigger>
+              <TabsTrigger value="calendario"><CalendarDays className="h-3.5 w-3.5 mr-1" />Calendario</TabsTrigger>
+            </TabsList>
+          </Tabs>
+          <Button variant="outline" size="sm" onClick={load}>
+            <RefreshCw className="h-4 w-4 mr-2" /> Actualizar
+          </Button>
+        </div>
       </div>
+
+      {vista === 'calendario' ? <CalendarioVencimientos /> : <>
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
         <Card><CardContent className="p-4">
@@ -377,6 +391,8 @@ const CuentasPorCobrarPage = () => {
           )}
         </CardContent>
       </Card>
+
+      </>}
 
       <Dialog open={!!abonar} onOpenChange={(o) => !o && setAbonar(null)}>
         <DialogContent className="max-w-md">

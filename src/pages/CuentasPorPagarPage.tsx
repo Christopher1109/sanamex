@@ -16,6 +16,7 @@ import { Upload, AlertTriangle, Clock, Wallet, CheckCircle2, FileUp, History, Fi
 import { toast } from 'sonner';
 import { registrarPagoCompra } from '@/lib/cxp';
 import FacturasPorPagar from '@/components/cxp/FacturasPorPagar';
+import CalendarioVencimientos from '@/components/calendario/CalendarioVencimientos';
 
 type Compra = {
   id: string; numero_compra: string; proveedor_id: string; total: number;
@@ -55,7 +56,7 @@ const CuentasPorPagarPage = () => {
   const [filtro, setFiltro] = useState<'pendientes' | 'vencidas' | 'pagadas' | 'todas'>('pendientes');
   // Vista por defecto: por FACTURA (así llegan los estados de cuenta del
   // proveedor). "Por compra" queda como vista de respaldo / histórico.
-  const [vista, setVista] = useState<'factura' | 'compra'>('factura');
+  const [vista, setVista] = useState<'factura' | 'compra' | 'calendario'>('factura');
   const [filtroProv, setFiltroProv] = useState<string>('all');
   const [filtroAnt, setFiltroAnt] = useState<string>('all');
   const [filtroSuc, setFiltroSuc] = useState<string>('all');
@@ -303,10 +304,12 @@ const CuentasPorPagarPage = () => {
         <TabsList>
           <TabsTrigger value="factura">Por factura</TabsTrigger>
           <TabsTrigger value="compra">Por compra (histórico)</TabsTrigger>
+          <TabsTrigger value="calendario">Calendario</TabsTrigger>
         </TabsList>
       </Tabs>
 
       {vista === 'factura' && <FacturasPorPagar />}
+      {vista === 'calendario' && <CalendarioVencimientos />}
       {vista === 'compra' && <>
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
