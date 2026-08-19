@@ -27,10 +27,8 @@ CREATE POLICY "Ver rutas segun rol" ON public.rutas
     OR has_role(auth.uid(), 'gerente'::app_role)
     OR has_role(auth.uid(), 'subgerente'::app_role)
     OR has_role(auth.uid(), 'supervisor'::app_role)
-    OR has_role(auth.uid(), 'gerente_operaciones'::app_role)
     OR has_role(auth.uid(), 'almacen'::app_role)
     OR has_role(auth.uid(), 'almacen_ventas'::app_role)
-    OR has_role(auth.uid(), 'cadena_suministros'::app_role)
     OR has_role(auth.uid(), 'auditoria'::app_role)
   );
 
@@ -48,10 +46,8 @@ CREATE POLICY "Ver entregas segun rol" ON public.ruta_entregas
           OR has_role(auth.uid(), 'gerente'::app_role)
           OR has_role(auth.uid(), 'subgerente'::app_role)
           OR has_role(auth.uid(), 'supervisor'::app_role)
-          OR has_role(auth.uid(), 'gerente_operaciones'::app_role)
           OR has_role(auth.uid(), 'almacen'::app_role)
           OR has_role(auth.uid(), 'almacen_ventas'::app_role)
-          OR has_role(auth.uid(), 'cadena_suministros'::app_role)
           OR has_role(auth.uid(), 'auditoria'::app_role)
         )
     )
