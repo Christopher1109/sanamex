@@ -47,8 +47,8 @@ const AutofacturacionPage = () => {
   const [exito, setExito] = useState<string | null>(null);
 
   useEffect(() => {
-    supabase.from('sucursales').select('id, nombre').eq('activa', true).order('nombre')
-      .then(({ data }) => setSucursales((data as any[]) || []));
+    (supabase as any).from('sucursales').select('id, nombre').eq('activa', true).order('nombre')
+      .then(({ data }: any) => setSucursales((data as any[]) || []));
   }, []);
 
   const set = (k: string, v: string) => setForm((f) => ({ ...f, [k]: v }));
