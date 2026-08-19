@@ -337,8 +337,35 @@ const ConciliacionPage = () => {
                       </label>
                     ))}
                   </div>
-                  <p className="text-xs text-muted-foreground mt-1">Si no seleccionas ninguna, solo se registra la póliza contable, sin aplicar contra una compra específica.</p>
+                  <p className="text-xs text-muted-foreground mt-1">El monto se reparte en el orden mostrado, de la más antigua a la más reciente. Si no seleccionas ninguna, solo se registra la póliza contable.</p>
                 </div>
+              )}
+              {enviarForm.entidadTipo === 'cliente' && ventasPendientes.length > 0 && (
+                <div>
+                  <Label>Aplicar contra estas ventas a crédito (opcional)</Label>
+                  <div className="border rounded max-h-40 overflow-y-auto">
+                    {ventasPendientes.map((v: any) => (
+                      <label key={v.id} className="flex items-center gap-2 p-2 text-sm border-b last:border-0">
+                        <input type="checkbox" checked={ventasSel.has(v.id)} onChange={() => {
+                          const n = new Set(ventasSel);
+                          n.has(v.id) ? n.delete(v.id) : n.add(v.id);
+                          setVentasSel(n);
+                        }} />
+                        <span className="font-mono">{v.numero_venta || v.id.slice(0, 8)}</span>
+                        <span className="text-xs text-muted-foreground">{String(v.fecha).slice(0, 10)}</span>
+                        <span className="text-muted-foreground ml-auto">Saldo: ${v.saldo.toFixed(2)}</span>
+                      </label>
+                    ))}
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Seleccionadas: {ventasSel.size} · Saldo seleccionado: ${ventasPendientes
+                      .filter((v: any) => ventasSel.has(v.id))
+                      .reduce((s: number, v: any) => s + v.saldo, 0).toFixed(2)} — el cobro se aplica como abono y descuenta el crédito del cliente.
+                  </p>
+                </div>
+              )}
+              {enviarForm.entidadTipo === 'cliente' && enviarForm.entidadId && ventasPendientes.length === 0 && (
+                <p className="text-xs text-muted-foreground">Este cliente no tiene ventas a crédito con saldo pendiente.</p>
               )}
             </div>
           )}
