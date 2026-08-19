@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -191,34 +191,72 @@ function FlujoTab() {
   );
 }
 
+// Antigüedad de CxP: usa la MISMA fuente que el módulo de Cuentas por Pagar
+// (RPC `cxp_facturas_pendientes`, vista "Por factura"), para que los saldos
+// coincidan factura por factura en lugar de leer `compras` directamente.
 function CxPTab() {
   const [rows, setRows] = useState<any[]>([]);
   useEffect(() => {
-    supabase.from('compras').select('numero_compra, proveedor_id, total, saldo, fecha_factura, pagada, proveedores(nombre)')
-      .eq('pagada', false).order('fecha_factura')
-      .then(({ data }) => setRows((data as any) || []));
+    (supabase as any).rpc('cxp_facturas_pendientes')
+      .then(({ data }: any) => setRows((data || []).filter((r: any) => !r.pagada && Number(r.saldo || 0) > 0.009)));
   }, []);
   const today = new Date();
-  const enriched = rows.map(r => {
-    const dias = r.fecha_factura ? Math.floor((today.getTime() - new Date(r.fecha_factura).getTime()) / 86400000) : 0;
+  const enriched = useMemo(() => rows.map(r => {
+    const base = r.fecha_factura ? new Date(r.fecha_factura) : null;
+    const dias = base ? Math.floor((today.getTime() - base.getTime()) / 86400000) : 0;
     const bucket = dias <= 30 ? '1-30' : dias <= 60 ? '31-60' : dias <= 90 ? '61-90' : '90+';
-    return { ...r, dias, bucket };
-  });
+    return {
+      factura: r.folio_factura,
+      orden: r.orden_folio,
+      proveedor: r.proveedor_nombre,
+      sucursal: r.sucursal_codigo,
+      fecha_factura: r.fecha_factura,
+      fecha_limite_pago: r.fecha_limite_pago,
+      dias,
+      bucket,
+      importe: Number(r.importe_neto ?? r.importe ?? 0),
+      pagado: Number(r.pagado || 0),
+      saldo: Number(r.saldo || 0),
+      dias_para_vencer: r.dias_para_vencer,
+    };
+  }).sort((a, b) => (a.fecha_factura || '').localeCompare(b.fecha_factura || '')), [rows]);
+  const total = enriched.reduce((s, r) => s + r.saldo, 0);
   return (
     <Card>
       <CardHeader className="flex flex-row justify-between">
-        <CardTitle>Antigüedad de CxP</CardTitle>
+        <div>
+          <CardTitle>Antigüedad de CxP</CardTitle>
+          <p className="text-sm text-muted-foreground mt-1">Facturas pendientes por pagar (misma fuente que el módulo de Cuentas por Pagar). Total: ${total.toFixed(2)}</p>
+        </div>
         <Button variant="outline" onClick={() => exportExcel(enriched, 'antiguedad_cxp.xlsx')}><Download className="h-4 w-4 mr-2" />Excel</Button>
       </CardHeader>
       <CardContent>
         <table className="w-full text-sm">
-          <thead className="bg-muted"><tr><th className="p-2 text-left">Compra</th><th className="p-2 text-left">Proveedor</th><th className="p-2 text-left">Fecha</th><th className="p-2 text-right">Días</th><th className="p-2 text-left">Bucket</th><th className="p-2 text-right">Saldo</th></tr></thead>
-          <tbody>{enriched.map((r:any,i)=>(<tr key={i} className="border-b"><td className="p-2">{r.numero_compra}</td><td className="p-2">{r.proveedores?.nombre}</td><td className="p-2">{r.fecha_factura}</td><td className="p-2 text-right">{r.dias}</td><td className="p-2">{r.bucket}</td><td className="p-2 text-right">${Number(r.saldo||0).toFixed(2)}</td></tr>))}</tbody>
+          <thead className="bg-muted"><tr><th className="p-2 text-left">Factura</th><th className="p-2 text-left">OC</th><th className="p-2 text-left">Proveedor</th><th className="p-2 text-left">Suc.</th><th className="p-2 text-left">Fecha</th><th className="p-2 text-left">Vence</th><th className="p-2 text-right">Días</th><th className="p-2 text-left">Bucket</th><th className="p-2 text-right">Importe</th><th className="p-2 text-right">Pagado</th><th className="p-2 text-right">Saldo</th></tr></thead>
+          <tbody>
+            {enriched.length === 0 && <tr><td colSpan={11} className="p-4 text-center text-muted-foreground">Sin facturas pendientes por pagar</td></tr>}
+            {enriched.map((r: any, i) => (
+              <tr key={i} className="border-b">
+                <td className="p-2 font-medium">{r.factura}</td>
+                <td className="p-2 text-xs">{r.orden}</td>
+                <td className="p-2">{r.proveedor}</td>
+                <td className="p-2 text-xs">{r.sucursal}</td>
+                <td className="p-2">{r.fecha_factura}</td>
+                <td className="p-2">{r.fecha_limite_pago || '—'}</td>
+                <td className="p-2 text-right">{r.dias}</td>
+                <td className="p-2">{r.bucket}</td>
+                <td className="p-2 text-right">${r.importe.toFixed(2)}</td>
+                <td className="p-2 text-right">${r.pagado.toFixed(2)}</td>
+                <td className={`p-2 text-right font-medium ${Number(r.dias_para_vencer) < 0 ? 'text-destructive' : ''}`}>${r.saldo.toFixed(2)}</td>
+              </tr>
+            ))}
+          </tbody>
         </table>
       </CardContent>
     </Card>
   );
 }
+
 
 // Reporte de cuentas por cobrar (junta SANAMEX 15-ago-2026, punto 7: agregar
 // este reporte al apartado de reportes administrativos — antes solo estaban
