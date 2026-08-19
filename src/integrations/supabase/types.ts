@@ -215,6 +215,69 @@ export type Database = {
         }
         Relationships: []
       }
+      autofacturacion_solicitudes: {
+        Row: {
+          codigo_postal: string
+          created_at: string
+          email: string
+          estado: string
+          id: string
+          nota_interna: string | null
+          razon_social: string
+          regimen_fiscal: string
+          rfc: string
+          sucursal_id: string | null
+          updated_at: string
+          uso_cfdi: string
+          venta_id: string
+        }
+        Insert: {
+          codigo_postal: string
+          created_at?: string
+          email: string
+          estado?: string
+          id?: string
+          nota_interna?: string | null
+          razon_social: string
+          regimen_fiscal: string
+          rfc: string
+          sucursal_id?: string | null
+          updated_at?: string
+          uso_cfdi?: string
+          venta_id: string
+        }
+        Update: {
+          codigo_postal?: string
+          created_at?: string
+          email?: string
+          estado?: string
+          id?: string
+          nota_interna?: string | null
+          razon_social?: string
+          regimen_fiscal?: string
+          rfc?: string
+          sucursal_id?: string | null
+          updated_at?: string
+          uso_cfdi?: string
+          venta_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "autofacturacion_solicitudes_sucursal_id_fkey"
+            columns: ["sucursal_id"]
+            isOneToOne: false
+            referencedRelation: "sucursales"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "autofacturacion_solicitudes_venta_id_fkey"
+            columns: ["venta_id"]
+            isOneToOne: false
+            referencedRelation: "ventas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       bancos: {
         Row: {
           activo: boolean
