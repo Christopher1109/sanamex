@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useSucursal } from '@/contexts/SucursalContext';
 import { useAuth } from '@/hooks/useAuth';
@@ -76,10 +76,20 @@ const CorteCajaRutaPage = () => {
   const [motivo, setMotivo] = useState('');
   const [guardando, setGuardando] = useState(false);
 
-  const sucursalIds = alcance === 'todas'
-    ? availableSucursales.map(s => s.id)
-    : selectedSucursal ? [selectedSucursal.id] : [];
+  // OJO: memoizado a propósito. Si `sucursalIds` se recalcula en cada render,
+  // `load` (useCallback que lo tiene como dependencia) cambia de identidad en
+  // cada render y el useEffect que lo llama entra en bucle infinito
+  // (setState -> render -> nuevo array -> nuevo load -> efecto) — eso era lo
+  // que dejaba la pantalla en blanco.
+  const sucursalIds = useMemo(
+    () => (alcance === 'todas'
+      ? availableSucursales.map(s => s.id)
+      : selectedSucursal ? [selectedSucursal.id] : []),
+    [alcance, availableSucursales, selectedSucursal],
+  );
+  const sucursalKey = sucursalIds.join(',');
   const nombreSucursal = (id: string) => availableSucursales.find(s => s.id === id)?.nombre || '—';
+
 
   useEffect(() => {
     supabase.from('metodos_pago').select('id, nombre').eq('activo', true).order('nombre').then(({ data }) => setMetodosPago(data || []));
