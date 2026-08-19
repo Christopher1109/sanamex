@@ -1,127 +1,106 @@
 # Seguimiento — Junta de revisión SANAMEX (15-ago-2026)
 
-Este documento traduce los puntos de acción de la junta del 15-ago-2026 a
-estado de implementación real en el repositorio, para que el equipo pueda
-dar seguimiento sin tener que volver a la transcripción cada vez.
+Actualizado: 19-ago-2026. Estado real de cada punto del Plan de Ataque
+contra lo que ya existe en el sistema.
 
-Leyenda: ✅ implementado en esta rama · 🟡 implementable pero pendiente de
-otra sesión · 🔴 bloqueado esperando información externa (ver tabla de
-bloqueos al final).
+Leyenda: ✅ hecho · 🟡 parcial · ⬜ pendiente · 🔴 bloqueado por información externa
 
 ## 1. Punto de venta — cliente obligatorio y RFC
-
-- ✅ Candado de cliente obligatorio antes de cobrar (contado y crédito).
-- ✅ Buscador por RFC/nombre en el selector de cliente (`ClienteSelector`).
-- ✅ Alta de cliente sin salir de la venta (`QuickClienteDialog`), guardando
-  en el catálogo general de `clientes`.
-- Ver `src/components/pos/ClienteSelector.tsx` y
-  `src/components/pos/QuickClienteDialog.tsx`, integrados en `POSPage.tsx`.
+- ✅ Cliente obligatorio antes de cobrar.
+- ✅ Búsqueda por RFC/nombre contra la base completa (server-side, +11k clientes).
+- ✅ Alta rápida de cliente desde la venta, guardada en el catálogo general.
 
 ## 2. Facturación
-
-- 🟡 Portal de autofacturación (sucursal + folio, validación contra SAT).
-- 🟡 Bloqueo en tiempo real de tickets ya facturados.
-- Requiere definir primero el flujo exacto de validación SAT (RFC, CP, razón
-  social) y el punto de bloqueo transaccional del ticket — se recomienda
-  como siguiente rama después de esta.
+- ✅ Etiqueta "pidió factura" en POS y timbrado desde el historial de ventas.
+- ✅ Bloqueo de tickets ya facturados (el historial marca "Facturada" y no permite retimbrar).
+- ✅ Múltiples folios de venta en una sola factura (cfdi_ventas_agrupadas).
+- ⬜ Portal de autofacturación para el cliente (sucursal + folio + validación SAT).
+- 🟡 Timbrado real pausado: venció el periodo de prueba del proveedor.
 
 ## 3. Corte de caja — mostrador vs. ruta
-
-- 🟡 Separar cortes de mostrador y ruta, accesos de chofer restringidos a
-  sus propias órdenes.
-- 🔴 Pendiente sin resolver en la junta: quién concluye una venta en
-  sucursal cuando el cliente recoge directo (llevarlo a la próxima llamada).
+- ✅ Dos módulos separados: Corte de Caja Mostrador y Corte de Caja Ruta.
+- ✅ Venta a domicilio marcada en POS (sale a ruta) y concluida por el chofer con el método de cobro real.
+- ✅ Chofer restringido por RLS a sus propias entregas; no ve el corte de mostrador.
+- ✅ Desglose de artículos (SKU, descripción, cantidad, importe) por entrega.
+- 🟡 Segmentar qué orden se asigna a cada chofer cuando hay varios en la sucursal.
+- 🟡 Candado de "no modificar método de pago después" con log de excepción del gerente.
+- 🔴 Quién concluye la venta cuando el cliente recoge en sucursal (definir con Alejandro).
 
 ## 4. Clasificación de ventas (contado / ruta / crédito real)
-
-- 🔴 Bloqueado: falta confirmar con Alejandro cómo se reflejan las tres
-  categorías en reportes (la junta dejó la idea, no el diseño final).
+- ✅ `tipo_venta` (contado/crédito) capturado en POS y pedidos; estatus "en ruta".
+- 🔴 Diseño final de los tres cortes en reportes — falta confirmación de Alejandro.
 
 ## 5. Ajustes de inventario
-
-- 🟡 Selección obligatoria de motivo + flujo especial de "confusión de
-  producto" (ajuste automático de existencias en ambos productos).
-- 🔴 Lista completa de motivos (4-5 casos) pendiente de confirmar con
-  Alejandro — solo se identificaron merma, daño y confusión de producto.
-- 🟡 Kardex: confirmar con Alejandro si el historial reciente actual ya
-  cubre lo que pidió, o si falta algo.
+- ✅ Motivo obligatorio como primer paso.
+- ✅ Flujo especial "confusión de producto" con ajuste automático de ambas existencias.
+- ✅ Kardex con historial completo de entradas/salidas.
+- 🟡 Permisos restringidos a gerente/subgerente (revisar matriz).
+- 🔴 Lista completa de motivos (faltan 1-2 por confirmar).
 
 ## 6. Cuentas por pagar
-
-- 🟡 Corregir que la orden de compra no aparece en CxP hasta que se le
-  asigna folio de factura (bug detectado en vivo durante la demo).
-- 🟡 Vista de calendario de vencimientos (CxP y CxC).
-- 🔴 Layout de documentos de CxP — bloqueado, Alejandro debe compartirlo.
+- ✅ Ciclo OC → factura(s) → nota de crédito ligado; múltiples facturas por OC.
+- ✅ Forma de pago, días de crédito del proveedor y fecha límite automática.
+- ✅ Pago por factura completa: fecha, método, cuenta bancaria, referencia y comprobante PDF obligatorio.
+- ✅ Corregido el bug de la demo: la OC entra a CxP al registrar la factura (trigger `tg_compras_to_cxp`).
+- ✅ Orden por vencimiento próximo + semáforo.
+- ✅ Vista de calendario de vencimientos (CxP y CxC).
+- 🔴 Layout del documento de CxP — Alejandro debe compartirlo.
 
 ## 7. Cuentas por cobrar y notas de crédito
-
-- 🟡 Cálculo de saldo pendiente: factura − pagos parciales − notas de
-  crédito, con reflejo de saldo a favor cuando el pago excede lo debido.
-- 🟡 Agregar días restantes para vencimiento a la vista de CxC.
-- 🟡 Agregar el reporte de cuentas por cobrar a Reportes Administrativos.
+- ✅ Módulo de Cobranza con saldo = factura − abonos − notas de crédito.
+- ✅ Abonos con fecha, método, cuenta y comprobante obligatorio.
+- ✅ Notas de crédito de cliente (`crear_nota_credito_cliente`) diferenciadas del abono.
+- ✅ Reporte de antigüedad de CxC en Reportes Administrativos.
+- ✅ Calendario de vencimientos compartido con CxP.
+- 🟡 Saldo a favor cuando el pago excede lo debido tras una nota de crédito.
+- 🟡 Columna de días restantes al vencimiento en la vista de CxC.
 
 ## 8. Conciliación bancaria y asignación de pagos
-
-- 🟡 Asignar/distribuir un pago conciliado contra varias facturas.
-- 🟡 Generación automática de póliza al asignar un pago conciliado.
-- Nota: Christopher se comprometió a tener esto listo para la próxima
-  llamada — es de las fechas compromiso más cercanas, priorizar.
+- ✅ Movimiento del banco ligado a cliente/proveedor (`conciliacion_enviar_a_cuenta`).
+- ⬜ Distribuir un mismo pago conciliado contra varias facturas.
+- ⬜ Descontar automáticamente del historial de crédito al aplicar.
+- ⬜ Póliza automática precargada (origen/destino) al asignar el pago.
+- Es el compromiso con fecha más cercana: priorizar.
 
 ## 9. Reglas contables y catálogo de cuentas
+- ✅ Catálogo real cargado, saldos de apertura corregidos, 21 reglas registradas (inactivas).
+- ✅ Enlace banco ↔ cuenta contable (BBVA → 102-01-001).
+- 🔴 Reglas de contabilización actualizadas y catálogo nuevo definitivo — Omar vía Isaac.
 
-- 🔴 Bloqueado por completo: Omar (vía Isaac) debe entregar las reglas de
-  contabilización actualizadas y el nuevo catálogo de cuentas. No conviene
-  avanzar pólizas/reglas hasta tener esto — es la dependencia más grande
-  del proyecto en este momento.
-
-## 10. Reportes fiscales, IVA/ISR y timbrado
-
-- Sin cambios pedidos en esta junta (ya validado en llamada anterior).
-  Timbrado real sigue pausado (venció el periodo de prueba del proveedor);
-  no urge reactivarlo.
+## 10. Reportes fiscales, IVA/ISR
+- ✅ Sin cambios pedidos; módulos operando. IEPS eliminado por indicación posterior.
+- 🟡 Timbrado real pausado (proveedor).
 
 ## 11. Nómina
+- ✅ Vinculación trabajador ↔ usuario del sistema.
+- ✅ Carga de asistencia por plantilla de Excel con la nomenclatura de "Lista de Raya" y plantilla descargable.
+- ✅ Recibos con desglose, PDF/XML y dispersión bancaria (`dispersar_nomina`).
+- ✅ Confirmado: Contabilidad Sanamex recaba y carga la asistencia.
+- ⬜ Checador de huella (a futuro, no urgente).
 
-- 🟡 Carga de asistencia vía plantilla de Excel (Contabilidad Sanamex
-  recopila y carga).
-- 🟡 Vinculación trabajador ↔ usuario del sistema.
-
-## 12. Comisiones
-
-- 🔴 Congelado hasta la llamada específica del lunes 17-ago con
-  Contabilidad Sanamex — no avanzar el módulo antes de esa llamada.
+## 12. Comisiones y metas
+- 🟡 Motor con escalones por utilidad de sucursal + comisión por vendedor ya construido.
+- 🔴 Validar rangos reales con Contabilidad Sanamex (llamada pendiente).
 
 ## 13. Accesos y pruebas
-
-- Pendiente administrativo (compartir usuario/contraseña/liga con
-  Alejandro) — no es un cambio de código.
+- ✅ Panel de Gestión de Usuarios y Permisos (Super Admin) como única fuente de verdad.
+- Pendiente administrativo: compartir accesos con Alejandro.
 
 ---
 
-## 🔴 Bloqueos activos
+## Lo que sigue (orden sugerido)
+1. Conciliación: reparto de un pago entre varias facturas + póliza automática (compromiso más cercano).
+2. Portal de autofacturación del cliente.
+3. Saldo a favor + días restantes en CxC.
+4. Asignación de entregas por chofer y candado del método de pago en mostrador.
+5. Reglas contables definitivas y comisiones — al recibir la información de Sanamex.
 
+## 🔴 Bloqueos activos
 | Qué falta | Quién lo manda | Bloquea |
 |---|---|---|
-| Reglas de contabilización actualizadas | Omar (vía Isaac) | Pólizas automáticas, catálogo contable |
-| Nuevo catálogo de cuentas | Omar (vía Isaac) | Reglas contables, pólizas |
-| Layouts de documentos de CxP | Alejandro | Formato final de documentos de CxP |
-| Esquema de comisiones (archivo/explicación) | Contabilidad Sanamex | Módulo de comisiones — llamada lunes 17-ago |
-| Definición de permisos (corte de caja / ajustes de inventario) | Llamada pendiente con Alejandro | Roles y permisos por perfil |
-| Lista completa de motivos de ajuste de inventario | Alejandro | Diseño final del flujo de ajustes |
-| Confirmación contado/ruta/crédito en reportes | Alejandro | Diseño de reportes de ventas |
-
-## Orden sugerido para las siguientes ramas
-
-1. ✅ Punto de venta: cliente obligatorio + RFC + alta rápida (esta rama).
-2. Bloqueo de tickets facturados + portal de autofacturación.
-3. Corte de caja mostrador/ruta + accesos de chofer.
-4. Ajustes de inventario con motivo + flujo de confusión de producto.
-5. CxP/CxC: cálculo de saldo con notas de crédito y pagos parciales.
-6. Conciliación bancaria + pólizas automáticas (dejar para cuando lleguen
-   las reglas contables y el catálogo nuevo).
-7. Comisiones — congelado hasta la llamada del lunes.
-8. Reglas contables / catálogo — en paralelo, dar seguimiento a Isaac/Omar.
-
-Fuente: `Revisión SANAMEX contabilidad — Resumen.txt`,
-`Revisión SANAMEX contabilidad — Transcripción.txt` y
-`Sanamex_Plan_de_Ataque_15ago2026.md` (15-ago-2026).
+| Reglas de contabilización + catálogo nuevo | Omar (vía Isaac) | Pólizas automáticas |
+| Layout de documentos de CxP | Alejandro | Formato del documento |
+| Esquema real de comisiones | Contabilidad Sanamex | Cierre del módulo |
+| Lista completa de motivos de ajuste | Alejandro | Cierre de ajustes |
+| Diseño de reportes contado/ruta/crédito | Alejandro | Reportes de ventas |
+| Quién concluye la venta de mostrador recogida en sucursal | Alejandro | Candado de corte |
