@@ -59,6 +59,15 @@ type EntregaConcluidaHoy = {
 
 const money = (n: number) => `$${Number(n || 0).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
+type LineaDetalle = {
+  id: string;
+  sku: string;
+  nombre: string;
+  cantidad: number;
+  precio_unitario: number;
+  subtotal: number;
+};
+
 const CorteCajaRutaPage = () => {
   const { selectedSucursal, availableSucursales, canSwitchSucursal } = useSucursal();
   const { userRole } = useAuth();
@@ -70,11 +79,40 @@ const CorteCajaRutaPage = () => {
   const [pendientes, setPendientes] = useState<EntregaPendiente[]>([]);
   const [concluidasHoy, setConcluidasHoy] = useState<EntregaConcluidaHoy[]>([]);
   const [metodosPago, setMetodosPago] = useState<any[]>([]);
+  const [expandida, setExpandida] = useState<string | null>(null);
+  const [detalles, setDetalles] = useState<Record<string, LineaDetalle[] | 'loading'>>({});
 
   const [confirmando, setConfirmando] = useState<EntregaPendiente | null>(null);
   const [metodo, setMetodo] = useState('');
   const [motivo, setMotivo] = useState('');
   const [guardando, setGuardando] = useState(false);
+
+  const cargarDetalle = useCallback(async (ventaId: string) => {
+    setDetalles((d) => (d[ventaId] && d[ventaId] !== 'loading' ? d : { ...d, [ventaId]: 'loading' }));
+    const { data, error } = await (supabase as any)
+      .from('venta_lineas')
+      .select('id, cantidad, precio_unitario, subtotal, productos(sku, nombre)')
+      .eq('venta_id', ventaId);
+    if (error) { toast.error(`Detalle: ${error.message}`); setDetalles((d) => ({ ...d, [ventaId]: [] })); return; }
+    setDetalles((d) => ({
+      ...d,
+      [ventaId]: (data || []).map((l: any) => ({
+        id: l.id,
+        sku: l.productos?.sku || '—',
+        nombre: l.productos?.nombre || '—',
+        cantidad: Number(l.cantidad || 0),
+        precio_unitario: Number(l.precio_unitario || 0),
+        subtotal: Number(l.subtotal || 0),
+      })),
+    }));
+  }, []);
+
+  const toggleDetalle = (ventaId: string) => {
+    if (expandida === ventaId) { setExpandida(null); return; }
+    setExpandida(ventaId);
+    if (!detalles[ventaId] || detalles[ventaId] === 'loading') cargarDetalle(ventaId);
+  };
+
 
   // OJO: memoizado a propósito. Si `sucursalIds` se recalcula en cada render,
   // `load` (useCallback que lo tiene como dependencia) cambia de identidad en
