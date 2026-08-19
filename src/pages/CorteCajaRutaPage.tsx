@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useSucursal } from '@/contexts/SucursalContext';
 import { useAuth } from '@/hooks/useAuth';
@@ -10,7 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
-import { Truck, RefreshCw, CheckCircle2, Clock } from 'lucide-react';
+import { Truck, RefreshCw, CheckCircle2, Clock, ChevronDown, ChevronRight } from 'lucide-react';
 import { toast } from 'sonner';
 
 /**
@@ -272,8 +272,8 @@ const CorteCajaRutaPage = () => {
                 const det = detalles[v.id];
                 const abierta = expandida === v.id;
                 return (
-                <>
-                <TableRow key={v.id} className="cursor-pointer" onClick={() => toggleDetalle(v.id)}>
+                <Fragment key={v.id}>
+                <TableRow className="cursor-pointer" onClick={() => toggleDetalle(v.id)}>
                   <TableCell>
                     {abierta ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
                   </TableCell>
@@ -320,7 +320,7 @@ const CorteCajaRutaPage = () => {
                     </TableCell>
                   </TableRow>
                 )}
-                </>
+                </Fragment>
               );})}
 
             </TableBody>
