@@ -149,9 +149,11 @@ const CuentasPorCobrarPage = () => {
     if (!abonar) return;
     const monto = parseFloat(form.monto || '0');
     if (!monto || monto <= 0) { toast.error('Captura un monto mayor a cero'); return; }
-    // Tope contra el saldo neto (ya descontadas las notas de crédito), no
-    // contra el saldo crudo de la RPC — junta 15-ago-2026, punto 7.
-    if (monto > abonar.saldoNeto + 0.001) { toast.error('El abono no puede ser mayor al saldo pendiente (ya neteado de notas de crédito)'); return; }
+    // El excedente ya NO se rechaza: queda como saldo a favor del cliente
+    // (junta 15-ago-2026, punto 7). Solo se avisa.
+    if (monto > abonar.saldoNeto + 0.001) {
+      toast.info(`El abono excede el saldo por ${money(monto - abonar.saldoNeto)}: se registrará como saldo a favor del cliente.`);
+    }
     if (!archivo) { toast.error('Adjunta el comprobante del abono'); return; }
     setGuardando(true);
 
