@@ -62,6 +62,7 @@ import ImpuestosPage from './pages/ImpuestosPage';
 import NominaPage from './pages/NominaPage';
 import MiNominaPage from './pages/MiNominaPage';
 import OAuthConsent from './pages/OAuthConsent';
+import AutofacturacionPage from './pages/AutofacturacionPage';
 
 
 const queryClient = new QueryClient({
@@ -83,6 +84,16 @@ const AppContent = () => {
     setAreaElegida(false);
     signOut();
   };
+
+  // Portal público de autofacturación: accesible sin cuenta, antes de
+  // cualquier verificación de sesión.
+  if (window.location.pathname === '/autofacturacion') {
+    return (
+      <Routes>
+        <Route path="/autofacturacion" element={<AutofacturacionPage />} />
+      </Routes>
+    );
+  }
 
   if (loading) {
     return (

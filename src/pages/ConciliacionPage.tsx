@@ -37,6 +37,10 @@ const ConciliacionPage = () => {
   const [enviarForm, setEnviarForm] = useState({ entidadTipo: 'proveedor' as 'proveedor' | 'cliente', entidadId: '', cuentaContableId: '' });
   const [comprasPendientes, setComprasPendientes] = useState<any[]>([]);
   const [comprasSel, setComprasSel] = useState<Set<string>>(new Set());
+  // Cliente: ventas a crédito con saldo, para repartir el depósito conciliado
+  // entre varias de ellas (junta 15-ago-2026, punto 8).
+  const [ventasPendientes, setVentasPendientes] = useState<any[]>([]);
+  const [ventasSel, setVentasSel] = useState<Set<string>>(new Set());
   const [enviando, setEnviando] = useState(false);
 
   useEffect(() => {
@@ -131,9 +135,14 @@ const ConciliacionPage = () => {
     });
     setComprasSel(new Set());
     setComprasPendientes([]);
+    setVentasSel(new Set());
+    setVentasPendientes([]);
     setDialogEnviar(mov);
     if (entidadTipo === 'proveedor' && mov.proveedor_sugerido_id) {
       await cargarComprasPendientes(mov.proveedor_sugerido_id);
+    }
+    if (entidadTipo === 'cliente' && mov.cliente_sugerido_id) {
+      await cargarVentasPendientes(mov.cliente_sugerido_id);
     }
   }
 
@@ -150,6 +159,19 @@ const ConciliacionPage = () => {
     setComprasPendientes(conSaldo);
   }
 
+  async function cargarVentasPendientes(clienteId: string) {
+    if (!clienteId) { setVentasPendientes([]); return; }
+    const { data } = await (supabase as any).from('ventas')
+      .select('id, numero_venta, fecha, total, cxc_abonos(monto)')
+      .eq('cliente_id', clienteId).eq('tipo_venta', 'credito').neq('estado', 'cancelada')
+      .order('fecha', { ascending: true }).limit(200);
+    const conSaldo = (data || []).map((v: any) => {
+      const abonado = (v.cxc_abonos || []).reduce((s: number, a: any) => s + Number(a.monto), 0);
+      return { ...v, abonado, saldo: Number(v.total) - abonado };
+    }).filter((v: any) => v.saldo > 0.5);
+    setVentasPendientes(conSaldo);
+  }
+
   async function confirmarEnviar() {
     if (!dialogEnviar) return;
     if (!enviarForm.entidadId) { toast.error('Selecciona el cliente o proveedor'); return; }
@@ -163,10 +185,15 @@ const ConciliacionPage = () => {
       p_entidad_id: enviarForm.entidadId,
       p_cuenta_contable_id: enviarForm.cuentaContableId,
       p_compra_ids: enviarForm.entidadTipo === 'proveedor' && comprasSel.size ? Array.from(comprasSel) : null,
+      p_venta_ids: enviarForm.entidadTipo === 'cliente' && ventasSel.size ? Array.from(ventasSel) : null,
     });
     setEnviando(false);
     if (error) { toast.error(error.message); return; }
-    toast.success(`Póliza generada por $${Number(data?.monto || 0).toFixed(2)}`);
+    const sinAplicar = Number(data?.sin_aplicar || 0);
+    toast.success(
+      `Póliza generada por $${Number(data?.monto || 0).toFixed(2)}` +
+      (sinAplicar > 0.5 ? ` · $${sinAplicar.toFixed(2)} quedaron sin aplicar a documentos` : '')
+    );
     setDialogEnviar(null);
     load();
   }
@@ -288,6 +315,7 @@ const ConciliacionPage = () => {
                 <Select value={enviarForm.entidadTipo} onValueChange={(v: 'proveedor' | 'cliente') => {
                   setEnviarForm({ ...enviarForm, entidadTipo: v, entidadId: '' });
                   setComprasPendientes([]); setComprasSel(new Set());
+                  setVentasPendientes([]); setVentasSel(new Set());
                 }}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
@@ -301,6 +329,7 @@ const ConciliacionPage = () => {
                 <Select value={enviarForm.entidadId} onValueChange={(v) => {
                   setEnviarForm({ ...enviarForm, entidadId: v });
                   if (enviarForm.entidadTipo === 'proveedor') cargarComprasPendientes(v);
+                  else cargarVentasPendientes(v);
                 }}>
                   <SelectTrigger><SelectValue placeholder="Selecciona..." /></SelectTrigger>
                   <SelectContent>
@@ -337,8 +366,35 @@ const ConciliacionPage = () => {
                       </label>
                     ))}
                   </div>
-                  <p className="text-xs text-muted-foreground mt-1">Si no seleccionas ninguna, solo se registra la póliza contable, sin aplicar contra una compra específica.</p>
+                  <p className="text-xs text-muted-foreground mt-1">El monto se reparte en el orden mostrado, de la más antigua a la más reciente. Si no seleccionas ninguna, solo se registra la póliza contable.</p>
                 </div>
+              )}
+              {enviarForm.entidadTipo === 'cliente' && ventasPendientes.length > 0 && (
+                <div>
+                  <Label>Aplicar contra estas ventas a crédito (opcional)</Label>
+                  <div className="border rounded max-h-40 overflow-y-auto">
+                    {ventasPendientes.map((v: any) => (
+                      <label key={v.id} className="flex items-center gap-2 p-2 text-sm border-b last:border-0">
+                        <input type="checkbox" checked={ventasSel.has(v.id)} onChange={() => {
+                          const n = new Set(ventasSel);
+                          n.has(v.id) ? n.delete(v.id) : n.add(v.id);
+                          setVentasSel(n);
+                        }} />
+                        <span className="font-mono">{v.numero_venta || v.id.slice(0, 8)}</span>
+                        <span className="text-xs text-muted-foreground">{String(v.fecha).slice(0, 10)}</span>
+                        <span className="text-muted-foreground ml-auto">Saldo: ${v.saldo.toFixed(2)}</span>
+                      </label>
+                    ))}
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Seleccionadas: {ventasSel.size} · Saldo seleccionado: ${ventasPendientes
+                      .filter((v: any) => ventasSel.has(v.id))
+                      .reduce((s: number, v: any) => s + v.saldo, 0).toFixed(2)} — el cobro se aplica como abono y descuenta el crédito del cliente.
+                  </p>
+                </div>
+              )}
+              {enviarForm.entidadTipo === 'cliente' && enviarForm.entidadId && ventasPendientes.length === 0 && (
+                <p className="text-xs text-muted-foreground">Este cliente no tiene ventas a crédito con saldo pendiente.</p>
               )}
             </div>
           )}

@@ -104,3 +104,10 @@ Leyenda: ✅ hecho · 🟡 parcial · ⬜ pendiente · 🔴 bloqueado por inform
 | Lista completa de motivos de ajuste | Alejandro | Cierre de ajustes |
 | Diseño de reportes contado/ruta/crédito | Alejandro | Reportes de ventas |
 | Quién concluye la venta de mostrador recogida en sucursal | Alejandro | Candado de corte |
+
+## Cierre de pendientes (esta ronda)
+
+- **CxC — saldo a favor**: el abono ya no se rechaza cuando excede el saldo; el excedente queda como saldo a favor del cliente y se avisa en pantalla.
+- **Conciliación — reparto de un cobro entre varias ventas a crédito**: en el diálogo "Enviar a cuenta", al elegir tipo *Cliente* se listan sus ventas a crédito con saldo y se pueden seleccionar varias; se manda `p_venta_ids` a `conciliacion_enviar_a_cuenta`, que aplica los abonos y genera la póliza.
+- **Asignación de entregas por chofer**: Corte de Caja — Ruta tiene columna *Chofer* con selector (solo personal no repartidor). El repartidor ve únicamente sus entregas asignadas y las que aún no tienen chofer.
+- **Portal de autofacturación** (`/autofacturacion`, público, sin sesión): el cliente identifica su ticket con sucursal + folio + total y captura RFC, razón social, régimen, CP, correo y uso de CFDI. La función de servidor `autofactura-solicitar` valida existencia del ticket, que no esté cancelado ni ya facturado, que siga dentro del mismo mes y que no haya solicitud previa; registra la solicitud en `autofacturacion_solicitudes` y marca la venta como *requiere factura*. El timbrado lo dispara el personal desde Ventas (proveedor de timbrado sigue pendiente de renovación).

@@ -14,9 +14,10 @@ import { HandCoins, Loader2, RefreshCw, Paperclip, ChevronDown, ChevronRight, Up
 import { toast } from 'sonner';
 import CalendarioVencimientos from '@/components/calendario/CalendarioVencimientos';
 
-// Cobranza: el saldo se lleva POR CLIENTE (suma de sus ventas a crédito menos
-// sus abonos). Los abonos son manuales, siempre con comprobante, y la RPC
-// impide abonar más que el saldo pendiente.
+// Cobranza: el saldo se lleva POR CLIENTE. La RPC `cxc_resumen` ya netea
+// server-side: crédito − abonos − notas de crédito, y devuelve el saldo a
+// favor cuando lo pagado + las notas de crédito exceden lo debido, además de
+// la fecha de vencimiento y los días restantes (junta 15-ago-2026, punto 7).
 type ResumenCxC = {
   cliente_id: string;
   cliente_nombre: string;
@@ -30,11 +31,11 @@ type ResumenCxC = {
   venta_mas_antigua: string | null;
   dias_antiguedad: number | null;
   vencido: boolean;
-  // Calculados en el cliente (junta 15-ago-2026): la RPC cxc_resumen todavía
-  // no resta notas de crédito server-side (ver migración
-  // 20260819010000_notas_credito_cliente.sql), así que aquí se netea el
-  // saldo con las notas de crédito para reflejar el saldo real y, si
-  // aplica, el saldo a favor del cliente.
+  notas_credito: number;
+  saldo_a_favor: number;
+  fecha_vencimiento: string | null;
+  dias_restantes: number | null;
+  // Alias usados en la vista (mismo valor que devuelve la RPC).
   notasCredito: number;
   saldoNeto: number;
   saldoAFavor: number;
@@ -72,21 +73,14 @@ const CuentasPorCobrarPage = () => {
 
   async function load() {
     setLoading(true);
-    const [{ data, error }, { data: ncData }] = await Promise.all([
-      (supabase as any).rpc('cxc_resumen'),
-      (supabase as any).from('notas_credito_cliente').select('cliente_id, monto'),
-    ]);
+    const { data, error } = await (supabase as any).rpc('cxc_resumen');
     if (error) toast.error(error.message);
-    const ncPorCliente = new Map<string, number>();
-    for (const nc of (ncData || [])) {
-      ncPorCliente.set(nc.cliente_id, (ncPorCliente.get(nc.cliente_id) || 0) + Number(nc.monto || 0));
-    }
-    const enriquecidas: ResumenCxC[] = (data || []).map((r: any) => {
-      const notasCredito = ncPorCliente.get(r.cliente_id) || 0;
-      const saldoNeto = Math.max(Number(r.saldo || 0) - notasCredito, 0);
-      const saldoAFavor = Math.max(notasCredito - Number(r.saldo || 0), 0);
-      return { ...r, notasCredito, saldoNeto, saldoAFavor };
-    });
+    const enriquecidas: ResumenCxC[] = (data || []).map((r: any) => ({
+      ...r,
+      notasCredito: Number(r.notas_credito || 0),
+      saldoNeto: Number(r.saldo || 0),
+      saldoAFavor: Number(r.saldo_a_favor || 0),
+    }));
     setRows(enriquecidas);
     setLoading(false);
   }
@@ -155,9 +149,11 @@ const CuentasPorCobrarPage = () => {
     if (!abonar) return;
     const monto = parseFloat(form.monto || '0');
     if (!monto || monto <= 0) { toast.error('Captura un monto mayor a cero'); return; }
-    // Tope contra el saldo neto (ya descontadas las notas de crédito), no
-    // contra el saldo crudo de la RPC — junta 15-ago-2026, punto 7.
-    if (monto > abonar.saldoNeto + 0.001) { toast.error('El abono no puede ser mayor al saldo pendiente (ya neteado de notas de crédito)'); return; }
+    // El excedente ya NO se rechaza: queda como saldo a favor del cliente
+    // (junta 15-ago-2026, punto 7). Solo se avisa.
+    if (monto > abonar.saldoNeto + 0.001) {
+      toast.info(`El abono excede el saldo por ${money(monto - abonar.saldoNeto)}: se registrará como saldo a favor del cliente.`);
+    }
     if (!archivo) { toast.error('Adjunta el comprobante del abono'); return; }
     setGuardando(true);
 
@@ -301,9 +297,16 @@ const CuentasPorCobrarPage = () => {
                       <TableCell>
                         {r.saldoNeto <= 0.009
                           ? <Badge className="bg-green-100 text-green-700">Saldado</Badge>
-                          : r.vencido
-                            ? <Badge variant="destructive">Vencido hace {r.dias_antiguedad !== null ? r.dias_antiguedad - (r.dias_credito ?? 30) : 0}d</Badge>
-                            : <Badge variant="secondary">Faltan {r.dias_credito !== null ? (r.dias_credito ?? 30) - (r.dias_antiguedad ?? 0) : '—'}d</Badge>}
+                          : r.dias_restantes === null || r.dias_restantes === undefined
+                            ? <Badge variant="secondary">—</Badge>
+                            : r.dias_restantes < 0
+                              ? <Badge variant="destructive">Vencido hace {Math.abs(r.dias_restantes)}d</Badge>
+                              : <Badge variant={r.dias_restantes <= 5 ? 'default' : 'secondary'}>
+                                  Faltan {r.dias_restantes}d
+                                </Badge>}
+                        {r.fecha_vencimiento && (
+                          <p className="text-[11px] text-muted-foreground mt-0.5">{r.fecha_vencimiento}</p>
+                        )}
                       </TableCell>
                       <TableCell className="text-right space-x-2 whitespace-nowrap">
                         <Button size="sm" variant="ghost"
