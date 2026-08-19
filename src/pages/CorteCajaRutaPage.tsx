@@ -139,17 +139,33 @@ const CorteCajaRutaPage = () => {
     supabase.from('metodos_pago').select('id, nombre').eq('activo', true).order('nombre').then(({ data }) => setMetodosPago(data || []));
   }, []);
 
+  useEffect(() => {
+    if (esRepartidor) return; // el chofer no asigna, solo ve lo suyo
+    (async () => {
+      const { data: roles } = await (supabase as any).from('user_roles').select('user_id').eq('role', 'repartidor');
+      const ids = (roles || []).map((r: any) => r.user_id);
+      if (!ids.length) { setRepartidores([]); return; }
+      const { data: perfiles } = await (supabase as any).from('profiles').select('id, nombre, username').in('id', ids);
+      setRepartidores((perfiles || []).map((p: any) => ({ id: p.id, nombre: p.nombre || p.username || p.id.slice(0, 8) })));
+    })();
+  }, [esRepartidor]);
+
   const load = useCallback(async () => {
     const ids = sucursalKey ? sucursalKey.split(',') : [];
     if (ids.length === 0) { setPendientes([]); setConcluidasHoy([]); setLoading(false); return; }
     setLoading(true);
 
-    const [pendRes, corrRes] = await Promise.all([
-      (supabase as any).from('ventas')
-        .select('id, numero_venta, total, fecha, sucursal_id')
+    let pendQuery = (supabase as any).from('ventas')
+        .select('id, numero_venta, total, fecha, sucursal_id, repartidor_id')
         .in('sucursal_id', ids)
         .eq('estado', 'completada')
-        .eq('estatus_entrega', 'en_ruta')
+        .eq('estatus_entrega', 'en_ruta');
+    // Un chofer solo ve las entregas que le fueron asignadas (o las que aún
+    // no tienen chofer asignado, para no esconder trabajo pendiente).
+    if (esRepartidor && user?.id) pendQuery = pendQuery.or(`repartidor_id.eq.${user.id},repartidor_id.is.null`);
+
+    const [pendRes, corrRes] = await Promise.all([
+      pendQuery
         .order('fecha', { ascending: true })
         .limit(300),
       (supabase as any).from('venta_correcciones')
