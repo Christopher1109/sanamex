@@ -6,15 +6,14 @@ import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { CheckCircle2, FileText, Loader2 } from 'lucide-react';
+import { CheckCircle2, Download, FileText, Loader2, Mail } from 'lucide-react';
 
 /**
  * Portal público de autofacturación (junta 15-ago-2026).
  *
  * El cliente entra sin cuenta, identifica su ticket con sucursal + folio +
- * total y captura sus datos fiscales. La validación y el registro se hacen en
- * la función de servidor `autofactura-solicitar`; el timbrado lo dispara el
- * personal desde Ventas.
+ * total, captura sus datos fiscales y la factura se timbra AL INSTANTE: puede
+ * descargar el PDF y el XML y además le llega por correo.
  */
 
 const REGIMENES = [
@@ -45,10 +44,13 @@ const AutofacturacionPage = () => {
   const [enviando, setEnviando] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [exito, setExito] = useState<string | null>(null);
+  const [resultado, setResultado] = useState<{ pdf_url: string | null; xml_url: string | null; cfdi?: any; correo_enviado?: boolean } | null>(null);
 
+  // El portal es anónimo: el catálogo de sucursales lo entrega la función de
+  // servidor (la tabla no es legible sin sesión).
   useEffect(() => {
-    (supabase as any).from('sucursales').select('id, nombre').eq('activa', true).order('nombre')
-      .then(({ data }: any) => setSucursales((data as any[]) || []));
+    supabase.functions.invoke('autofactura-solicitar', { body: { action: 'sucursales' } })
+      .then(({ data }: any) => setSucursales((data?.sucursales as any[]) || []));
   }, []);
 
   const set = (k: string, v: string) => setForm((f) => ({ ...f, [k]: v }));
@@ -61,8 +63,9 @@ const AutofacturacionPage = () => {
     });
     setEnviando(false);
     const msg = (data as any)?.error;
-    if (fnErr || msg) { setError(msg || fnErr?.message || 'No se pudo enviar la solicitud'); return; }
-    setExito((data as any)?.mensaje || 'Solicitud registrada.');
+    if (fnErr || msg) { setError(msg || fnErr?.message || 'No se pudo generar tu factura'); return; }
+    setResultado({ pdf_url: (data as any)?.pdf_url ?? null, xml_url: (data as any)?.xml_url ?? null, cfdi: (data as any)?.cfdi, correo_enviado: (data as any)?.correo_enviado });
+    setExito((data as any)?.mensaje || 'Factura generada.');
   }
 
   return (
@@ -72,18 +75,49 @@ const AutofacturacionPage = () => {
           <FileText className="mx-auto mb-2 h-8 w-8 text-primary" />
           <h1 className="text-2xl font-bold">Facturación en línea</h1>
           <p className="text-sm text-muted-foreground">
-            Captura los datos de tu ticket y tus datos fiscales. Solo puedes facturar dentro del mismo mes de tu compra.
+            Captura los datos de tu ticket y tus datos fiscales para obtener tu factura al instante (PDF y XML). Solo puedes facturar dentro del mismo mes de tu compra.
           </p>
         </div>
 
         {exito ? (
           <Card>
-            <CardContent className="py-10 text-center space-y-3">
+            <CardContent className="py-10 text-center space-y-4">
               <CheckCircle2 className="mx-auto h-10 w-10 text-green-600" />
               <p className="font-medium">{exito}</p>
-              <Button variant="outline" onClick={() => { setExito(null); setForm({ ...form, folio: '', total: '' }); }}>
-                Facturar otro ticket
-              </Button>
+              {resultado?.cfdi?.uuid && (
+                <p className="text-xs text-muted-foreground">
+                  Serie {resultado.cfdi.serie}-{resultado.cfdi.folio} · UUID {resultado.cfdi.uuid}
+                </p>
+              )}
+              <div className="flex flex-wrap justify-center gap-2">
+                {resultado?.pdf_url && (
+                  <Button asChild>
+                    <a href={resultado.pdf_url} target="_blank" rel="noreferrer">
+                      <Download className="mr-2 h-4 w-4" /> Descargar PDF
+                    </a>
+                  </Button>
+                )}
+                {resultado?.xml_url && (
+                  <Button variant="secondary" asChild>
+                    <a href={resultado.xml_url} target="_blank" rel="noreferrer">
+                      <Download className="mr-2 h-4 w-4" /> Descargar XML
+                    </a>
+                  </Button>
+                )}
+              </div>
+              {resultado?.correo_enviado && (
+                <p className="flex items-center justify-center gap-2 text-xs text-muted-foreground">
+                  <Mail className="h-3 w-3" /> También te la enviamos a {form.email}
+                </p>
+              )}
+              {resultado && !resultado.pdf_url && !resultado.xml_url && (
+                <p className="text-xs text-muted-foreground">Si no ves los archivos, revisa tu correo o acude a tu sucursal.</p>
+              )}
+              <div>
+                <Button variant="outline" onClick={() => { setExito(null); setResultado(null); setForm({ ...form, folio: '', total: '' }); }}>
+                  Facturar otro ticket
+                </Button>
+              </div>
             </CardContent>
           </Card>
         ) : (
@@ -100,6 +134,9 @@ const AutofacturacionPage = () => {
                     <Select value={form.sucursal_id} onValueChange={(v) => set('sucursal_id', v)}>
                       <SelectTrigger><SelectValue placeholder="Selecciona" /></SelectTrigger>
                       <SelectContent>
+                        {sucursales.length === 0 && (
+                          <div className="px-2 py-3 text-xs text-muted-foreground">Cargando sucursales…</div>
+                        )}
                         {sucursales.map((s) => (<SelectItem key={s.id} value={s.id}>{s.nombre}</SelectItem>))}
                       </SelectContent>
                     </Select>
@@ -157,7 +194,7 @@ const AutofacturacionPage = () => {
                 {error && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
 
                 <Button type="submit" className="w-full" disabled={enviando}>
-                  {enviando ? (<><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Enviando…</>) : 'Solicitar factura'}
+                  {enviando ? (<><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Generando factura…</>) : 'Generar mi factura'}
                 </Button>
               </CardContent>
             </Card>
