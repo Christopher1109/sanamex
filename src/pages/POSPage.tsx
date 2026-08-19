@@ -550,8 +550,10 @@ const POSPage = () => {
       if (result?.sale_id) {
         const patch: Record<string, any> = { tipo_venta: tipoVenta };
         if (requiereFactura) patch.requiere_factura = true;
+        if (entregaDomicilio) patch.estatus_entrega = 'en_ruta';
         await (supabase as any).from('ventas').update(patch).eq('id', result.sale_id);
       }
+
 
       setSaleResult(result);
       setSuccessOpen(true);
