@@ -292,14 +292,15 @@ const CorteCajaRutaPage = () => {
               <TableHead>Folio</TableHead>
               <TableHead>Fecha</TableHead>
               {alcance === 'todas' && <TableHead>Sucursal</TableHead>}
+              <TableHead>Chofer</TableHead>
               <TableHead className="text-right">Monto</TableHead>
               <TableHead className="text-right">Acción</TableHead>
             </TableRow></TableHeader>
             <TableBody>
               {loading ? (
-                <TableRow><TableCell colSpan={6} className="text-center py-8">Cargando…</TableCell></TableRow>
+                <TableRow><TableCell colSpan={7} className="text-center py-8">Cargando…</TableCell></TableRow>
               ) : pendientes.length === 0 ? (
-                <TableRow><TableCell colSpan={6} className="text-center py-8 text-muted-foreground">Sin entregas pendientes.</TableCell></TableRow>
+                <TableRow><TableCell colSpan={7} className="text-center py-8 text-muted-foreground">Sin entregas pendientes.</TableCell></TableRow>
               ) : pendientes.map((v) => {
                 const det = detalles[v.id];
                 const abierta = expandida === v.id;
@@ -312,6 +313,25 @@ const CorteCajaRutaPage = () => {
                   <TableCell className="font-mono text-xs">{v.numero_venta || v.id.slice(0, 8)}</TableCell>
                   <TableCell className="text-xs">{new Date(v.fecha).toLocaleString('es-MX', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</TableCell>
                   {alcance === 'todas' && <TableCell className="text-xs">{nombreSucursal(v.sucursal_id)}</TableCell>}
+                  <TableCell onClick={(e) => e.stopPropagation()}>
+                    {esRepartidor ? (
+                      <span className="text-xs text-muted-foreground">
+                        {v.repartidor_id ? (v.repartidor_id === user?.id ? 'Asignada a ti' : 'Otro chofer') : 'Sin asignar'}
+                      </span>
+                    ) : (
+                      <Select
+                        value={v.repartidor_id || 'ninguno'}
+                        disabled={asignando === v.id}
+                        onValueChange={(val) => asignarRepartidor(v.id, val === 'ninguno' ? '' : val)}
+                      >
+                        <SelectTrigger className="h-8 w-[170px] text-xs"><SelectValue placeholder="Sin asignar" /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="ninguno">Sin asignar</SelectItem>
+                          {repartidores.map((r) => (<SelectItem key={r.id} value={r.id}>{r.nombre}</SelectItem>))}
+                        </SelectContent>
+                      </Select>
+                    )}
+                  </TableCell>
                   <TableCell className="text-right font-medium">{money(v.total)}</TableCell>
                   <TableCell className="text-right">
                     <Button size="sm" onClick={(e) => { e.stopPropagation(); abrirConfirmacion(v); }}>Confirmar entrega</Button>
@@ -319,7 +339,7 @@ const CorteCajaRutaPage = () => {
                 </TableRow>
                 {abierta && (
                   <TableRow key={`${v.id}-det`} className="bg-muted/40 hover:bg-muted/40">
-                    <TableCell colSpan={alcance === 'todas' ? 6 : 5} className="p-3">
+                    <TableCell colSpan={alcance === 'todas' ? 7 : 6} className="p-3">
                       {det === 'loading' || det === undefined ? (
                         <p className="text-xs text-muted-foreground">Cargando artículos…</p>
                       ) : det.length === 0 ? (
