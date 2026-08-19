@@ -47,7 +47,8 @@ export const MODULOS: ModuloDef[] = [
   { key: 'ventas', label: 'Ventas', categoria: 'Operaciones', path: '/pedidos', niveles: OP },
   { key: 'pos', label: 'Punto de Venta', categoria: 'Operaciones', path: '/pos', niveles: OP },
   { key: 'traspasos', label: 'Traspasos', categoria: 'Operaciones', path: '/traspasos', niveles: OP },
-  { key: 'corte_caja', label: 'Corte de Caja', categoria: 'Operaciones', path: '/corte-caja', niveles: OP },
+  { key: 'corte_caja', label: 'Corte de Caja — Mostrador', categoria: 'Operaciones', path: '/corte-caja-mostrador', niveles: OP },
+  { key: 'corte_caja_ruta', label: 'Corte de Caja — Ruta', categoria: 'Operaciones', path: '/corte-caja-ruta', niveles: OP },
   // Inventario
   { key: 'inventario', label: 'Inventario', categoria: 'Inventario', path: '/inventario', niveles: OP },
   { key: 'caducidades', label: 'Caducidades', categoria: 'Inventario', path: '/caducidades', niveles: OP },
@@ -86,7 +87,7 @@ export const DEFAULTS_POR_ROL: Record<string, Partial<Record<string, NivelAcceso
     articulos: 'administrar', proveedores: 'administrar', listas_precios: 'administrar',
     clientes: 'administrar', compras: 'administrar', ventas: 'administrar', pos: 'administrar',
     traspasos: 'administrar', devoluciones_proveedor: 'administrar', inventario: 'administrar',
-    corte_caja: 'administrar',
+    corte_caja: 'administrar', corte_caja_ruta: 'administrar',
     caducidades: 'administrar', rotacion: 'consultar', rentabilidad_lotes: 'consultar',
     reportes: 'consultar', cuentas_por_pagar: 'capturar', cuentas_por_cobrar: 'capturar', bancos: 'consultar',
     conciliacion: 'capturar', contabilidad: 'sin_acceso', reportes_admin: 'consultar',
@@ -99,7 +100,7 @@ export const DEFAULTS_POR_ROL: Record<string, Partial<Record<string, NivelAcceso
     articulos: 'capturar', proveedores: 'consultar', listas_precios: 'consultar',
     clientes: 'capturar', compras: 'capturar', ventas: 'capturar', pos: 'capturar',
     traspasos: 'capturar', devoluciones_proveedor: 'capturar', inventario: 'capturar',
-    corte_caja: 'capturar',
+    corte_caja: 'capturar', corte_caja_ruta: 'capturar',
     caducidades: 'consultar', rotacion: 'consultar', reportes: 'consultar',
     cuentas_por_pagar: 'consultar', cuentas_por_cobrar: 'consultar', ventas_offline: 'consultar',
   },
@@ -107,11 +108,13 @@ export const DEFAULTS_POR_ROL: Record<string, Partial<Record<string, NivelAcceso
   ventas: {
     articulos: 'consultar', clientes: 'capturar', ventas: 'capturar', pos: 'capturar',
     inventario: 'consultar', caducidades: 'consultar', ventas_offline: 'capturar', corte_caja: 'capturar',
+    corte_caja_ruta: 'capturar',
   },
 
   almacen_ventas: {
     articulos: 'consultar', clientes: 'capturar', ventas: 'capturar', pos: 'capturar',
     inventario: 'consultar', caducidades: 'consultar', ventas_offline: 'capturar', corte_caja: 'capturar',
+    corte_caja_ruta: 'capturar',
     compras: 'consultar',
   },
 
@@ -120,8 +123,9 @@ export const DEFAULTS_POR_ROL: Record<string, Partial<Record<string, NivelAcceso
     caducidades: 'capturar', compras: 'consultar',
   },
 
+  // Un chofer solo necesita concluir SUS entregas — no ve corte_caja (mostrador).
   repartidor: {
-    ventas: 'consultar', clientes: 'consultar',
+    ventas: 'consultar', clientes: 'consultar', corte_caja_ruta: 'capturar',
   },
 
   auditoria: {
@@ -131,6 +135,7 @@ export const DEFAULTS_POR_ROL: Record<string, Partial<Record<string, NivelAcceso
     reportes: 'consultar', cuentas_por_pagar: 'consultar', cuentas_por_cobrar: 'consultar', bancos: 'consultar',
     conciliacion: 'consultar', contabilidad: 'consultar', cfdi: 'consultar',
     actividad: 'consultar', reportes_admin: 'consultar', ajustes_inventario: 'administrar',
+    corte_caja_ruta: 'consultar',
   },
 
   // Matriz confirmada por Alejandro para roles financieros
@@ -142,7 +147,7 @@ export const DEFAULTS_POR_ROL: Record<string, Partial<Record<string, NivelAcceso
     bancos: 'autorizar', conciliacion: 'autorizar',
     reportes_admin: 'consultar', actividad: 'consultar',
     articulos: 'consultar', proveedores: 'consultar', clientes: 'consultar',
-    inventario: 'consultar', corte_caja: 'consultar',
+    inventario: 'consultar', corte_caja: 'consultar', corte_caja_ruta: 'consultar',
   },
 
   contraloria: {
@@ -151,6 +156,7 @@ export const DEFAULTS_POR_ROL: Record<string, Partial<Record<string, NivelAcceso
     nomina: 'consultar', reportes_admin: 'consultar', actividad: 'consultar',
     articulos: 'consultar', proveedores: 'consultar', clientes: 'consultar',
     compras: 'consultar', ventas: 'consultar', inventario: 'consultar', corte_caja: 'consultar',
+    corte_caja_ruta: 'consultar',
   },
 
   tesoreria: {

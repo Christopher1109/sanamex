@@ -19,7 +19,7 @@ type Movimiento = { tipo: 'venta' | 'compra'; id: string; folio: string; monto: 
 
 const money = (n: number) => `$${Number(n || 0).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
-const CorteCajaPage = () => {
+const CorteCajaMostradorPage = () => {
   const { selectedSucursal, availableSucursales, canSwitchSucursal } = useSucursal();
   const hoy = new Date().toISOString().slice(0, 10);
 
@@ -65,6 +65,16 @@ const CorteCajaPage = () => {
   const esGeneral = alcance === 'todas';
   const esHoy = fecha === hoy;
 
+  // Corte de caja MOSTRADOR (módulo separado, pedido del usuario tras el
+  // PR #39: "quiero que estén separados, es demasiada información en un
+  // mismo módulo"). Esta página solo muestra ventas concluidas en el
+  // momento del cobro (mostrador). Las ventas que fueron ruta y se
+  // concluyeron el mismo día se excluyen de aquí y aparecen en su propia
+  // página (Corte de Caja Ruta), usando venta_correcciones para saber
+  // cuáles ventas "concluida" hoy en realidad empezaron como en_ruta —
+  // ventas.estatus_entrega NO conserva el canal original, solo el estado
+  // actual, así que no hay forma 100% exacta de separarlas sin agregar una
+  // columna nueva (ver nota en docs/SANAMEX_15ago2026_seguimiento.md).
   const load = useCallback(async () => {
     if (sucursalIds.length === 0) return;
     setLoading(true);
@@ -75,16 +85,33 @@ const CorteCajaPage = () => {
       supabase.from('cortes_caja').select('*').in('sucursal_id', sucursalIds).order('fecha', { ascending: false }).limit(esGeneral ? 120 : 30),
     ]);
 
+    const idsVentaTodas = (ventasDia || []).map((v: any) => v.id);
+    // Ventas que en algún momento tuvieron estatus_anterior = 'en_ruta' en
+    // su historial de correcciones -> originalmente eran de ruta, aunque
+    // ahora ya digan 'concluida'. Se excluyen de este módulo.
+    let idsFueronRuta = new Set<string>();
+    if (idsVentaTodas.length) {
+      const { data: corrsRuta } = await (supabase as any)
+        .from('venta_correcciones')
+        .select('venta_id')
+        .in('venta_id', idsVentaTodas)
+        .eq('estatus_anterior', 'en_ruta');
+      idsFueronRuta = new Set((corrsRuta || []).map((c: any) => c.venta_id));
+    }
+    const ventasMostradorRaw = (ventasDia || []).filter(
+      (v: any) => (v.estatus_entrega || 'concluida') !== 'en_ruta' && !idsFueronRuta.has(v.id)
+    );
+
     const movs: Movimiento[] = [
-      ...(ventasDia || []).map((v: any) => ({ tipo: 'venta' as const, id: v.id, folio: v.numero_venta || v.id.slice(0, 8), monto: Number(v.total), hora: v.fecha, sucursal_id: v.sucursal_id })),
+      ...ventasMostradorRaw.map((v: any) => ({ tipo: 'venta' as const, id: v.id, folio: v.numero_venta || v.id.slice(0, 8), monto: Number(v.total), hora: v.fecha, sucursal_id: v.sucursal_id })),
       ...(comprasDia || []).map((c: any) => ({ tipo: 'compra' as const, id: c.id, folio: c.numero_compra || c.id.slice(0, 8), monto: Number(c.total), hora: c.created_at, sucursal_id: c.sucursal_id })),
     ].sort((a, b) => new Date(b.hora).getTime() - new Date(a.hora).getTime());
     setMovimientos(movs);
 
     const infoVentas: Record<string, { estatus_entrega: string }> = {};
-    (ventasDia || []).forEach((v: any) => { infoVentas[v.id] = { estatus_entrega: v.estatus_entrega || 'concluida' }; });
+    ventasMostradorRaw.forEach((v: any) => { infoVentas[v.id] = { estatus_entrega: v.estatus_entrega || 'concluida' }; });
     setVentasInfo(infoVentas);
-    const idsVenta = (ventasDia || []).map((v: any) => v.id);
+    const idsVenta = ventasMostradorRaw.map((v: any) => v.id);
     if (idsVenta.length) {
       const [{ data: corrs }, { data: pagos }] = await Promise.all([
         (supabase as any).from('venta_correcciones').select('venta_id').in('venta_id', idsVenta),
@@ -102,7 +129,13 @@ const CorteCajaPage = () => {
       setMetodoOriginal(orig);
     } else { setCorreccionesCount({}); setMetodoOriginal({}); }
 
-    // Totales por RPC (suma de todas las sucursales del alcance)
+    // Totales por RPC (suma de todas las sucursales del alcance).
+    // OJO: calcular_totales_dia suma TODAS las ventas del día de la
+    // sucursal (no filtra por canal mostrador/ruta, porque esa distinción
+    // no existe a nivel de columna persistente). Para que las tarjetas de
+    // resumen de ESTA página coincidan con lo que muestra la tabla de abajo
+    // (solo mostrador), se recalculan aquí mismo a partir de
+    // ventasMostradorRaw en vez de usar el total crudo de la RPC.
     const rpcs = await Promise.all(
       sucursalIds.map(id => (supabase as any).rpc('calcular_totales_dia', { p_sucursal_id: id, p_fecha: fecha }))
     );
@@ -110,12 +143,17 @@ const CorteCajaPage = () => {
     rpcs.forEach(({ data }: any) => {
       const t = data?.[0];
       if (!t) return;
-      acc.total_ventas += Number(t.total_ventas || 0);
-      acc.num_ventas += Number(t.num_ventas || 0);
       acc.total_compras += Number(t.total_compras || 0);
       acc.num_compras += Number(t.num_compras || 0);
+      // ventas_por_metodo se deja tal cual del RPC porque no distingue canal;
+      // puede incluir montos de ventas de ruta. Ver nota arriba.
       Object.entries(t.ventas_por_metodo || {}).forEach(([m, v]: any) => { acc.ventas_por_metodo[m] = (acc.ventas_por_metodo[m] || 0) + Number(v); });
     });
+    // total_ventas / num_ventas SÍ se recalculan a partir de las ventas de
+    // mostrador que realmente se muestran en esta página (más preciso que
+    // el bruto del RPC para esta vista específica).
+    acc.total_ventas = ventasMostradorRaw.reduce((s: number, v: any) => s + Number(v.total || 0), 0);
+    acc.num_ventas = ventasMostradorRaw.length;
     setTotales(acc);
 
     const cortesDia = (hist || []).filter((c: any) => c.fecha === fecha);
@@ -236,18 +274,9 @@ const CorteCajaPage = () => {
 
   const cerrado = corteHoy?.estado === 'cerrado';
   const neto = totales.total_ventas - totales.total_compras;
+  // movimientos ya viene filtrado a mostrador desde load() (ver arriba).
   const ventasDelDia = movimientos.filter(m => m.tipo === 'venta');
   const comprasDelDia = movimientos.filter(m => m.tipo === 'compra');
-  // Corte de caja separado mostrador/ruta (junta SANAMEX 15-ago-2026, punto
-  // 3): se usa el mismo campo estatus_entrega que ya distingue "concluida"
-  // (mostrador, se cobra en el momento) de "en_ruta" (pendiente hasta que
-  // el chofer confirma la entrega). No se toca la lógica de cierre de
-  // corte (cerrarCorte más abajo) — eso sigue siendo un corte único por
-  // sucursal/día; separar el cierre contable en dos cortes independientes
-  // quedó pendiente porque depende de la definición de permisos que
-  // Alejandro dejó para una llamada aparte (ver docs/SANAMEX_15ago2026_seguimiento.md).
-  const ventasMostrador = ventasDelDia.filter(m => ventasInfo[m.id]?.estatus_entrega !== 'en_ruta');
-  const ventasRuta = ventasDelDia.filter(m => ventasInfo[m.id]?.estatus_entrega === 'en_ruta');
 
   const analisis = useMemo(() => {
     const cerrados = historial.filter((c: any) => c.estado === 'cerrado');
@@ -285,7 +314,7 @@ const CorteCajaPage = () => {
     <div className="space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h1 className="text-2xl font-bold">Corte de Caja</h1>
+          <h1 className="text-2xl font-bold">Corte de Caja — Mostrador</h1>
           <p className="text-muted-foreground">
             {esGeneral ? 'Todas las sucursales' : selectedSucursal?.nombre} · {fecha}
           </p>
@@ -357,17 +386,10 @@ const CorteCajaPage = () => {
             <TabsList>
               <TabsTrigger value="todos">Todos ({movimientos.length})</TabsTrigger>
               <TabsTrigger value="ventas">Ventas ({ventasDelDia.length})</TabsTrigger>
-              <TabsTrigger value="mostrador">Mostrador ({ventasMostrador.length})</TabsTrigger>
-              <TabsTrigger value="ruta">Ruta ({ventasRuta.length})</TabsTrigger>
               <TabsTrigger value="compras">Compras ({comprasDelDia.length})</TabsTrigger>
             </TabsList>
-            {([['todos', movimientos], ['ventas', ventasDelDia], ['mostrador', ventasMostrador], ['ruta', ventasRuta], ['compras', comprasDelDia]] as const).map(([key, rows]) => (
+            {([['todos', movimientos], ['ventas', ventasDelDia], ['compras', comprasDelDia]] as const).map(([key, rows]) => (
               <TabsContent key={key} value={key} className="mt-4">
-                {(key === 'mostrador' || key === 'ruta') && (
-                  <p className="text-xs text-muted-foreground mb-2">
-                    Subtotal {key === 'mostrador' ? 'mostrador' : 'ruta'}: {money(rows.reduce((s, m) => s + m.monto, 0))}
-                  </p>
-                )}
                 <Table>
                   <TableHeader><TableRow>
                     <TableHead>Hora</TableHead>
@@ -653,4 +675,4 @@ const CorteCajaPage = () => {
   );
 };
 
-export default CorteCajaPage;
+export default CorteCajaMostradorPage;
