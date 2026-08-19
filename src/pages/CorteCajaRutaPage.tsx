@@ -96,13 +96,14 @@ const CorteCajaRutaPage = () => {
   }, []);
 
   const load = useCallback(async () => {
-    if (sucursalIds.length === 0) return;
+    const ids = sucursalKey ? sucursalKey.split(',') : [];
+    if (ids.length === 0) { setPendientes([]); setConcluidasHoy([]); setLoading(false); return; }
     setLoading(true);
 
-    const [{ data: pend }, { data: corr }] = await Promise.all([
+    const [pendRes, corrRes] = await Promise.all([
       (supabase as any).from('ventas')
         .select('id, numero_venta, total, fecha, sucursal_id')
-        .in('sucursal_id', sucursalIds)
+        .in('sucursal_id', ids)
         .eq('estado', 'completada')
         .eq('estatus_entrega', 'en_ruta')
         .order('fecha', { ascending: true })
@@ -111,16 +112,19 @@ const CorteCajaRutaPage = () => {
         .select('venta_id, metodo_pago_corregido, corregido_at, ventas!inner(numero_venta, total, sucursal_id)')
         .eq('estatus_anterior', 'en_ruta')
         .eq('estatus_corregido', 'concluida')
-        .in('ventas.sucursal_id', sucursalIds)
+        .in('ventas.sucursal_id', ids)
         .gte('corregido_at', `${hoy}T00:00:00`)
         .lte('corregido_at', `${hoy}T23:59:59`)
         .order('corregido_at', { ascending: false })
         .limit(300),
     ]);
 
-    setPendientes((pend || []) as EntregaPendiente[]);
+    if (pendRes.error) toast.error(`Pendientes: ${pendRes.error.message}`);
+    if (corrRes.error) toast.error(`Confirmadas: ${corrRes.error.message}`);
+
+    setPendientes((pendRes.data || []) as EntregaPendiente[]);
     setConcluidasHoy(
-      (corr || []).map((c: any) => ({
+      (corrRes.data || []).map((c: any) => ({
         venta_id: c.venta_id,
         numero_venta: c.ventas?.numero_venta || null,
         total: Number(c.ventas?.total || 0),
@@ -129,9 +133,10 @@ const CorteCajaRutaPage = () => {
       }))
     );
     setLoading(false);
-  }, [sucursalIds, hoy]);
+  }, [sucursalKey, hoy]);
 
   useEffect(() => { load(); }, [load]);
+
 
   useEffect(() => {
     const t = setInterval(load, 60000);
