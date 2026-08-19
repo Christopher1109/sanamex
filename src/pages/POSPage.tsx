@@ -561,6 +561,8 @@ const POSPage = () => {
       setEfectivoRecibido('');
       setNota('');
       setRequiereFactura(false);
+      setEntregaDomicilio(false);
+
       setTipoVenta('contado');
       setClienteId('');
       toast.success(`Venta ${result.numero_venta} completada${esCredito ? ' a crédito' : ''}`);
