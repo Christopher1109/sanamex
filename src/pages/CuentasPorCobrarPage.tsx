@@ -295,9 +295,16 @@ const CuentasPorCobrarPage = () => {
                       <TableCell>
                         {r.saldoNeto <= 0.009
                           ? <Badge className="bg-green-100 text-green-700">Saldado</Badge>
-                          : r.vencido
-                            ? <Badge variant="destructive">Vencido hace {r.dias_antiguedad !== null ? r.dias_antiguedad - (r.dias_credito ?? 30) : 0}d</Badge>
-                            : <Badge variant="secondary">Faltan {r.dias_credito !== null ? (r.dias_credito ?? 30) - (r.dias_antiguedad ?? 0) : '—'}d</Badge>}
+                          : r.dias_restantes === null || r.dias_restantes === undefined
+                            ? <Badge variant="secondary">—</Badge>
+                            : r.dias_restantes < 0
+                              ? <Badge variant="destructive">Vencido hace {Math.abs(r.dias_restantes)}d</Badge>
+                              : <Badge variant={r.dias_restantes <= 5 ? 'default' : 'secondary'}>
+                                  Faltan {r.dias_restantes}d
+                                </Badge>}
+                        {r.fecha_vencimiento && (
+                          <p className="text-[11px] text-muted-foreground mt-0.5">{r.fecha_vencimiento}</p>
+                        )}
                       </TableCell>
                       <TableCell className="text-right space-x-2 whitespace-nowrap">
                         <Button size="sm" variant="ghost"
