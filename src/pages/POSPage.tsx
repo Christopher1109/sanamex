@@ -18,6 +18,8 @@ import { offlineDB } from '@/lib/offline/db';
 import { deductInventoryLocalFEFO, getLocalStock } from '@/lib/offline/sync';
 import { Badge } from '@/components/ui/badge';
 import FacturarRapidoDialog from '@/components/FacturarRapidoDialog';
+import ClienteSelector from '@/components/pos/ClienteSelector';
+import type { ClienteMinimo } from '@/components/pos/QuickClienteDialog';
 
 // ── Types ──
 
@@ -164,7 +166,11 @@ const POSPage = () => {
   const [requiereFactura, setRequiereFactura] = useState(false);
   // Cobranza: una venta a crédito requiere cliente identificado (se cobra después
   // en Cuentas por Cobrar). De contado se cobra en caja al momento.
-  const [clientes, setClientes] = useState<{ id: string; nombre: string }[]>([]);
+  //
+  // Acuerdo junta SANAMEX 15-ago-2026: el cliente es obligatorio para TODA
+  // venta (no solo crédito) — ese es el "candado" que pidió Isaac antes de
+  // permitir el cobro. Ver canCharge más abajo.
+  const [clientes, setClientes] = useState<ClienteMinimo[]>([]);
   const [clienteId, setClienteId] = useState<string>('');
   const [tipoVenta, setTipoVenta] = useState<'contado' | 'credito'>('contado');
   const [nota, setNota] = useState('');
@@ -185,8 +191,10 @@ const POSPage = () => {
     ? Math.max(0, parseFloat(efectivoRecibido) - total)
     : 0;
   const esCredito = tipoVenta === 'credito';
-  const canCharge = cart.length > 0 && total > 0 && !!selectedSucursal &&
-    (esCredito ? !!clienteId : (metodoPago !== 'Efectivo' || (parseFloat(efectivoRecibido || '0') >= total)));
+  // Candado de cliente obligatorio (junta 15-ago-2026): sin cliente seleccionado
+  // no se puede iniciar el cobro, sin importar si la venta es de contado o crédito.
+  const canCharge = cart.length > 0 && total > 0 && !!selectedSucursal && !!clienteId &&
+    (esCredito ? true : (metodoPago !== 'Efectivo' || (parseFloat(efectivoRecibido || '0') >= total)));
 
   // ── Focus management ──
   const refocusScan = useCallback(() => {
@@ -197,10 +205,10 @@ const POSPage = () => {
     refocusScan();
   }, [refocusScan]);
 
-  // Catálogo de clientes (para ventas a crédito / identificadas)
+  // Catálogo de clientes — obligatorio seleccionar uno antes de cobrar (ver canCharge).
   useEffect(() => {
-    supabase.from('clientes').select('id, nombre').eq('activo', true).order('nombre')
-      .then(({ data }) => setClientes((data as any[]) || []));
+    supabase.from('clientes').select('id, nombre, rfc').eq('activo', true).order('nombre')
+      .then(({ data }) => setClientes((data as ClienteMinimo[]) || []));
   }, []);
 
   // Global keyboard shortcuts
@@ -759,18 +767,22 @@ const POSPage = () => {
 
               <div className="space-y-3">
                 <div>
-                  <label className="text-sm font-medium text-muted-foreground">Cliente</label>
-                  <Select value={clienteId || 'publico'} onValueChange={(v) => {
-                    const id = v === 'publico' ? '' : v;
-                    setClienteId(id);
-                    if (!id) setTipoVenta('contado');
-                  }}>
-                    <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="publico">Público en general</SelectItem>
-                      {clientes.map(c => <SelectItem key={c.id} value={c.id}>{c.nombre}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
+                  <label className="text-sm font-medium text-muted-foreground">
+                    Cliente <span className="text-destructive">*</span>
+                  </label>
+                  <div className="mt-1">
+                    <ClienteSelector
+                      clientes={clientes}
+                      clienteId={clienteId}
+                      onSelect={(id) => setClienteId(id)}
+                      onClienteCreated={(nuevo) => setClientes((prev) => [...prev, nuevo].sort((a, b) => a.nombre.localeCompare(b.nombre)))}
+                    />
+                  </div>
+                  {!clienteId && (
+                    <p className="text-xs text-destructive mt-1">
+                      Selecciona o crea un cliente para poder cobrar la venta.
+                    </p>
+                  )}
                 </div>
 
                 <div>
@@ -782,15 +794,11 @@ const POSPage = () => {
                       <SelectItem value="credito" disabled={!clienteId}>A crédito</SelectItem>
                     </SelectContent>
                   </Select>
-                  {esCredito ? (
+                  {esCredito && (
                     <p className="text-xs text-amber-600 mt-1">
                       No se cobra en caja: el saldo se cobra en Cuentas por Cobrar.
                     </p>
-                  ) : !clienteId ? (
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Para vender a crédito primero selecciona un cliente.
-                    </p>
-                  ) : null}
+                  )}
                 </div>
 
                 {!esCredito && (
