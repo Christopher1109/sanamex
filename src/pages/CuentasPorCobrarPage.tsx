@@ -293,11 +293,13 @@ const CuentasPorCobrarPage = () => {
                       </TableCell>
                       <TableCell className="text-right space-x-2 whitespace-nowrap">
                         <Button size="sm" variant="ghost"
+                          title="Nota de crédito: disminuye el saldo SIN entrada de dinero (devolución, descuento o ajuste posterior a la venta)."
                           onClick={(e) => { e.stopPropagation(); abrirNotaCredito(r); }}>
                           <Receipt className="h-3.5 w-3.5 mr-1" /> Nota de crédito
                         </Button>
                         {r.saldoNeto > 0.009 && (
                           <Button size="sm" variant="outline"
+                            title="Registrar abono: dinero efectivamente cobrado al cliente, con comprobante obligatorio."
                             onClick={(e) => { e.stopPropagation(); abrirAbono(r); }}>
                             Registrar abono
                           </Button>
