@@ -13,11 +13,20 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Checkbox } from '@/components/ui/checkbox';
 import { Plus, Eye } from 'lucide-react';
 import { toast } from 'sonner';
+import { useAuth } from '@/hooks/useAuth';
 
 const estadoBadge: Record<string, any> = { preparando: 'secondary', en_ruta: 'default', completada: 'outline', cancelada: 'destructive' };
 
 const RutasPage = () => {
   const { selectedSucursal } = useSucursal();
+  // Junta SANAMEX 15-ago-2026: un repartidor solo debe ver y confirmar SUS
+  // propias rutas/entregas asignadas, no las de otros choferes ni de otras
+  // sucursales. El filtrado real ya lo hace RLS (ver migración
+  // 20260819020000_chofer_acceso_restringido_rutas.sql); aquí solo se oculta
+  // la acción de "Crear Ruta" para ese rol, ya que un chofer no debería
+  // poder asignarse rutas a sí mismo ni a otros compañeros.
+  const { userRole } = useAuth();
+  const esSoloRepartidor = userRole === 'repartidor';
   const [rutas, setRutas] = useState<any[]>([]);
   const [entregas, setEntregas] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -102,8 +111,10 @@ const RutasPage = () => {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <div><h1 className="text-2xl font-bold">Rutas de Entrega</h1><p className="text-muted-foreground">{selectedSucursal?.nombre}</p></div>
-        <Button onClick={openCreate}><Plus className="h-4 w-4 mr-2" />Crear Ruta</Button>
+        <div><h1 className="text-2xl font-bold">Rutas de Entrega</h1><p className="text-muted-foreground">
+          {selectedSucursal?.nombre}{esSoloRepartidor ? ' — Mis rutas asignadas' : ''}
+        </p></div>
+        {!esSoloRepartidor && <Button onClick={openCreate}><Plus className="h-4 w-4 mr-2" />Crear Ruta</Button>}
       </div>
       <Card>
         <CardContent className="p-0">
