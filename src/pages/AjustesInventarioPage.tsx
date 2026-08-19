@@ -10,12 +10,18 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { ClipboardEdit, Search, Plus, Minus } from 'lucide-react';
+import { ClipboardEdit, Search, Plus, Minus, ArrowLeftRight } from 'lucide-react';
 import { toast } from 'sonner';
 
 // Ajustes de inventario manuales (pedido Alejandro, minuto 41 de la sesión
 // 20-jul-2026): "cuando hacemos un inventario, a veces hay piezas de más,
 // piezas de menos... esas las ajusta el auditor". Solo auditoría/admin.
+//
+// NOTA (junta SANAMEX 15-ago-2026): Alejandro pidió que esto sea exclusivo
+// de gerente/subgerente de sucursal. Se dejó como estaba (auditoría/admin)
+// porque los permisos por perfil quedaron pendientes de definir en una
+// llamada aparte — ver docs/SANAMEX_15ago2026_seguimiento.md, sección 5 y
+// tabla de bloqueos. No cambiar esto sin confirmar con Alejandro primero.
 const ROLES_PERMITIDOS = ['auditoria', 'auditor', 'admin', 'super_admin'];
 
 interface LoteOpcion {
@@ -28,47 +34,28 @@ interface LoteOpcion {
   producto_sku: string;
 }
 
-const AjustesInventarioPage = () => {
-  const { selectedSucursal } = useSucursal();
-  const { userRole } = useAuth();
-  const puedeAjustar = !!userRole && ROLES_PERMITIDOS.includes(userRole);
+interface Motivo {
+  id: string;
+  nombre: string;
+  es_confusion_producto: boolean;
+}
 
-  const [almacenId, setAlmacenId] = useState<string | null>(null);
+// Buscador de producto/lote reutilizable, tanto para el flujo normal de un
+// solo producto como para cada uno de los dos productos del flujo de
+// "confusión de producto".
+function BuscadorLote({
+  almacenId,
+  label,
+  seleccionado,
+  onSeleccionar,
+}: {
+  almacenId: string | null;
+  label: string;
+  seleccionado: LoteOpcion | null;
+  onSeleccionar: (l: LoteOpcion | null) => void;
+}) {
   const [search, setSearch] = useState('');
   const [resultados, setResultados] = useState<LoteOpcion[]>([]);
-  const [seleccionado, setSeleccionado] = useState<LoteOpcion | null>(null);
-  const [cantidadAjuste, setCantidadAjuste] = useState('');
-  const [motivos, setMotivos] = useState<{ id: string; nombre: string }[]>([]);
-  const [motivoId, setMotivoId] = useState('');
-  const [notas, setNotas] = useState('');
-  const [guardando, setGuardando] = useState(false);
-  const [historial, setHistorial] = useState<any[]>([]);
-
-  useEffect(() => { if (selectedSucursal) { loadAlmacen(); loadMotivos(); loadHistorial(); } }, [selectedSucursal]);
-
-  const loadAlmacen = async () => {
-    if (!selectedSucursal) return;
-    const { data } = await supabase.from('almacenes').select('id').eq('sucursal_id', selectedSucursal.id).eq('activo', true).limit(1);
-    setAlmacenId(data?.[0]?.id || null);
-  };
-
-  const loadMotivos = async () => {
-    const { data } = await supabase.from('motivos_ajuste').select('id, nombre').eq('tipo', 'ajuste').eq('activo', true);
-    setMotivos(data || []);
-    if (data?.[0]) setMotivoId(data[0].id);
-  };
-
-  const loadHistorial = async () => {
-    if (!selectedSucursal) return;
-    const { data } = await supabase
-      .from('movimientos_inventario')
-      .select('*, lotes(numero_lote, productos(nombre, sku)), motivos_ajuste(nombre)')
-      .eq('tipo', 'ajuste')
-      .eq('sucursal_id', selectedSucursal.id)
-      .order('created_at', { ascending: false })
-      .limit(50);
-    setHistorial(data || []);
-  };
 
   const buscar = async () => {
     if (!almacenId || !search.trim()) { setResultados([]); return; }
@@ -91,7 +78,122 @@ const AjustesInventarioPage = () => {
     setResultados(opciones);
   };
 
-  const guardarAjuste = async () => {
+  if (seleccionado) {
+    return (
+      <div className="border rounded-lg p-3 bg-accent/30">
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-xs text-muted-foreground">{label}</p>
+            <p className="font-medium">{seleccionado.producto_nombre}</p>
+            <p className="text-xs text-muted-foreground">
+              {seleccionado.producto_sku} · Lote {seleccionado.numero_lote} · Stock actual: {seleccionado.cantidad_actual}
+            </p>
+          </div>
+          <Button size="sm" variant="ghost" onClick={() => { onSeleccionar(null); setSearch(''); setResultados([]); }}>
+            Cambiar
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-2">
+      <Label className="text-xs">{label}</Label>
+      <div className="relative">
+        <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+        <Input
+          className="pl-9"
+          placeholder="Buscar producto, SKU o lote…"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          onKeyDown={(e) => e.key === 'Enter' && buscar()}
+        />
+      </div>
+      <Button size="sm" variant="outline" onClick={buscar}>Buscar</Button>
+      {resultados.length > 0 && (
+        <div className="border rounded-lg max-h-56 overflow-y-auto divide-y">
+          {resultados.map((r) => (
+            <button
+              key={r.lote_id}
+              onClick={() => { onSeleccionar(r); setResultados([]); }}
+              className="w-full text-left px-3 py-2 text-sm hover:bg-accent flex justify-between items-center"
+            >
+              <div>
+                <p className="font-medium">{r.producto_nombre}</p>
+                <p className="text-xs text-muted-foreground">{r.producto_sku} · Lote {r.numero_lote} · cad {r.fecha_caducidad || '—'}</p>
+              </div>
+              <span className="font-mono text-sm">stock: {r.cantidad_actual}</span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+const AjustesInventarioPage = () => {
+  const { selectedSucursal } = useSucursal();
+  const { userRole } = useAuth();
+  const puedeAjustar = !!userRole && ROLES_PERMITIDOS.includes(userRole);
+
+  const [almacenId, setAlmacenId] = useState<string | null>(null);
+  const [motivos, setMotivos] = useState<Motivo[]>([]);
+  const [motivoId, setMotivoId] = useState('');
+  const [historial, setHistorial] = useState<any[]>([]);
+
+  // Flujo normal (un solo producto/lote)
+  const [seleccionado, setSeleccionado] = useState<LoteOpcion | null>(null);
+  const [cantidadAjuste, setCantidadAjuste] = useState('');
+
+  // Flujo especial "confusión de producto" (dos productos/lotes)
+  const [loteVendidoError, setLoteVendidoError] = useState<LoteOpcion | null>(null);
+  const [loteCorrecto, setLoteCorrecto] = useState<LoteOpcion | null>(null);
+  const [cantidadConfusion, setCantidadConfusion] = useState('');
+
+  const [notas, setNotas] = useState('');
+  const [guardando, setGuardando] = useState(false);
+
+  const motivoSeleccionado = motivos.find((m) => m.id === motivoId) || null;
+  const esConfusion = !!motivoSeleccionado?.es_confusion_producto;
+
+  useEffect(() => { if (selectedSucursal) { loadAlmacen(); loadMotivos(); loadHistorial(); } }, [selectedSucursal]);
+
+  const loadAlmacen = async () => {
+    if (!selectedSucursal) return;
+    const { data } = await supabase.from('almacenes').select('id').eq('sucursal_id', selectedSucursal.id).eq('activo', true).limit(1);
+    setAlmacenId(data?.[0]?.id || null);
+  };
+
+  const loadMotivos = async () => {
+    const { data } = await (supabase as any)
+      .from('motivos_ajuste')
+      .select('id, nombre, es_confusion_producto')
+      .eq('tipo', 'ajuste')
+      .eq('activo', true);
+    setMotivos((data as Motivo[]) || []);
+  };
+
+  const loadHistorial = async () => {
+    if (!selectedSucursal) return;
+    const { data } = await supabase
+      .from('movimientos_inventario')
+      .select('*, lotes(numero_lote, productos(nombre, sku)), motivos_ajuste(nombre)')
+      .eq('tipo', 'ajuste')
+      .eq('sucursal_id', selectedSucursal.id)
+      .order('created_at', { ascending: false })
+      .limit(50);
+    setHistorial(data || []);
+  };
+
+  const resetFormulario = () => {
+    setMotivoId('');
+    setSeleccionado(null); setCantidadAjuste('');
+    setLoteVendidoError(null); setLoteCorrecto(null); setCantidadConfusion('');
+    setNotas('');
+  };
+
+  const guardarAjusteNormal = async () => {
     if (!almacenId || !seleccionado || !motivoId) { toast.error('Completa producto/lote y motivo'); return; }
     const cant = parseInt(cantidadAjuste);
     if (!cant || cant === 0) { toast.error('Captura una cantidad distinta de cero'); return; }
@@ -106,7 +208,71 @@ const AjustesInventarioPage = () => {
     setGuardando(false);
     if (error) return toast.error(error.message);
     toast.success(`Ajuste registrado. Nueva cantidad en ese lote: ${data?.nueva_cantidad}`);
-    setSeleccionado(null); setCantidadAjuste(''); setNotas(''); setSearch(''); setResultados([]);
+    resetFormulario();
+    loadHistorial();
+  };
+
+  // Flujo "confusión de producto": se vendió el producto A por error en vez
+  // del producto B. Hay que devolver A (se había descontado de más) y
+  // descontar B (el que realmente salió). Se registran como dos movimientos
+  // ligados por el mismo motivo y una nota que cruza ambos lotes, ya que
+  // registrar_ajuste_inventario ajusta un solo lote a la vez.
+  const guardarAjusteConfusion = async () => {
+    if (!almacenId || !loteVendidoError || !loteCorrecto || !motivoId) {
+      toast.error('Completa el producto vendido por error, el producto correcto y el motivo');
+      return;
+    }
+    if (loteVendidoError.lote_id === loteCorrecto.lote_id) {
+      toast.error('El producto vendido por error y el producto correcto no pueden ser el mismo lote');
+      return;
+    }
+    const cant = parseInt(cantidadConfusion);
+    if (!cant || cant <= 0) { toast.error('Captura una cantidad mayor a cero'); return; }
+
+    setGuardando(true);
+    const notaCruzada = [
+      notas.trim(),
+      `Confusión de producto: se devuelven ${cant} de "${loteVendidoError.producto_nombre}" (lote ${loteVendidoError.numero_lote}) ` +
+        `y se descuentan ${cant} de "${loteCorrecto.producto_nombre}" (lote ${loteCorrecto.numero_lote}).`,
+    ].filter(Boolean).join(' — ');
+
+    // 1) Devuelve el producto que se había descontado de más.
+    const { error: errorDevolucion } = await (supabase as any).rpc('registrar_ajuste_inventario', {
+      p_almacen_id: almacenId,
+      p_lote_id: loteVendidoError.lote_id,
+      p_cantidad_ajuste: cant,
+      p_motivo_id: motivoId,
+      p_notas: notaCruzada,
+    });
+    if (errorDevolucion) {
+      setGuardando(false);
+      toast.error(`No se pudo devolver el producto vendido por error: ${errorDevolucion.message}`);
+      return;
+    }
+
+    // 2) Descuenta el producto que realmente se vendió.
+    const { error: errorDescuento } = await (supabase as any).rpc('registrar_ajuste_inventario', {
+      p_almacen_id: almacenId,
+      p_lote_id: loteCorrecto.lote_id,
+      p_cantidad_ajuste: -cant,
+      p_motivo_id: motivoId,
+      p_notas: notaCruzada,
+    });
+    setGuardando(false);
+    if (errorDescuento) {
+      // El primer movimiento (devolución) ya quedó registrado; avisar
+      // explícitamente para que se revise/corrija a mano, ya que no hay
+      // una transacción que envuelva ambas llamadas RPC.
+      toast.error(
+        `Se devolvió "${loteVendidoError.producto_nombre}" pero falló el descuento de ` +
+        `"${loteCorrecto.producto_nombre}": ${errorDescuento.message}. Revisa el historial y corrige manualmente.`
+      );
+      loadHistorial();
+      return;
+    }
+
+    toast.success('Confusión de producto registrada: se ajustaron ambos productos.');
+    resetFormulario();
     loadHistorial();
   };
 
@@ -130,64 +296,72 @@ const AjustesInventarioPage = () => {
       <Card>
         <CardHeader><CardTitle className="text-base">Nuevo ajuste</CardTitle></CardHeader>
         <CardContent className="space-y-4">
-          <div className="relative">
-            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-            <Input className="pl-9" placeholder="Buscar producto, SKU o lote…" value={search}
-              onChange={e => setSearch(e.target.value)} onKeyDown={e => e.key === 'Enter' && buscar()} />
+          {/* Paso 1 (obligatorio, junta 15-ago-2026): el motivo se elige ANTES
+              de tocar cantidades, porque determina el flujo que sigue. */}
+          <div>
+            <Label className="text-xs">1. Motivo del ajuste *</Label>
+            <Select value={motivoId} onValueChange={(v) => { setMotivoId(v); setSeleccionado(null); setLoteVendidoError(null); setLoteCorrecto(null); }}>
+              <SelectTrigger><SelectValue placeholder="Selecciona un motivo para continuar" /></SelectTrigger>
+              <SelectContent>
+                {motivos.map((m) => <SelectItem key={m.id} value={m.id}>{m.nombre}</SelectItem>)}
+              </SelectContent>
+            </Select>
+            {!motivoId && (
+              <p className="text-[11px] text-muted-foreground mt-1">
+                Selecciona el motivo primero — la lista completa de motivos sigue pendiente de confirmar con Alejandro.
+              </p>
+            )}
           </div>
-          <Button size="sm" variant="outline" onClick={buscar}>Buscar</Button>
 
-          {resultados.length > 0 && !seleccionado && (
-            <div className="border rounded-lg max-h-64 overflow-y-auto divide-y">
-              {resultados.map(r => (
-                <button key={r.lote_id} onClick={() => setSeleccionado(r)}
-                  className="w-full text-left px-3 py-2 text-sm hover:bg-accent flex justify-between items-center">
-                  <div>
-                    <p className="font-medium">{r.producto_nombre}</p>
-                    <p className="text-xs text-muted-foreground">{r.producto_sku} · Lote {r.numero_lote} · cad {r.fecha_caducidad || '—'}</p>
-                  </div>
-                  <span className="font-mono text-sm">stock: {r.cantidad_actual}</span>
-                </button>
-              ))}
-            </div>
-          )}
-
-          {seleccionado && (
-            <div className="border rounded-lg p-4 space-y-3 bg-accent/30">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="font-medium">{seleccionado.producto_nombre}</p>
-                  <p className="text-xs text-muted-foreground">{seleccionado.producto_sku} · Lote {seleccionado.numero_lote} · Stock actual: {seleccionado.cantidad_actual}</p>
-                </div>
-                <Button size="sm" variant="ghost" onClick={() => setSeleccionado(null)}>Cambiar</Button>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <Label className="text-xs">Cantidad a ajustar</Label>
-                  <Input type="number" placeholder="Ej. 5 o -3" value={cantidadAjuste} onChange={e => setCantidadAjuste(e.target.value)} />
-                  <p className="text-[11px] text-muted-foreground mt-1 flex items-center gap-1">
-                    {cantidadAjuste && parseInt(cantidadAjuste) > 0 && <><Plus className="h-3 w-3 text-green-600" /> Sobrante — sube el stock</>}
-                    {cantidadAjuste && parseInt(cantidadAjuste) < 0 && <><Minus className="h-3 w-3 text-rose-600" /> Faltante — baja el stock</>}
-                    {!cantidadAjuste && 'Positivo = sobrante encontrado. Negativo = faltante encontrado.'}
-                  </p>
-                </div>
-                <div>
-                  <Label className="text-xs">Motivo</Label>
-                  <Select value={motivoId} onValueChange={setMotivoId}>
-                    <SelectTrigger><SelectValue placeholder="Selecciona motivo" /></SelectTrigger>
-                    <SelectContent>
-                      {motivos.map(m => <SelectItem key={m.id} value={m.id}>{m.nombre}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                </div>
+          {motivoId && esConfusion && (
+            <div className="border rounded-lg p-4 space-y-4 bg-accent/30">
+              <p className="text-sm font-medium flex items-center gap-2">
+                <ArrowLeftRight className="h-4 w-4" /> Confusión de producto
+              </p>
+              <p className="text-xs text-muted-foreground">
+                Captura el producto que se vendió por error y el producto que realmente debió venderse.
+                El sistema ajustará automáticamente ambas existencias: devuelve el que se descontó de más
+                y descuenta el que realmente salió.
+              </p>
+              <BuscadorLote almacenId={almacenId} label="Producto vendido por error (se devuelve)" seleccionado={loteVendidoError} onSeleccionar={setLoteVendidoError} />
+              <BuscadorLote almacenId={almacenId} label="Producto correcto (se descuenta)" seleccionado={loteCorrecto} onSeleccionar={setLoteCorrecto} />
+              <div>
+                <Label className="text-xs">Cantidad confundida</Label>
+                <Input type="number" min={1} placeholder="Ej. 2" value={cantidadConfusion} onChange={(e) => setCantidadConfusion(e.target.value)} />
               </div>
               <div>
                 <Label className="text-xs">Notas (opcional)</Label>
-                <Textarea rows={2} value={notas} onChange={e => setNotas(e.target.value)} placeholder="Ej. Conteo físico mensual, área de refrigerados…" />
+                <Textarea rows={2} value={notas} onChange={(e) => setNotas(e.target.value)} placeholder="Ej. Detectado en corte de caja del turno tarde…" />
               </div>
               <div className="flex justify-end">
-                <Button onClick={guardarAjuste} disabled={guardando}>Registrar ajuste</Button>
+                <Button onClick={guardarAjusteConfusion} disabled={guardando}>Registrar confusión de producto</Button>
               </div>
+            </div>
+          )}
+
+          {motivoId && !esConfusion && (
+            <div className="space-y-3">
+              <BuscadorLote almacenId={almacenId} label="2. Producto / lote" seleccionado={seleccionado} onSeleccionar={setSeleccionado} />
+              {seleccionado && (
+                <div className="border rounded-lg p-4 space-y-3 bg-accent/30">
+                  <div>
+                    <Label className="text-xs">Cantidad a ajustar</Label>
+                    <Input type="number" placeholder="Ej. 5 o -3" value={cantidadAjuste} onChange={(e) => setCantidadAjuste(e.target.value)} />
+                    <p className="text-[11px] text-muted-foreground mt-1 flex items-center gap-1">
+                      {cantidadAjuste && parseInt(cantidadAjuste) > 0 && <><Plus className="h-3 w-3 text-green-600" /> Sobrante — sube el stock</>}
+                      {cantidadAjuste && parseInt(cantidadAjuste) < 0 && <><Minus className="h-3 w-3 text-rose-600" /> Faltante — baja el stock</>}
+                      {!cantidadAjuste && 'Positivo = sobrante encontrado. Negativo = faltante encontrado.'}
+                    </p>
+                  </div>
+                  <div>
+                    <Label className="text-xs">Notas (opcional)</Label>
+                    <Textarea rows={2} value={notas} onChange={(e) => setNotas(e.target.value)} placeholder="Ej. Conteo físico mensual, área de refrigerados…" />
+                  </div>
+                  <div className="flex justify-end">
+                    <Button onClick={guardarAjusteNormal} disabled={guardando}>Registrar ajuste</Button>
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </CardContent>
