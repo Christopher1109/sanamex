@@ -71,7 +71,7 @@ type LineaDetalle = {
 
 const CorteCajaRutaPage = () => {
   const { selectedSucursal, availableSucursales, canSwitchSucursal } = useSucursal();
-  const { userRole } = useAuth();
+  const { userRole, user } = useAuth();
   const esRepartidor = userRole === 'repartidor';
   const hoy = new Date().toISOString().slice(0, 10);
 
@@ -82,6 +82,11 @@ const CorteCajaRutaPage = () => {
   const [metodosPago, setMetodosPago] = useState<any[]>([]);
   const [expandida, setExpandida] = useState<string | null>(null);
   const [detalles, setDetalles] = useState<Record<string, LineaDetalle[] | 'loading'>>({});
+  // Asignación de entregas por chofer (junta 15-ago-2026): cuando hay varios
+  // repartidores, cada entrega se asigna a uno y el chofer solo ve las suyas.
+  const [repartidores, setRepartidores] = useState<{ id: string; nombre: string }[]>([]);
+  const [asignando, setAsignando] = useState<string | null>(null);
+
 
   const [confirmando, setConfirmando] = useState<EntregaPendiente | null>(null);
   const [metodo, setMetodo] = useState('');
