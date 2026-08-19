@@ -2584,6 +2584,7 @@ export type Database = {
         Row: {
           activo: boolean | null
           created_at: string | null
+          es_confusion_producto: boolean
           id: string
           nombre: string
           tipo: string
@@ -2591,6 +2592,7 @@ export type Database = {
         Insert: {
           activo?: boolean | null
           created_at?: string | null
+          es_confusion_producto?: boolean
           id?: string
           nombre: string
           tipo?: string
@@ -2598,6 +2600,7 @@ export type Database = {
         Update: {
           activo?: boolean | null
           created_at?: string | null
+          es_confusion_producto?: boolean
           id?: string
           nombre?: string
           tipo?: string
@@ -2766,6 +2769,60 @@ export type Database = {
             columns: ["sucursal_id"]
             isOneToOne: false
             referencedRelation: "sucursales"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      notas_credito_cliente: {
+        Row: {
+          aplicada: boolean
+          cliente_id: string
+          creada_por: string | null
+          created_at: string
+          fecha: string
+          folio: string
+          id: string
+          monto: number
+          motivo: string | null
+          venta_id: string | null
+        }
+        Insert: {
+          aplicada?: boolean
+          cliente_id: string
+          creada_por?: string | null
+          created_at?: string
+          fecha?: string
+          folio: string
+          id?: string
+          monto: number
+          motivo?: string | null
+          venta_id?: string | null
+        }
+        Update: {
+          aplicada?: boolean
+          cliente_id?: string
+          creada_por?: string | null
+          created_at?: string
+          fecha?: string
+          folio?: string
+          id?: string
+          monto?: number
+          motivo?: string | null
+          venta_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notas_credito_cliente_cliente_id_fkey"
+            columns: ["cliente_id"]
+            isOneToOne: false
+            referencedRelation: "clientes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "notas_credito_cliente_venta_id_fkey"
+            columns: ["venta_id"]
+            isOneToOne: false
+            referencedRelation: "ventas"
             referencedColumns: ["id"]
           },
         ]
@@ -6446,6 +6503,15 @@ export type Database = {
           p_sucursal_id: string
         }
         Returns: undefined
+      }
+      crear_nota_credito_cliente: {
+        Args: {
+          p_cliente_id: string
+          p_monto: number
+          p_motivo?: string
+          p_venta_id?: string
+        }
+        Returns: string
       }
       crear_nota_credito_proveedor: {
         Args: {
