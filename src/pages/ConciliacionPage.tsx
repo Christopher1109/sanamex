@@ -328,6 +328,7 @@ const ConciliacionPage = () => {
                 <Select value={enviarForm.entidadId} onValueChange={(v) => {
                   setEnviarForm({ ...enviarForm, entidadId: v });
                   if (enviarForm.entidadTipo === 'proveedor') cargarComprasPendientes(v);
+                  else cargarVentasPendientes(v);
                 }}>
                   <SelectTrigger><SelectValue placeholder="Selecciona..." /></SelectTrigger>
                   <SelectContent>
