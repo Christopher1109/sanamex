@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useSucursal } from '@/contexts/SucursalContext';
 import { useAuth } from '@/hooks/useAuth';
@@ -10,7 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
-import { Truck, RefreshCw, CheckCircle2, Clock } from 'lucide-react';
+import { Truck, RefreshCw, CheckCircle2, Clock, ChevronDown, ChevronRight } from 'lucide-react';
 import { toast } from 'sonner';
 
 /**
@@ -59,6 +59,15 @@ type EntregaConcluidaHoy = {
 
 const money = (n: number) => `$${Number(n || 0).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
+type LineaDetalle = {
+  id: string;
+  sku: string;
+  nombre: string;
+  cantidad: number;
+  precio_unitario: number;
+  subtotal: number;
+};
+
 const CorteCajaRutaPage = () => {
   const { selectedSucursal, availableSucursales, canSwitchSucursal } = useSucursal();
   const { userRole } = useAuth();
@@ -70,11 +79,40 @@ const CorteCajaRutaPage = () => {
   const [pendientes, setPendientes] = useState<EntregaPendiente[]>([]);
   const [concluidasHoy, setConcluidasHoy] = useState<EntregaConcluidaHoy[]>([]);
   const [metodosPago, setMetodosPago] = useState<any[]>([]);
+  const [expandida, setExpandida] = useState<string | null>(null);
+  const [detalles, setDetalles] = useState<Record<string, LineaDetalle[] | 'loading'>>({});
 
   const [confirmando, setConfirmando] = useState<EntregaPendiente | null>(null);
   const [metodo, setMetodo] = useState('');
   const [motivo, setMotivo] = useState('');
   const [guardando, setGuardando] = useState(false);
+
+  const cargarDetalle = useCallback(async (ventaId: string) => {
+    setDetalles((d) => (d[ventaId] && d[ventaId] !== 'loading' ? d : { ...d, [ventaId]: 'loading' }));
+    const { data, error } = await (supabase as any)
+      .from('venta_lineas')
+      .select('id, cantidad, precio_unitario, subtotal, productos(sku, nombre)')
+      .eq('venta_id', ventaId);
+    if (error) { toast.error(`Detalle: ${error.message}`); setDetalles((d) => ({ ...d, [ventaId]: [] })); return; }
+    setDetalles((d) => ({
+      ...d,
+      [ventaId]: (data || []).map((l: any) => ({
+        id: l.id,
+        sku: l.productos?.sku || '—',
+        nombre: l.productos?.nombre || '—',
+        cantidad: Number(l.cantidad || 0),
+        precio_unitario: Number(l.precio_unitario || 0),
+        subtotal: Number(l.subtotal || 0),
+      })),
+    }));
+  }, []);
+
+  const toggleDetalle = (ventaId: string) => {
+    if (expandida === ventaId) { setExpandida(null); return; }
+    setExpandida(ventaId);
+    if (!detalles[ventaId] || detalles[ventaId] === 'loading') cargarDetalle(ventaId);
+  };
+
 
   // OJO: memoizado a propósito. Si `sucursalIds` se recalcula en cada render,
   // `load` (useCallback que lo tiene como dependencia) cambia de identidad en
@@ -218,6 +256,7 @@ const CorteCajaRutaPage = () => {
         <CardContent className="p-0">
           <Table>
             <TableHeader><TableRow>
+              <TableHead className="w-8"></TableHead>
               <TableHead>Folio</TableHead>
               <TableHead>Fecha</TableHead>
               {alcance === 'todas' && <TableHead>Sucursal</TableHead>}
@@ -226,20 +265,64 @@ const CorteCajaRutaPage = () => {
             </TableRow></TableHeader>
             <TableBody>
               {loading ? (
-                <TableRow><TableCell colSpan={5} className="text-center py-8">Cargando…</TableCell></TableRow>
+                <TableRow><TableCell colSpan={6} className="text-center py-8">Cargando…</TableCell></TableRow>
               ) : pendientes.length === 0 ? (
-                <TableRow><TableCell colSpan={5} className="text-center py-8 text-muted-foreground">Sin entregas pendientes.</TableCell></TableRow>
-              ) : pendientes.map((v) => (
-                <TableRow key={v.id}>
+                <TableRow><TableCell colSpan={6} className="text-center py-8 text-muted-foreground">Sin entregas pendientes.</TableCell></TableRow>
+              ) : pendientes.map((v) => {
+                const det = detalles[v.id];
+                const abierta = expandida === v.id;
+                return (
+                <Fragment key={v.id}>
+                <TableRow className="cursor-pointer" onClick={() => toggleDetalle(v.id)}>
+                  <TableCell>
+                    {abierta ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                  </TableCell>
                   <TableCell className="font-mono text-xs">{v.numero_venta || v.id.slice(0, 8)}</TableCell>
                   <TableCell className="text-xs">{new Date(v.fecha).toLocaleString('es-MX', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</TableCell>
                   {alcance === 'todas' && <TableCell className="text-xs">{nombreSucursal(v.sucursal_id)}</TableCell>}
                   <TableCell className="text-right font-medium">{money(v.total)}</TableCell>
                   <TableCell className="text-right">
-                    <Button size="sm" onClick={() => abrirConfirmacion(v)}>Confirmar entrega</Button>
+                    <Button size="sm" onClick={(e) => { e.stopPropagation(); abrirConfirmacion(v); }}>Confirmar entrega</Button>
                   </TableCell>
                 </TableRow>
-              ))}
+                {abierta && (
+                  <TableRow key={`${v.id}-det`} className="bg-muted/40 hover:bg-muted/40">
+                    <TableCell colSpan={alcance === 'todas' ? 6 : 5} className="p-3">
+                      {det === 'loading' || det === undefined ? (
+                        <p className="text-xs text-muted-foreground">Cargando artículos…</p>
+                      ) : det.length === 0 ? (
+                        <p className="text-xs text-muted-foreground">Esta venta no tiene artículos registrados.</p>
+                      ) : (
+                        <div className="space-y-1">
+                          <p className="text-xs font-medium mb-2">Mercancía que debe llevar ({det.reduce((s, l) => s + l.cantidad, 0)} pzas)</p>
+                          <Table>
+                            <TableHeader><TableRow>
+                              <TableHead className="h-8 text-xs">SKU</TableHead>
+                              <TableHead className="h-8 text-xs">Descripción</TableHead>
+                              <TableHead className="h-8 text-xs text-center">Cant.</TableHead>
+                              <TableHead className="h-8 text-xs text-right">P. Unit</TableHead>
+                              <TableHead className="h-8 text-xs text-right">Importe</TableHead>
+                            </TableRow></TableHeader>
+                            <TableBody>
+                              {det.map((l) => (
+                                <TableRow key={l.id}>
+                                  <TableCell className="font-mono text-xs">{l.sku}</TableCell>
+                                  <TableCell className="text-xs">{l.nombre}</TableCell>
+                                  <TableCell className="text-center text-xs font-medium">{l.cantidad}</TableCell>
+                                  <TableCell className="text-right text-xs">{money(l.precio_unitario)}</TableCell>
+                                  <TableCell className="text-right text-xs">{money(l.subtotal)}</TableCell>
+                                </TableRow>
+                              ))}
+                            </TableBody>
+                          </Table>
+                        </div>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                )}
+                </Fragment>
+              );})}
+
             </TableBody>
           </Table>
         </CardContent>
