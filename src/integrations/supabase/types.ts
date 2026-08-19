@@ -5961,6 +5961,7 @@ export type Database = {
           notas: string | null
           numero_venta: string
           origen: string
+          repartidor_id: string | null
           requiere_factura: boolean | null
           sincronizada_at: string | null
           subtotal: number
@@ -5989,6 +5990,7 @@ export type Database = {
           notas?: string | null
           numero_venta: string
           origen?: string
+          repartidor_id?: string | null
           requiere_factura?: boolean | null
           sincronizada_at?: string | null
           subtotal?: number
@@ -6017,6 +6019,7 @@ export type Database = {
           notas?: string | null
           numero_venta?: string
           origen?: string
+          repartidor_id?: string | null
           requiere_factura?: boolean | null
           sincronizada_at?: string | null
           subtotal?: number
@@ -6040,6 +6043,13 @@ export type Database = {
             columns: ["corte_id"]
             isOneToOne: false
             referencedRelation: "cortes_caja"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ventas_repartidor_id_fkey"
+            columns: ["repartidor_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
           {
@@ -6409,6 +6419,7 @@ export type Database = {
           p_cuenta_contable_id: string
           p_entidad_id: string
           p_entidad_tipo: string
+          p_venta_ids?: string[]
         }
         Returns: Json
       }
@@ -6552,10 +6563,14 @@ export type Database = {
           cliente_nombre: string
           dias_antiguedad: number
           dias_credito: number
+          dias_restantes: number
+          fecha_vencimiento: string
           limite_credito: number
+          notas_credito: number
           num_ventas: number
           rfc: string
           saldo: number
+          saldo_a_favor: number
           total_credito: number
           vencido: boolean
           venta_mas_antigua: string
