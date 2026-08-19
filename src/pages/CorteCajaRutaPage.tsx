@@ -193,7 +193,17 @@ const CorteCajaRutaPage = () => {
       }))
     );
     setLoading(false);
-  }, [sucursalKey, hoy]);
+  }, [sucursalKey, hoy, esRepartidor, user?.id]);
+
+  async function asignarRepartidor(ventaId: string, repartidorId: string) {
+    setAsignando(ventaId);
+    const { error } = await (supabase as any).from('ventas')
+      .update({ repartidor_id: repartidorId || null }).eq('id', ventaId);
+    setAsignando(null);
+    if (error) { toast.error(error.message); return; }
+    setPendientes((p) => p.map((v) => (v.id === ventaId ? { ...v, repartidor_id: repartidorId || null } : v)));
+    toast.success('Entrega asignada');
+  }
 
   useEffect(() => { load(); }, [load]);
 
