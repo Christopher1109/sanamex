@@ -135,9 +135,14 @@ const ConciliacionPage = () => {
     });
     setComprasSel(new Set());
     setComprasPendientes([]);
+    setVentasSel(new Set());
+    setVentasPendientes([]);
     setDialogEnviar(mov);
     if (entidadTipo === 'proveedor' && mov.proveedor_sugerido_id) {
       await cargarComprasPendientes(mov.proveedor_sugerido_id);
+    }
+    if (entidadTipo === 'cliente' && mov.cliente_sugerido_id) {
+      await cargarVentasPendientes(mov.cliente_sugerido_id);
     }
   }
 
@@ -154,6 +159,19 @@ const ConciliacionPage = () => {
     setComprasPendientes(conSaldo);
   }
 
+  async function cargarVentasPendientes(clienteId: string) {
+    if (!clienteId) { setVentasPendientes([]); return; }
+    const { data } = await (supabase as any).from('ventas')
+      .select('id, numero_venta, fecha, total, cxc_abonos(monto)')
+      .eq('cliente_id', clienteId).eq('tipo_venta', 'credito').neq('estado', 'cancelada')
+      .order('fecha', { ascending: true }).limit(200);
+    const conSaldo = (data || []).map((v: any) => {
+      const abonado = (v.cxc_abonos || []).reduce((s: number, a: any) => s + Number(a.monto), 0);
+      return { ...v, abonado, saldo: Number(v.total) - abonado };
+    }).filter((v: any) => v.saldo > 0.5);
+    setVentasPendientes(conSaldo);
+  }
+
   async function confirmarEnviar() {
     if (!dialogEnviar) return;
     if (!enviarForm.entidadId) { toast.error('Selecciona el cliente o proveedor'); return; }
@@ -167,10 +185,15 @@ const ConciliacionPage = () => {
       p_entidad_id: enviarForm.entidadId,
       p_cuenta_contable_id: enviarForm.cuentaContableId,
       p_compra_ids: enviarForm.entidadTipo === 'proveedor' && comprasSel.size ? Array.from(comprasSel) : null,
+      p_venta_ids: enviarForm.entidadTipo === 'cliente' && ventasSel.size ? Array.from(ventasSel) : null,
     });
     setEnviando(false);
     if (error) { toast.error(error.message); return; }
-    toast.success(`Póliza generada por $${Number(data?.monto || 0).toFixed(2)}`);
+    const sinAplicar = Number(data?.sin_aplicar || 0);
+    toast.success(
+      `Póliza generada por $${Number(data?.monto || 0).toFixed(2)}` +
+      (sinAplicar > 0.5 ? ` · $${sinAplicar.toFixed(2)} quedaron sin aplicar a documentos` : '')
+    );
     setDialogEnviar(null);
     load();
   }
