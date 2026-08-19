@@ -256,6 +256,7 @@ const CorteCajaRutaPage = () => {
         <CardContent className="p-0">
           <Table>
             <TableHeader><TableRow>
+              <TableHead className="w-8"></TableHead>
               <TableHead>Folio</TableHead>
               <TableHead>Fecha</TableHead>
               {alcance === 'todas' && <TableHead>Sucursal</TableHead>}
@@ -264,20 +265,64 @@ const CorteCajaRutaPage = () => {
             </TableRow></TableHeader>
             <TableBody>
               {loading ? (
-                <TableRow><TableCell colSpan={5} className="text-center py-8">Cargando…</TableCell></TableRow>
+                <TableRow><TableCell colSpan={6} className="text-center py-8">Cargando…</TableCell></TableRow>
               ) : pendientes.length === 0 ? (
-                <TableRow><TableCell colSpan={5} className="text-center py-8 text-muted-foreground">Sin entregas pendientes.</TableCell></TableRow>
-              ) : pendientes.map((v) => (
-                <TableRow key={v.id}>
+                <TableRow><TableCell colSpan={6} className="text-center py-8 text-muted-foreground">Sin entregas pendientes.</TableCell></TableRow>
+              ) : pendientes.map((v) => {
+                const det = detalles[v.id];
+                const abierta = expandida === v.id;
+                return (
+                <>
+                <TableRow key={v.id} className="cursor-pointer" onClick={() => toggleDetalle(v.id)}>
+                  <TableCell>
+                    {abierta ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                  </TableCell>
                   <TableCell className="font-mono text-xs">{v.numero_venta || v.id.slice(0, 8)}</TableCell>
                   <TableCell className="text-xs">{new Date(v.fecha).toLocaleString('es-MX', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</TableCell>
                   {alcance === 'todas' && <TableCell className="text-xs">{nombreSucursal(v.sucursal_id)}</TableCell>}
                   <TableCell className="text-right font-medium">{money(v.total)}</TableCell>
                   <TableCell className="text-right">
-                    <Button size="sm" onClick={() => abrirConfirmacion(v)}>Confirmar entrega</Button>
+                    <Button size="sm" onClick={(e) => { e.stopPropagation(); abrirConfirmacion(v); }}>Confirmar entrega</Button>
                   </TableCell>
                 </TableRow>
-              ))}
+                {abierta && (
+                  <TableRow key={`${v.id}-det`} className="bg-muted/40 hover:bg-muted/40">
+                    <TableCell colSpan={alcance === 'todas' ? 6 : 5} className="p-3">
+                      {det === 'loading' || det === undefined ? (
+                        <p className="text-xs text-muted-foreground">Cargando artículos…</p>
+                      ) : det.length === 0 ? (
+                        <p className="text-xs text-muted-foreground">Esta venta no tiene artículos registrados.</p>
+                      ) : (
+                        <div className="space-y-1">
+                          <p className="text-xs font-medium mb-2">Mercancía que debe llevar ({det.reduce((s, l) => s + l.cantidad, 0)} pzas)</p>
+                          <Table>
+                            <TableHeader><TableRow>
+                              <TableHead className="h-8 text-xs">SKU</TableHead>
+                              <TableHead className="h-8 text-xs">Descripción</TableHead>
+                              <TableHead className="h-8 text-xs text-center">Cant.</TableHead>
+                              <TableHead className="h-8 text-xs text-right">P. Unit</TableHead>
+                              <TableHead className="h-8 text-xs text-right">Importe</TableHead>
+                            </TableRow></TableHeader>
+                            <TableBody>
+                              {det.map((l) => (
+                                <TableRow key={l.id}>
+                                  <TableCell className="font-mono text-xs">{l.sku}</TableCell>
+                                  <TableCell className="text-xs">{l.nombre}</TableCell>
+                                  <TableCell className="text-center text-xs font-medium">{l.cantidad}</TableCell>
+                                  <TableCell className="text-right text-xs">{money(l.precio_unitario)}</TableCell>
+                                  <TableCell className="text-right text-xs">{money(l.subtotal)}</TableCell>
+                                </TableRow>
+                              ))}
+                            </TableBody>
+                          </Table>
+                        </div>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                )}
+                </>
+              );})}
+
             </TableBody>
           </Table>
         </CardContent>
