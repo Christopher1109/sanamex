@@ -37,6 +37,10 @@ const ConciliacionPage = () => {
   const [enviarForm, setEnviarForm] = useState({ entidadTipo: 'proveedor' as 'proveedor' | 'cliente', entidadId: '', cuentaContableId: '' });
   const [comprasPendientes, setComprasPendientes] = useState<any[]>([]);
   const [comprasSel, setComprasSel] = useState<Set<string>>(new Set());
+  // Cliente: ventas a crédito con saldo, para repartir el depósito conciliado
+  // entre varias de ellas (junta 15-ago-2026, punto 8).
+  const [ventasPendientes, setVentasPendientes] = useState<any[]>([]);
+  const [ventasSel, setVentasSel] = useState<Set<string>>(new Set());
   const [enviando, setEnviando] = useState(false);
 
   useEffect(() => {
