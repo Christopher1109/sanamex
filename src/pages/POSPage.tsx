@@ -164,6 +164,8 @@ const POSPage = () => {
   // Etiquetado fiscal: si el cliente pide factura, se marca urgente/mismo día
   // en Facturación; si no, la venta queda acumulable (público en general).
   const [requiereFactura, setRequiereFactura] = useState(false);
+  const [entregaDomicilio, setEntregaDomicilio] = useState(false);
+
   // Cobranza: una venta a crédito requiere cliente identificado (se cobra después
   // en Cuentas por Cobrar). De contado se cobra en caja al momento.
   //
@@ -548,8 +550,10 @@ const POSPage = () => {
       if (result?.sale_id) {
         const patch: Record<string, any> = { tipo_venta: tipoVenta };
         if (requiereFactura) patch.requiere_factura = true;
+        if (entregaDomicilio) patch.estatus_entrega = 'en_ruta';
         await (supabase as any).from('ventas').update(patch).eq('id', result.sale_id);
       }
+
 
       setSaleResult(result);
       setSuccessOpen(true);
@@ -557,6 +561,8 @@ const POSPage = () => {
       setEfectivoRecibido('');
       setNota('');
       setRequiereFactura(false);
+      setEntregaDomicilio(false);
+
       setTipoVenta('contado');
       setClienteId('');
       toast.success(`Venta ${result.numero_venta} completada${esCredito ? ' a crédito' : ''}`);
@@ -853,6 +859,25 @@ const POSPage = () => {
                     </span>
                   </label>
                 </div>
+
+                {/* Origen del canal de ruta: hasta ahora nada marcaba una venta
+                    como en_ruta, así que el módulo Corte de Caja — Ruta siempre
+                    salía vacío. Este checkbox es ese punto de partida. */}
+                <div className="flex items-center gap-2 rounded-md border p-3">
+                  <Checkbox
+                    id="entrega-domicilio"
+                    checked={entregaDomicilio}
+                    onCheckedChange={(v) => setEntregaDomicilio(v === true)}
+                  />
+                  <label htmlFor="entrega-domicilio" className="text-sm leading-tight cursor-pointer">
+                    Entrega a domicilio (sale a ruta)
+                    <span className="block text-xs text-muted-foreground">
+                      La venta queda pendiente de entrega y aparece en Corte de Caja — Ruta,
+                      donde el chofer confirma la entrega y el método de pago real.
+                    </span>
+                  </label>
+                </div>
+
 
                 <div>
                   <label className="text-sm font-medium text-muted-foreground">Nota (opcional)</label>

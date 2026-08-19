@@ -1,20 +1,3 @@
--- Junta SANAMEX 15-ago-2026, punto 3 (Corte de caja y ventas a domicilio) y
--- punto de acción explícito de Christopher Moreno: "Restringe el acceso de
--- cada chofer a sus propias órdenes y entregas asignadas".
---
--- Hallazgo: las políticas RLS actuales de `rutas` y `ruta_entregas` son
--- "Autenticados ven rutas/entregas ... USING (true)" — es decir, CUALQUIER
--- usuario autenticado (incluido un repartidor) puede ver TODAS las rutas y
--- entregas de TODAS las sucursales, no solo las suyas. Esta migración
--- restringe la lectura para el rol `repartidor` a sus propias rutas
--- (repartidor_id = auth.uid()) y a las entregas de esas rutas, sin tocar la
--- visibilidad de gerencia/almacén/administración, que sigue viendo todo.
---
--- No se tocan las políticas de INSERT/UPDATE (crear/actualizar rutas y
--- marcar entregas) porque los permisos de quién puede modificar qué
--- quedaron pendientes de una llamada aparte con Alejandro — ver
--- docs/SANAMEX_15ago2026_seguimiento.md, tabla de bloqueos.
-
 DROP POLICY IF EXISTS "Autenticados ven rutas" ON public.rutas;
 CREATE POLICY "Ver rutas segun rol" ON public.rutas
   FOR SELECT TO authenticated
